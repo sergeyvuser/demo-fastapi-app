@@ -2,7 +2,14 @@ import granian
 from fastapi import FastAPI
 from granian.constants import Interfaces
 
+from backend.api import router as api_router
+from backend.core.settings import settings
+
 app = FastAPI(title="Backend Service")
+app.include_router(
+    api_router,
+    prefix=settings.api.prefix,
+)
 
 
 if __name__ == "__main__":
