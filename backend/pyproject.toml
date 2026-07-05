@@ -7,7 +7,12 @@ authors = [
     { name = "sergeyv" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "fastapi>=0.139.0",
+    "granian>=2.7.9",
+    "pydantic-settings>=2.14.2",
+    "pydantic[email]>=2.13.4",
+]
 
 [project.scripts]
 backend = "backend:main"
