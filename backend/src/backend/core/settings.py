@@ -1,16 +1,10 @@
-import sys
 from pathlib import Path
 
 from loguru import logger
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
-logger.add(
-    sys.stderr, format="{time} {level} {message}", filter="my_module", level="INFO"
-)
-
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-logger.info(f"BASE_DIR Path: {BASE_DIR}")
 
 
 class DBConfig(BaseModel):
