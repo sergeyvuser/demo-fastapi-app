@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from granian.constants import Interfaces
 
 from backend.api import router as api_router
-from backend.core.settings import settings
+from backend.core.config import settings
 
 app = FastAPI(title="Backend Service")
 app.include_router(
