@@ -18,5 +18,5 @@ if __name__ == "__main__":
         address=settings.run.host,
         port=settings.run.port,
         interface=Interfaces.ASGI,
-        reload=True,  # reload for development
+        reload=settings.run.reload,  # reload for development
     ).serve()
