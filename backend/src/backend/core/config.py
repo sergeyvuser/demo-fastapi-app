@@ -1,8 +1,8 @@
 from pathlib import Path
 
 from loguru import logger
-from pydantic import BaseModel
-from pydantic_settings import BaseSettings
+from pydantic import BaseModel, PostgresDsn
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 
@@ -28,16 +28,24 @@ class PGAdminConfig(BaseModel):
 class RunConfig(BaseModel):
     host: str = "127.0.0.1"
     port: int = 8080
-    reload: bool = False
+    reload: bool = True
 
 
 class APIPrefixConfig(BaseModel):
-    prefix: str = "/api/v1"
+    prefix: str = "/api"
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=(".env.template", ".env"),
+        case_sensitive=False,
+        env_nested_delimiter="__",
+        env_prefix="APP_CONFIG__",
+    )
     run: RunConfig = RunConfig()
     api: APIPrefixConfig = APIPrefixConfig()
+    db: DBConfig
+    pgadmin: PGAdminConfig
 
 
 settings = Settings()
