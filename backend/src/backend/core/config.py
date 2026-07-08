@@ -16,6 +16,7 @@ class DBConfig(BaseModel):
     port: int
     echo: bool = False
     echo_pool: bool = False
+    pool_pre_ping: bool = False
     pool_size: int = 50
     max_overflow: int = 10
 
