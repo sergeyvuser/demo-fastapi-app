@@ -4,7 +4,9 @@ from loguru import logger
 from pydantic import BaseModel, PostgresDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
+ENV_TEMPLATE_PATH = ROOT_DIR / ".env.template"
+ENV_ACTUAL_PATH = ROOT_DIR / ".env"
 
 
 class DBConfig(BaseModel):
@@ -38,10 +40,12 @@ class APIPrefixConfig(BaseModel):
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(".env.template", ".env"),
+        env_file=(ENV_TEMPLATE_PATH, ENV_ACTUAL_PATH),
+        env_file_encoding="utf-8",
         case_sensitive=False,
         env_nested_delimiter="__",
         env_prefix="APP_CONFIG__",
+        extra="ignore",
     )
     run: RunConfig = RunConfig()
     api: APIPrefixConfig = APIPrefixConfig()
