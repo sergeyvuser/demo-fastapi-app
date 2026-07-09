@@ -10,10 +10,7 @@ app = FastAPI(
     title="Backend Service",
     lifespan=lifespan,
 )
-app.include_router(
-    api_router,
-    prefix=settings.api.prefix,
-)
+app.include_router(api_router)
 
 
 if __name__ == "__main__":
