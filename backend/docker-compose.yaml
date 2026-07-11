@@ -5,7 +5,7 @@ services:
     image: postgres:alpine
     environment:
       POSTGRES_DB: ${APP_CONFIG__DB__NAME:-fastapi_db}
-      POSTGRES_USER: ${APP_CONFIG__DB__USER}
+      POSTGRES_USER: ${APP_CONFIG__DB__USERNAME}
       POSTGRES_PASSWORD: ${APP_CONFIG__DB__PASSWORD}
     volumes:
       - pg_data:/var/lib/postgresql
