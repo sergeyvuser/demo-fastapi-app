@@ -9,17 +9,11 @@ ENV_TEMPLATE_PATH = ROOT_DIR / ".env.template"
 ENV_ACTUAL_PATH = ROOT_DIR / ".env"
 
 
-class DBConfig(BaseModel):
-    name: str
-    user: str
-    password: str
-    url: PostgresDsn
-    host: str
-    port: int
+class SQLAlchemyConfig(BaseModel):
     echo: bool = False
     echo_pool: bool = False
-    pool_pre_ping: bool = False
-    pool_size: int = 50
+    pool_pre_ping: bool = True
+    pool_size: int = 5
     max_overflow: int = 10
 
     naming_convention: dict[str, str] = {
