@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from loguru import logger
-from pydantic import BaseModel, PostgresDsn
+from pydantic import BaseModel, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy import URL
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
 ENV_TEMPLATE_PATH = ROOT_DIR / ".env.template"
@@ -25,9 +25,25 @@ class SQLAlchemyConfig(BaseModel):
     }
 
 
-class PGAdminConfig(BaseModel):
-    email: str
-    password: str
+class DBConfig(BaseModel):
+    name: str
+    username: str
+    password: SecretStr
+    host: str
+    port: int
+
+    sqla: SQLAlchemyConfig = SQLAlchemyConfig()
+
+    @property
+    def async_url(self) -> URL:
+        return URL.create(
+            drivername="postgresql+asyncpg",
+            username=self.username,
+            password=self.password.get_secret_value(),
+            host=self.host,
+            port=self.port,
+            database=self.name,
+        )
 
 
 class RunConfig(BaseModel):
