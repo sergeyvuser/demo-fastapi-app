@@ -13,8 +13,10 @@ dependencies = [
     "fastapi>=0.139.0",
     "granian[reload]>=2.7.9",
     "loguru>=0.7.3",
+    "pwdlib[argon2]>=0.3.0",
     "pydantic-settings>=2.14.2",
     "pydantic[email]>=2.13.4",
+    "pyjwt>=2.13.0",
     "sqlalchemy[asyncio]>=2.0.51",
 ]
 
