@@ -61,6 +61,13 @@ class APIPrefixConfig(BaseModel):
     v1: APIV1PrefixConfig = APIV1PrefixConfig()
 
 
+class AuthConfig(BaseModel):
+    secret_key: SecretStr
+    algorithm: str = "HS256"
+    access_token_ttl_minutes: int = 15
+    refresh_token_ttl_days: int = 7
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=ENV_PATH,
@@ -73,6 +80,7 @@ class Settings(BaseSettings):
     run: RunConfig = RunConfig()
     api: APIPrefixConfig = APIPrefixConfig()
     db: DBConfig
+    auth: AuthConfig
 
 
 settings = Settings()
