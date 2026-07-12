@@ -18,6 +18,10 @@ class UserCreate(UserBase):
     password: str = Field(min_length=8, max_length=128)
 
 
+class UserCreateInternal(UserBase):
+    hashed_password: str
+
+
 class UserRead(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
