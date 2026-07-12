@@ -51,8 +51,14 @@ class RunConfig(BaseModel):
     reload: bool = True
 
 
+class APIV1PrefixConfig(BaseModel):
+    prefix: str = "/v1"
+    users: str = "/users"
+
+
 class APIPrefixConfig(BaseModel):
     prefix: str = "/api"
+    v1: APIV1PrefixConfig = APIV1PrefixConfig()
 
 
 class Settings(BaseSettings):
