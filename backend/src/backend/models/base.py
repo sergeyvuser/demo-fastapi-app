@@ -9,7 +9,7 @@ class Base(DeclarativeBase):
     __abstract__ = True
 
     metadata = MetaData(
-        naming_convention=settings.db.naming_convention,
+        naming_convention=settings.db.sqla.naming_convention,
     )
 
     @declared_attr.directive
