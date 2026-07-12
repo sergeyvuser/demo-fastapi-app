@@ -4,4 +4,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 
 class IdUuidPkMixin:
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid7)
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True,
+        default=uuid.uuid7,
+        sort_order=-100,
+    )
