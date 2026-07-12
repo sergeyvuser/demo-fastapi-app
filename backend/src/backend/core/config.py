@@ -5,8 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
-ENV_TEMPLATE_PATH = ROOT_DIR / ".env.template"
-ENV_ACTUAL_PATH = ROOT_DIR / ".env"
+ENV_PATH = ROOT_DIR / ".env"
 
 
 class SQLAlchemyConfig(BaseModel):
@@ -58,7 +57,7 @@ class APIPrefixConfig(BaseModel):
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(ENV_TEMPLATE_PATH, ENV_ACTUAL_PATH),
+        env_file=ENV_PATH,
         env_file_encoding="utf-8",
         case_sensitive=False,
         env_nested_delimiter="__",
@@ -68,7 +67,6 @@ class Settings(BaseSettings):
     run: RunConfig = RunConfig()
     api: APIPrefixConfig = APIPrefixConfig()
     db: DBConfig
-    pgadmin: PGAdminConfig
 
 
 settings = Settings()
