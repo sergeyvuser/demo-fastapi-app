@@ -18,7 +18,7 @@ class BaseRepository(Generic[ModelT, CreateSchemaT, UpdateSchemaT]):
         self.session = session
 
     async def get_by_id(self, item_id: uuid.UUID | int) -> ModelT | None:
-        return self.session.get(self.model, item_id)
+        return await self.session.get(self.model, item_id)
 
     async def get_multi(self, skip: int = 0, limit: int = 100) -> Sequence[ModelT]:
         stmt = select(self.model).order_by(self.model.id).offset(skip).limit(limit)
