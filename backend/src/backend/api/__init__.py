@@ -1,3 +1,8 @@
-from fastapi import APIRouter
+"""
+APIs
+"""
 
-router = APIRouter()
+__all__ = [
+    "router",
+]
+from .api import router
