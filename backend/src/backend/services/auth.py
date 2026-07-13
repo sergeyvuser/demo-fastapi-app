@@ -52,7 +52,7 @@ class AuthService:
         return user
 
     async def login(
-        self, email: str, password: str, user_agen: str | None = None
+        self, email: str, password: str, user_agent: str | None = None
     ) -> TokenPair:
         user = await self.users.get_by_email(email)
         if user is None:
@@ -64,7 +64,8 @@ class AuthService:
             or not user.is_active
         ):
             raise InvalidCredentialsError
-        pair = await self._issue_pair(user.id, user_agen)
+        pair = await self._issue_pair(user.id, user_agent)
+        await self.session.commit()
         return pair
 
     async def refresh(
