@@ -1,7 +1,7 @@
 __all__ = [
     "AsyncSessionDep",
-    "settings",
+    "security",
 ]
 
-from .config import settings
+from . import security
 from .db import AsyncSessionDep
