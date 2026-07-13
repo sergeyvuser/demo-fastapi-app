@@ -54,10 +54,12 @@ class RunConfig(BaseModel):
 class APIV1PrefixConfig(BaseModel):
     prefix: str = "/v1"
     users: str = "/users"
+    auth: str = "/auth"
 
 
 class APIPrefixConfig(BaseModel):
     prefix: str = "/api"
+    login_path: str = "/login"
     v1: APIV1PrefixConfig = APIV1PrefixConfig()
 
 
