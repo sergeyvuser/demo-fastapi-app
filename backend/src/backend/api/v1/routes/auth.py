@@ -19,10 +19,7 @@ router = APIRouter(prefix=settings.api.v1.auth, tags=["Auth"])
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def register(data: UserCreate, session: AsyncSessionDep):
-    try:
-        return await AuthService(session).register(data)
-    except EmailAlreadyRegisteredError:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
+    return await AuthService(session).register(data)
 
 
 @router.post("/login", response_model=TokenPair)
@@ -31,26 +28,20 @@ async def login(
     session: AsyncSessionDep,
     request: Request,
 ):
-    try:
-        return await AuthService(
-            session
-        ).login(
-            email=form.username,  # в OAuth2-форме поле называется username, кладём туда email
-            password=form.password,
-            user_agent=request.headers.get("user-agent"),
-        )
-    except InvalidCredentialsError:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect email or password")
+    return await AuthService(
+        session
+    ).login(
+        email=form.username,  # в OAuth2-форме поле называется username, кладём туда email
+        password=form.password,
+        user_agent=request.headers.get("user-agent"),
+    )
 
 
 @router.post("/refresh", response_model=TokenPair)
 async def refresh(data: RefreshRequest, session: AsyncSessionDep, request: Request):
-    try:
-        return await AuthService(session).refresh(
-            data.refresh_token, user_agent=request.headers.get("user-agent")
-        )
-    except InvalidRefreshTokenError:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid refresh token")
+    return await AuthService(session).refresh(
+        data.refresh_token, user_agent=request.headers.get("user-agent")
+    )
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

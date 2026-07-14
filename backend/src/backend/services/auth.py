@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core import security
 from backend.core.config import settings
+from backend.core.exceptions import ConflictError, UnauthorizedError
 from backend.models.user import User
 from backend.repositories.refresh_token import RefreshTokenRepository
 from backend.repositories.user import UserRepository
@@ -12,20 +13,19 @@ from backend.schemas.auth import TokenPair
 from backend.schemas.user import UserCreate, UserCreateInternal
 
 
-class AuthError(Exception):
-    """Base class for auth exceptions."""
+class EmailAlreadyRegisteredError(ConflictError):
+    def __init__(self):
+        super().__init__("Email already registered")
 
 
-class EmailAlreadyRegisteredError(AuthError):
-    pass
+class InvalidCredentialsError(UnauthorizedError):
+    def __init__(self):
+        super().__init__("Incorrect email or password")
 
 
-class InvalidCredentialsError(AuthError):
-    pass
-
-
-class InvalidRefreshTokenError(AuthError):
-    pass
+class InvalidRefreshTokenError(UnauthorizedError):
+    def __init__(self):
+        super().__init__("Invalid refresh token")
 
 
 # Pre-calculated hash for response time alignment (see login)
