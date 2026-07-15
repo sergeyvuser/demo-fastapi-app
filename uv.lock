@@ -5,7 +5,7 @@ requires-python = ">=3.14"
 [manifest]
 members = [
     "backend",
-    "demo-fastapi-app",
+    "crypto-alerts-fastapi-app",
 ]
 
 [[package]]
@@ -233,7 +233,7 @@ wheels = [
 ]
 
 [[package]]
-name = "demo-fastapi-app"
+name = "crypto-alerts-fastapi-app"
 version = "0.1.0"
 source = { virtual = "." }
 
