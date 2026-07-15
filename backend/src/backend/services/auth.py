@@ -64,7 +64,7 @@ class AuthService:
             or not user.is_active
         ):
             raise InvalidCredentialsError
-        pair = await self._issue_pair(user.id, user_agent)
+        pair = await self._issue_pair(user_id=user.id, user_agent=user_agent)
         await self.session.commit()
         return pair
 
@@ -85,7 +85,7 @@ class AuthService:
         if token.expires_at <= now:
             raise InvalidRefreshTokenError
         await self.tokens.revoke(token)  # rotation: the old one goes out
-        pair = await self._issue_pair(token.user_id, user_agent)
+        pair = await self._issue_pair(user_id=token.user_id, user_agent=user_agent)
         await self.session.commit()
         return pair
 
@@ -97,14 +97,16 @@ class AuthService:
             await self.tokens.revoke(token)
             await self.session.commit()
 
-    async def _issue_pair(self, user_id: uuid.UUID, user_agen: str | None) -> TokenPair:
+    async def _issue_pair(
+        self, user_id: uuid.UUID, user_agent: str | None
+    ) -> TokenPair:
         raw_refresh = security.generate_refresh_token()
         await self.tokens.add(
             user_id=user_id,
             token_hash=security.hash_refresh_token(raw_refresh),
             expires_at=datetime.now(timezone.utc)
             + timedelta(days=settings.auth.refresh_token_ttl_days),
-            user_agent=user_agen,
+            user_agent=user_agent,
         )
         return TokenPair(
             access_token=security.create_access_token(user_id=user_id),
