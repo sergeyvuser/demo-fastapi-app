@@ -1,4 +1,5 @@
-from typing import Annotated, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Annotated
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import (
@@ -12,11 +13,11 @@ from backend.core.config import settings
 
 engine: AsyncEngine = create_async_engine(
     url=settings.db.async_url,
-    echo=settings.db.sqla.echo,  # log all statements
-    echo_pool=settings.db.sqla.echo_pool,  # the connection pool will log informational output such as when connections are invalidated
-    pool_pre_ping=settings.db.sqla.pool_pre_ping,  # the connection pool “pre-ping” feature that tests connections for liveness upon each checkout
-    pool_size=settings.db.sqla.pool_size,  # the number of connections to keep open inside the connection pool
-    max_overflow=settings.db.sqla.max_overflow,  # the number of connections to allow in connection pool “overflow”
+    echo=settings.db.sqla.echo,
+    echo_pool=settings.db.sqla.echo_pool,
+    pool_pre_ping=settings.db.sqla.pool_pre_ping,
+    pool_size=settings.db.sqla.pool_size,
+    max_overflow=settings.db.sqla.max_overflow,
 )
 
 AsyncSessionLocal = async_sessionmaker(
@@ -25,7 +26,7 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 
-async def get_async_db_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_async_db_session() -> AsyncGenerator[AsyncSession]:
     async with AsyncSessionLocal() as session:
         yield session
 
