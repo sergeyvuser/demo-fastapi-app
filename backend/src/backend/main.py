@@ -5,7 +5,7 @@ from backend.core.error_handlers import register_error_handlers
 from backend.core.lifespan import lifespan
 
 app = FastAPI(
-    title="Backend Service",
+    title="Crypto Alerts Backend Service",
     lifespan=lifespan,
 )
 register_error_handlers(app)
