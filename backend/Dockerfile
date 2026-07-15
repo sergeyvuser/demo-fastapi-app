@@ -8,12 +8,12 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY backend/pyproject.toml backend/pyproject.toml
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-workspace
+    uv sync --frozen --no-dev --no-install-workspace --package backend
 
 # слой 2: исходники — меняются часто, пересобирается только он
 COPY backend/ backend/
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+    uv sync --frozen --no-dev --package backend
 
 FROM python:3.14-slim-bookworm AS runtime
 RUN groupadd -r app && useradd -r -g app -d /app app
