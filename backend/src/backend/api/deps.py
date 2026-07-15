@@ -2,8 +2,9 @@ import uuid
 from typing import Annotated
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
+from redis.asyncio import Redis
 
 from backend.core import security
 from backend.core.db import AsyncSessionDep
@@ -39,3 +40,10 @@ async def get_current_user(
 
 
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
+
+
+def get_redis(request: Request) -> Redis:
+    return request.app.state.redis
+
+
+RedisDep = Annotated[Redis, Depends(get_redis)]
