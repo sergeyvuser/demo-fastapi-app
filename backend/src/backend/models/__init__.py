@@ -6,10 +6,10 @@ themselves in Base.metadata.
 """
 
 __all__ = [
-    "Base",
-    "User",
-    "RefreshToken",
     "Alert",
+    "Base",
+    "RefreshToken",
+    "User",
 ]
 
 from .alert import Alert

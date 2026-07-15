@@ -1,18 +1,13 @@
 import uuid
 from collections.abc import Sequence
-from typing import Generic, TypeVar
 
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+
 # ModelT — for SQLAlchemy, CreateSchemaT/UpdateSchemaT — for Pydantic
-ModelT = TypeVar("ModelT")
-CreateSchemaT = TypeVar("CreateSchemaT", bound=BaseModel)
-UpdateSchemaT = TypeVar("UpdateSchemaT", bound=BaseModel)
-
-
-class BaseRepository(Generic[ModelT, CreateSchemaT, UpdateSchemaT]):
+class BaseRepository[ModelT, CreateSchemaT: BaseModel, UpdateSchemaT: BaseModel]:
     def __init__(self, model: type[ModelT], session: AsyncSession):
         self.model = model
         self.session = session

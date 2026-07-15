@@ -6,8 +6,8 @@ stable position (id first, timestamps last) in every table.
 
 __all__ = [
     "IdIntPkMixin",
-    "TimestampsMixin",
     "IdUuidPkMixin",
+    "TimestampsMixin",
 ]
 
 from .id_int_pk import IdIntPkMixin

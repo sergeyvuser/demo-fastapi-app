@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -76,7 +76,7 @@ class AuthService:
         )
         if token is None:
             raise InvalidRefreshTokenError
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if token.revoked_at is not None:
             # A revoked token was presented again => leak; revoke the entire session family
             await self.tokens.revoke_all_for_user(token.user_id)
@@ -104,7 +104,7 @@ class AuthService:
         await self.tokens.add(
             user_id=user_id,
             token_hash=security.hash_refresh_token(raw_refresh),
-            expires_at=datetime.now(timezone.utc)
+            expires_at=datetime.now(UTC)
             + timedelta(days=settings.auth.refresh_token_ttl_days),
             user_agent=user_agent,
         )
