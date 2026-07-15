@@ -9,7 +9,7 @@ from backend.models.alert import AlertCondition, AlertStatus
 
 Symbol = Annotated[
     str,
-    StringConstraints(to_upper=True, pattern=r"^[A-Z0-9]{5,20}$"),
+    StringConstraints(to_upper=True, pattern=r"^[a-zA-Z0-9]{5,20}$"),
 ]
 Threshold = Annotated[
     Decimal,
