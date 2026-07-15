@@ -1,5 +1,8 @@
-"""
-SQLAlchemy models
+"""SQLAlchemy ORM models.
+
+Every model MUST be imported (re-exported) here: Alembic autogenerate
+only sees tables whose modules were executed and thus registered
+themselves in Base.metadata.
 """
 
 __all__ = [

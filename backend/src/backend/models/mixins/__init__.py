@@ -1,3 +1,9 @@
+"""Reusable declarative mixins (primary keys, timestamps).
+
+Column definitions here use sort_order so that mixed-in columns keep a
+stable position (id first, timestamps last) in every table.
+"""
+
 __all__ = [
     "IdIntPkMixin",
     "TimestampsMixin",
