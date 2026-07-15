@@ -78,7 +78,8 @@ class AuthService:
             raise InvalidRefreshTokenError
         now = datetime.now(UTC)
         if token.revoked_at is not None:
-            # A revoked token was presented again => leak; revoke the entire session family
+            # A revoked token was presented again => it leaked;
+            # revoke the entire session family
             await self.tokens.revoke_all_for_user(token.user_id)
             await self.session.commit()
             raise InvalidRefreshTokenError

@@ -2,7 +2,10 @@ from typing import ClassVar
 
 
 class AppError(Exception):
-    """Base domain exception for all app errors. Services throw its subclasses, HTTP layer renders."""
+    """Base domain exception.
+
+    Services raise its subclasses; the HTTP layer renders them.
+    """
 
     status_code: int = 500
     title: str = "Internal Server Error"

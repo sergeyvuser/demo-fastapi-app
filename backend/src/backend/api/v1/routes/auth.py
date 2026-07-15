@@ -23,10 +23,9 @@ async def login(
     session: AsyncSessionDep,
     request: Request,
 ):
-    return await AuthService(
-        session
-    ).login(
-        email=form.username,  # OAuth2 form names this field "username"; we pass the email in it
+    return await AuthService(session).login(
+        # OAuth2 form names this field "username"; we pass the email in it
+        email=form.username,
         password=form.password,
         user_agent=request.headers.get("user-agent"),
     )
