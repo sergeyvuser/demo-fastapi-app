@@ -1,6 +1,3 @@
-from typing import ClassVar
-
-
 class AppError(Exception):
     """Base domain exception.
 
@@ -9,10 +6,12 @@ class AppError(Exception):
 
     status_code: int = 500
     title: str = "Internal Server Error"
-    headers: ClassVar[dict[str, str] | None] = None
 
-    def __init__(self, detail: str | None = None):
+    def __init__(
+        self, detail: str | None = None, headers: dict[str, str] | None = None
+    ):
         self.detail = detail
+        self.headers = headers
         super().__init__(detail or self.title)
 
 
@@ -29,4 +28,6 @@ class ConflictError(AppError):
 class UnauthorizedError(AppError):
     status_code = 401
     title = "Unauthorized"
-    headers: ClassVar[dict[str, str]] = {"WWW-Authenticate": "Bearer"}
+
+    def __init__(self, detail: str | None = None):
+        super().__init__(detail, headers={"WWW-Authenticate": "Bearer"})
