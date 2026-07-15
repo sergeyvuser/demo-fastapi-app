@@ -64,11 +64,26 @@ class APIPrefixConfig(BaseModel):
     v1: APIV1PrefixConfig = APIV1PrefixConfig()
 
 
+class RedisConfig(BaseModel):
+    host: str = "127.0.0.1"
+    port: int = 6379
+    db: int = 0
+
+    @property
+    def url(self) -> str:
+        return f"redis://{self.host}:{self.port}/{self.db}"
+
+
 class AuthConfig(BaseModel):
     secret_key: SecretStr
     algorithm: str = "HS256"
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 7
+    # rate limiting
+    login_rate_limit: int = 5
+    login_rate_window_seconds: int = 60
+    register_rate_limit: int = 3
+    register_rate_window_seconds: int = 300
 
 
 class Settings(BaseSettings):
@@ -84,6 +99,7 @@ class Settings(BaseSettings):
     api: APIPrefixConfig = APIPrefixConfig()
     db: DBConfig
     auth: AuthConfig
+    redis: RedisConfig = RedisConfig()
 
 
 settings = Settings()

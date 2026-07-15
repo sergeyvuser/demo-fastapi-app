@@ -60,6 +60,7 @@ services:
     env_file: .env
     environment:
       APP_CONFIG__DB__HOST: db
+      APP_CONFIG__REDIS__HOST: redis
       APP_CONFIG__RUN__HOST: 0.0.0.0
       APP_CONFIG__RUN__RELOAD: "0"
     ports:
