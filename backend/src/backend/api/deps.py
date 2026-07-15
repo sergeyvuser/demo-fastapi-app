@@ -31,7 +31,7 @@ async def get_current_user(
         payload = security.decode_access_token(token)
         user_id = uuid.UUID(payload["sub"])
     except jwt.InvalidTokenError, KeyError, ValueError:
-        raise _credentials_exc
+        raise _credentials_exc from None
     user = await UserRepository(session=session).get_by_id(user_id)
     if user is None or not user.is_active:
         raise _credentials_exc
