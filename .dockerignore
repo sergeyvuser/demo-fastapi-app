@@ -5,4 +5,3 @@
 **/*.pyc
 .ruff_cache
 .env
-.env.template
