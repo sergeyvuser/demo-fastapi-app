@@ -10,7 +10,7 @@ install: ## Синхронизировать зависимости всего w
 	uv sync
 
 run: ## Запустить API-сервер
-	cd $(BACKEND) && uv run python -m backend.main
+	cd $(BACKEND) && uv run python -m backend.run
 
 lint: ## Проверка ruff
 	uv run ruff check $(BACKEND)/src
