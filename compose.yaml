@@ -63,7 +63,7 @@ services:
       APP_CONFIG__RUN__HOST: 0.0.0.0
       APP_CONFIG__RUN__RELOAD: "0"
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8000:8080"
     depends_on:
       migrate:
         condition: service_completed_successfully
