@@ -26,7 +26,7 @@ async def login(
     return await AuthService(
         session
     ).login(
-        email=form.username,  # в OAuth2-форме поле называется username, кладём туда email
+        email=form.username,  # OAuth2 form names this field "username"; we pass the email in it
         password=form.password,
         user_agent=request.headers.get("user-agent"),
     )
