@@ -7,12 +7,7 @@ from backend.core import AsyncSessionDep
 from backend.core.config import settings
 from backend.schemas.auth import RefreshRequest, TokenPair
 from backend.schemas.user import UserCreate, UserRead
-from backend.services.auth import (
-    AuthService,
-    EmailAlreadyRegisteredError,
-    InvalidCredentialsError,
-    InvalidRefreshTokenError,
-)
+from backend.services.auth import AuthService
 
 router = APIRouter(prefix=settings.api.v1.auth, tags=["Auth"])
 
