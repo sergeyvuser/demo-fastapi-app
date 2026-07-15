@@ -46,6 +46,9 @@ class AlertService:
             raise AlertNotFoundError
         return alert
 
+    async def list(self, user_id: uuid.UUID, **filters):
+        return await self.alerts.list_for_user(user_id=user_id, **filters)
+
     async def update(
         self, alert_id: uuid.UUID, user_id: uuid.UUID, data: AlertUpdate
     ) -> Alert:
