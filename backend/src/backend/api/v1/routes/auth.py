@@ -3,8 +3,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from backend.core import AsyncSessionDep
 from backend.core.config import settings
+from backend.core.db import AsyncSessionDep
 from backend.schemas.auth import RefreshRequest, TokenPair
 from backend.schemas.user import UserCreate, UserRead
 from backend.services.auth import AuthService

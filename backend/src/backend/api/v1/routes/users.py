@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 
 from backend.api.deps import CurrentUserDep
-from backend.core import AsyncSessionDep
 from backend.core.config import settings
+from backend.core.db import AsyncSessionDep
 from backend.repositories.user import UserRepository
 from backend.schemas.user import UserRead
 
