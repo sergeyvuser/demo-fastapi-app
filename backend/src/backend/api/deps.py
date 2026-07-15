@@ -6,7 +6,6 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
 from backend.core import security
-from backend.core.config import settings
 from backend.core.db import AsyncSessionDep
 from backend.models import User
 from backend.repositories.user import UserRepository

@@ -1,10 +1,10 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter
 
 from backend.api.deps import CurrentUserDep
 from backend.core import AsyncSessionDep
 from backend.core.config import settings
 from backend.repositories.user import UserRepository
-from backend.schemas.user import UserCreate, UserRead
+from backend.schemas.user import UserRead
 
 router = APIRouter(
     prefix=settings.api.v1.users,
