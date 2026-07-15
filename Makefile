@@ -18,11 +18,20 @@ lint: ## Проверка ruff
 format: ## Форматирование ruff
 	uv run ruff format $(BACKEND)/src
 
-db-up: ## Поднять postgres (+pgadmin) в docker
-	docker compose -f $(BACKEND)/docker-compose.yaml up -d
+up: ## Поднять postgres (+pgadmin) в docker
+	docker compose up -d --build
 
-db-down: ## Остановить docker-сервисы
-	docker compose -f $(BACKEND)/docker-compose.yaml down
+down: ## Остановить docker-сервисы
+	docker compose down
+
+dev: ## Стек с live-reload по правкам src/
+	docker compose up --build --watch
+
+logs: ## Логи API
+	docker compose logs -f api
+
+db-up: ## Только инфраструктура (db, redis, rabbitmq)
+	docker compose up -d db redis rabbitmq
 
 migration: ## Новая autogenerate-миграция: make migration m="сообщение"
 	@test -n "$(m)" || (echo 'использование: make migration m="сообщение"'; exit 1)
