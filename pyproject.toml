@@ -29,3 +29,6 @@ select = [
     "ASYNC", # async pitfalls: blocking calls in async code
     "RUF", # ruff-specific
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"backend/src/backend/alembic/versions/*" = ["E501"]
