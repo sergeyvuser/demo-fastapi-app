@@ -1,10 +1,7 @@
 import uuid
-from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.core import security
-from backend.core.config import settings
 from backend.core.exceptions import ConflictError, NotFoundError
 from backend.models import Alert
 from backend.repositories.alert import AlertRepository
