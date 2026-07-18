@@ -21,6 +21,7 @@ dependencies = [
     "redis[hiredis]>=8.0.1",
     "sqlalchemy[asyncio]>=2.0.51",
     "shared",
+    "faststream[cli]>=0.7.2",
 ]
 
 [tool.uv.sources]
