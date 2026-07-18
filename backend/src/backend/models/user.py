@@ -1,4 +1,4 @@
-from sqlalchemy import String
+from sqlalchemy import BigInteger, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -12,6 +12,8 @@ class User(IdUuidPkMixin, TimestampsMixin, Base):
 
     is_active: Mapped[bool] = mapped_column(default=True, server_default="true")
     is_superuser: Mapped[bool] = mapped_column(default=False, server_default="false")
+
+    telegram_chat_id: Mapped[int | None] = mapped_column(BigInteger)
 
     def __repr__(self) -> str:
         return f"User(id={self.id!r}, username={self.username!r})"
