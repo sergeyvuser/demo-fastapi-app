@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 BACKEND := backend
 
-.PHONY: help install run evaluator format up down dev logs db-up tools tools-down migration migrate migrate-down migrate-check
+.PHONY: help install run evaluator format up down reset dev logs db-up tools tools-down migration migrate migrate-down migrate-check
 
 help: ## Показать доступные команды
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -21,11 +21,18 @@ lint: ## Проверка ruff
 format: ## Форматирование ruff
 	uv run ruff format $(BACKEND)/src
 
-up: ## Поднять postgres (+pgadmin) в docker
+up: ## Поднять postgres в docker
 	docker compose up -d --build
 
-down: ## Остановить docker-сервисы
+down: ## Остановить docker-сервисы (but not tools like pgadmin)
 	docker compose down
+
+all-down: ## Down with optional tooling
+	docker compose --profile tools down
+
+reset: ## DESTROY volumes and start fresh (db data will be lost!)
+	docker compose down -v
+	docker compose up -d --build
 
 dev: ## Стек с live-reload по правкам src/
 	docker compose up --build --watch
@@ -37,10 +44,7 @@ db-up: ## Только инфраструктура (db, redis, rabbitmq)
 	docker compose up -d db redis rabbitmq
 
 tools: ## Start optional tooling (pgadmin)
-	docker compose --profile tools up -d
-
-tools-down: ## Down with optional tooling
-	docker compose --profile tools down
+	docker compose up -d pgadmin
 
 migration: ## Новая autogenerate-миграция: make migration m="сообщение"
 	@test -n "$(m)" || (echo 'использование: make migration m="сообщение"'; exit 1)
