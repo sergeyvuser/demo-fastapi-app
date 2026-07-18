@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 BACKEND := backend
 
-.PHONY: help install run lint format up down dev logs db-up tools tools-down migration migrate migrate-down migrate-check
+.PHONY: help install run evaluator format up down dev logs db-up tools tools-down migration migrate migrate-down migrate-check
 
 help: ## Показать доступные команды
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -11,6 +11,9 @@ install: ## Синхронизировать зависимости всего w
 
 run: ## Запустить API-сервер
 	cd $(BACKEND) && uv run python -m backend.run
+
+evaluator: ## Run the alert evaluator (FastStream consumer)
+	cd $(BACKEND) && uv run faststream run backend.consumers.app:app
 
 lint: ## Проверка ruff
 	uv run ruff check $(BACKEND)/src
