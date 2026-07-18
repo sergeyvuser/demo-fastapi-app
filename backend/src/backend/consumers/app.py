@@ -40,8 +40,9 @@ async def startup() -> None:
     _price_cache = PriceCache(redis)
 
 
-@app.on_startup
+@app.after_startup
 async def declare_alerts_topology() -> None:
+    # requires a live broker connection
     # The alerts exchange is ours to publish into, but no subscriber in
     # this process declares it. Declare exchange + queue + binding
     # explicitly so triggered alerts are retained even while the
