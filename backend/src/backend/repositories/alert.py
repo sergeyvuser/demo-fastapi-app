@@ -50,3 +50,11 @@ class AlertRepository(BaseRepository[Alert, AlertCreateInternal, AlertUpdate]):
             .where(Alert.user_id == user_id, Alert.status != AlertStatus.TRIGGERED)
         )
         return await self.session.scalar(stmt) or 0
+
+    async def get_active_for_symbol(self, symbol: str) -> Sequence[Alert]:
+        stmt = select(Alert).where(
+            Alert.symbol == symbol,
+            Alert.status == AlertStatus.ACTIVE,
+        )
+        result = await self.session.scalars(stmt)
+        return result.all()

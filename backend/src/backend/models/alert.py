@@ -2,12 +2,16 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Index, Numeric, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
 from .mixins import IdUuidPkMixin, TimestampsMixin
+
+if TYPE_CHECKING:
+    from .user import User
 
 
 class AlertCondition(StrEnum):
@@ -26,6 +30,7 @@ class Alert(IdUuidPkMixin, TimestampsMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         index=True,
     )
+    user: Mapped[User] = relationship(lazy="select")
     symbol: Mapped[str] = mapped_column(String(20))
     condition: Mapped[AlertCondition] = mapped_column(
         Enum(
