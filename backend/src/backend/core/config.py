@@ -75,6 +75,17 @@ class RedisConfig(BaseModel):
         return f"redis://{self.host}:{self.port}/{self.db}"
 
 
+class RabbitMQConfig(BaseModel):
+    host: str = "127.0.0.1"
+    port: int = 5672
+    username: str = "rabbit"
+    password: SecretStr
+
+    @property
+    def url(self) -> str:
+        return f"amqp://{self.username}:{self.password.get_secret_value()}@{self.host}:{self.port}/"
+
+
 class AuthConfig(BaseModel):
     secret_key: SecretStr
     algorithm: str = "HS256"
@@ -101,6 +112,7 @@ class Settings(BaseSettings):
     db: DBConfig
     auth: AuthConfig
     redis: RedisConfig = RedisConfig()
+    rabbitmq: RabbitMQConfig
 
 
 settings = Settings()
