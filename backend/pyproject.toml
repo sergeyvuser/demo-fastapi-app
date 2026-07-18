@@ -20,7 +20,11 @@ dependencies = [
     "python-multipart>=0.0.32",
     "redis[hiredis]>=8.0.1",
     "sqlalchemy[asyncio]>=2.0.51",
+    "shared",
 ]
+
+[tool.uv.sources]
+shared = { workspace = true }
 
 [project.scripts]
 backend = "backend.run:start"

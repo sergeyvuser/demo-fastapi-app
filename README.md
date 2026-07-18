@@ -102,7 +102,7 @@ Conventions:
     3. Alerts domain: CRUD, ownership, pagination, RFC 9457 errors
 - [x] 
     4. Docker: multi-stage uv image, full compose with one-shot migrate
-- [ ] 
+- [x] 
     5. Redis: price cache, login rate limiting
 - [ ] 
     6. RabbitMQ + FastStream: ingestor / evaluator / notifier
