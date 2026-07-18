@@ -30,7 +30,7 @@ class Alert(IdUuidPkMixin, TimestampsMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         index=True,
     )
-    user: Mapped[User] = relationship(lazy="select")
+    user: Mapped[User] = relationship(lazy="selectin")
     symbol: Mapped[str] = mapped_column(String(20))
     condition: Mapped[AlertCondition] = mapped_column(
         Enum(
