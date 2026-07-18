@@ -8,7 +8,12 @@ from faststream import FastStream
 from faststream.rabbit import RabbitBroker
 from loguru import logger
 from redis.asyncio import Redis
-from shared.broker import ALERTS_EXCHANGE, TICKS_EVALUATOR_QUEUE, TICKS_EXCHANGE
+from shared.broker import (
+    ALERTS_EXCHANGE,
+    ALERTS_TRIGGERED_QUEUE,
+    TICKS_EVALUATOR_QUEUE,
+    TICKS_EXCHANGE,
+)
 from shared.events import TickEvent
 
 from backend.core.config import settings
@@ -33,6 +38,17 @@ async def startup() -> None:
     )
     await redis.ping()
     _price_cache = PriceCache(redis)
+
+
+@app.on_startup
+async def declare_alerts_topology() -> None:
+    # The alerts exchange is ours to publish into, but no subscriber in
+    # this process declares it. Declare exchange + queue + binding
+    # explicitly so triggered alerts are retained even while the
+    # notifier service does not exist / is down.
+    exchange = await broker.declare_exchange(ALERTS_EXCHANGE)
+    queue = await broker.declare_queue(ALERTS_TRIGGERED_QUEUE)
+    await queue.bind(exchange, routing_key="alert.triggered")
 
 
 @broker.subscriber(TICKS_EVALUATOR_QUEUE, TICKS_EXCHANGE)
