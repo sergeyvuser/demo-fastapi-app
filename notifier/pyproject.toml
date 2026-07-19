@@ -1,0 +1,27 @@
+[project]
+name = "notifier"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "sergeyv" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "faststream[cli,rabbit]>=0.7.2",
+    "httpx>=0.28.1",
+    "loguru>=0.7.3",
+    "pydantic-settings>=2.14.2",
+    "redis[hiredis]>=8.0.1",
+    "shared",
+]
+
+[tool.uv.sources]
+shared = { workspace = true }
+
+[project.scripts]
+notifier = "notifier:main"
+
+[build-system]
+requires = ["uv_build>=0.9.7,<0.10.0"]
+build-backend = "uv_build"

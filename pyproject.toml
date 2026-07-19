@@ -9,6 +9,7 @@ members = [
     "backend",
     "shared",
     "ingestor",
+    "notifier",
 ]
 
 [dependency-groups]
