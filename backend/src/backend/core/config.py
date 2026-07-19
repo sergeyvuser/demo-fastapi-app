@@ -2,6 +2,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from shared.config import RabbitMQConfig
 from sqlalchemy import URL
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
@@ -73,17 +74,6 @@ class RedisConfig(BaseModel):
     @property
     def url(self) -> str:
         return f"redis://{self.host}:{self.port}/{self.db}"
-
-
-class RabbitMQConfig(BaseModel):
-    host: str = "127.0.0.1"
-    port: int = 5672
-    username: str = "rabbit"
-    password: SecretStr
-
-    @property
-    def url(self) -> str:
-        return f"amqp://{self.username}:{self.password.get_secret_value()}@{self.host}:{self.port}/"
 
 
 class AuthConfig(BaseModel):
