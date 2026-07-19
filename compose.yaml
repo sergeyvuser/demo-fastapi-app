@@ -44,6 +44,13 @@ services:
       timeout: 5s
       retries: 10
 
+  mailpit:
+    image: axllent/mailpit
+    profiles: [ tools ]
+    ports:
+      - "127.0.0.1:1025:1025"   # SMTP — сюда приложение шлёт письма
+      - "127.0.0.1:8025:8025"   # Web UI — здесь ты их читаешь
+
   migrate:
     build:
       context: .
