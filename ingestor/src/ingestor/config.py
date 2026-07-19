@@ -1,9 +1,8 @@
 from pathlib import Path
 
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from shared.config import RabbitMQConfig
-from sqlalchemy import URL
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 ENV_PATH = ROOT_DIR.parent / ".env"
