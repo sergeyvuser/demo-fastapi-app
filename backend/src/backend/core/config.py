@@ -2,7 +2,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from shared.config import RabbitMQConfig
+from shared.config import RabbitMQConfig, RedisConfig
 from sqlalchemy import URL
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
@@ -64,16 +64,6 @@ class APIPrefixConfig(BaseModel):
     prefix: str = "/api"
     login_path: str = "/login"
     v1: APIV1PrefixConfig = APIV1PrefixConfig()
-
-
-class RedisConfig(BaseModel):
-    host: str = "127.0.0.1"
-    port: int = 6379
-    db: int = 0
-
-    @property
-    def url(self) -> str:
-        return f"redis://{self.host}:{self.port}/{self.db}"
 
 
 class AuthConfig(BaseModel):
