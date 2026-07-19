@@ -6,8 +6,8 @@ BACKEND := backend
 help: ## Показать доступные команды
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
-install: ## Синхронизировать зависимости всего workspace
-	uv sync
+install: ## Sync all workspace members into the shared venv
+	uv sync --all-packages
 
 run: ## Запустить API-сервер
 	cd $(BACKEND) && uv run python -m backend.run
