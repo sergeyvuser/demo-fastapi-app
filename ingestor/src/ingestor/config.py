@@ -7,7 +7,6 @@ from sqlalchemy import URL
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 ENV_PATH = ROOT_DIR.parent / ".env"
-print(ENV_PATH)
 
 
 class StreamConfig(BaseModel):

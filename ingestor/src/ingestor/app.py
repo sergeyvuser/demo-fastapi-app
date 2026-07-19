@@ -16,24 +16,40 @@ _pump_task: asyncio.Task[None] | None = None
 
 
 async def _pump() -> None:
-    async for tick in stream_ticks(
-        settings.stream.ws_url,
-        settings.stream.symbols,
-        settings.stream.reconnect_delay_seconds,
-    ):
-        await broker.publish(
-            tick.model_dump(mode="json"),
-            exchange=TICKS_EXCHANGE,
-            routing_key=tick.symbol,
-        )
+    """Pump ticks into the broker; survives ANY failure by restarting.
+
+    Bybit WS drops are handled inside stream_ticks; this outer loop
+    covers everything else (AMQP outage first of all). CancelledError
+    is BaseException and passes through — shutdown still works.
+    """
+    while True:
+        try:
+            async for tick in stream_ticks(
+                settings.stream.ws_url,
+                settings.stream.symbols,
+                settings.stream.reconnect_delay_seconds,
+            ):
+                await broker.publish(
+                    tick.model_dump(mode="json"),
+                    exchange=TICKS_EXCHANGE,
+                    routing_key=tick.symbol,
+                )
+        except Exception:
+            logger.exception("tick pump crashed; restart in 5s")
+            await asyncio.sleep(5)
 
 
 @app.after_startup
 async def start_pump() -> None:
     global _pump_task
     await broker.declare_exchange(TICKS_EXCHANGE)
-    _pump_task = asyncio.create_task(_pump())
-    logger.info("tick pump started")
+    _pump_task = asyncio.create_task(_pump(), name="tick-pump")
+    _pump_task.add_done_callback(_log_pump_exit)
+
+
+def _log_pump_exit(task: asyncio.Task[None]) -> None:
+    if not task.cancelled() and task.exception() is not None:
+        logger.error("tick pump task exited unexpectedly: {!r}", task.exception())
 
 
 @app.on_shutdown
