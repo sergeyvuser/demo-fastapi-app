@@ -44,7 +44,7 @@ db-up: ## Только инфраструктура (db, redis, rabbitmq)
 	docker compose up -d db redis rabbitmq
 
 tools: ## Start optional tooling (pgadmin)
-	docker compose up -d pgadmin
+	docker compose up -d pgadmin mailpit
 
 migration: ## Новая autogenerate-миграция: make migration m="сообщение"
 	@test -n "$(m)" || (echo 'использование: make migration m="сообщение"'; exit 1)
