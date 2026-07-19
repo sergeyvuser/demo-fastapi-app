@@ -29,12 +29,15 @@ services:
 
   rabbitmq:
     image: rabbitmq:4-management-alpine
+    hostname: rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: ${APP_CONFIG__RABBITMQ__USERNAME}
       RABBITMQ_DEFAULT_PASS: ${APP_CONFIG__RABBITMQ__PASSWORD}
     ports:
       - "127.0.0.1:5672:5672"
       - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
       test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
       interval: 10s
@@ -92,3 +95,4 @@ services:
 
 volumes:
   pg_data:
+  rabbitmq_data:
