@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 BACKEND := backend
 
-.PHONY: help install run evaluator format up down reset dev logs db-up tools tools-down migration migrate migrate-down migrate-check
+.PHONY: help install run evaluator ingestor format up down reset dev logs db-up tools tools-down migration migrate migrate-down migrate-check
 
 help: ## Показать доступные команды
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -14,6 +14,9 @@ run: ## Запустить API-сервер
 
 evaluator: ## Run the alert evaluator (FastStream consumer)
 	cd $(BACKEND) && uv run faststream run backend.consumers.app:app
+
+ingestor: ## Run the Bybit tick ingestor
+	cd ingestor && uv run faststream run ingestor.app:app
 
 lint: ## Проверка ruff
 	uv run ruff check $(BACKEND)/src
