@@ -19,10 +19,20 @@ TICKS_EVALUATOR_QUEUE = RabbitQueue(
     arguments=_TICKS_QUEUE_ARGS,
 )
 
+# Dead-lettering: messages rejected by the notifier (requeue=False) are
+# routed by the broker itself into the DLX and land in the dead queue
+# for human inspection. Fanout: every dead message goes there, no keys.
+ALERTS_DLX = RabbitExchange("alerts.dlx", type=ExchangeType.FANOUT, durable=True)
+
+ALERTS_DEAD_QUEUE = RabbitQueue("alerts.triggered.dead", durable=True)
+
+_ALERTS_QUEUE_ARGS: ClassicQueueArgs = {"x-dead-letter-exchange": "alerts.dlx"}
+
 # Triggered alerts are NOT ephemeral: if the notifier is down, they must
 # wait for it. Durable queue, no TTL.
 ALERTS_TRIGGERED_QUEUE = RabbitQueue(
     "alerts.triggered",
     routing_key="alert.triggered",
     durable=True,
+    arguments=_ALERTS_QUEUE_ARGS,
 )
