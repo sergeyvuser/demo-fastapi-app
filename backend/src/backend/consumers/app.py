@@ -9,6 +9,8 @@ from faststream.rabbit import RabbitBroker
 from loguru import logger
 from redis.asyncio import Redis
 from shared.broker import (
+    ALERTS_DEAD_QUEUE,
+    ALERTS_DLX,
     ALERTS_EXCHANGE,
     ALERTS_TRIGGERED_QUEUE,
     TICKS_EVALUATOR_QUEUE,
@@ -50,6 +52,13 @@ async def declare_alerts_topology() -> None:
     exchange = await broker.declare_exchange(ALERTS_EXCHANGE)
     queue = await broker.declare_queue(ALERTS_TRIGGERED_QUEUE)
     await queue.bind(exchange, routing_key="alert.triggered")
+
+    # Dead-letter path. Must exist BEFORE the first reject happens:
+    # dead-lettering into a missing exchange is a SILENT no-op — the
+    # broker just drops the message, no error anywhere.
+    dlx = await broker.declare_exchange(ALERTS_DLX)
+    dead_queue = await broker.declare_queue(ALERTS_DEAD_QUEUE)
+    await dead_queue.bind(dlx)  # fanout ignores routing keys
 
 
 @broker.subscriber(TICKS_EVALUATOR_QUEUE, TICKS_EXCHANGE)
