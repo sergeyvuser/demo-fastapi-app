@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     )
 
     rabbitmq: RabbitMQConfig
-    redis: RedisConfig
+    redis: RedisConfig = RedisConfig()
     telegram: TelegramConfig
 
 
