@@ -36,6 +36,9 @@ down: ## Остановить docker-сервисы (but not tools like pgadmin)
 all-down: ## Down with optional tooling
 	docker compose --profile tools down
 
+stop-apps: ## Stop app containers, keep infrastructure (for local dev)
+	docker compose stop api evaluator ingestor notifier
+
 reset: ## DESTROY volumes and start fresh (db data will be lost!)
 	docker compose down -v
 	docker compose up -d --build

@@ -75,6 +75,7 @@ services:
       APP_CONFIG__RUN__RELOAD: "0"
     ports:
       - "127.0.0.1:8000:8080"
+    restart: unless-stopped
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -90,6 +91,52 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+
+  evaluator:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: [ "faststream", "run", "backend.consumers.app:app" ]
+    env_file: .env
+    environment:
+      APP_CONFIG__DB__HOST: db
+      APP_CONFIG__REDIS__HOST: redis
+      APP_CONFIG__RABBITMQ__HOST: rabbitmq
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  ingestor:
+    build:
+      context: .
+      dockerfile: ingestor/Dockerfile
+    env_file: .env
+    environment:
+      APP_CONFIG__RABBITMQ__HOST: rabbitmq
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  notifier:
+    build:
+      context: .
+      dockerfile: notifier/Dockerfile
+    env_file: .env
+    environment:
+      APP_CONFIG__RABBITMQ__HOST: rabbitmq
+      APP_CONFIG__REDIS__HOST: redis
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   pgadmin:
     image: dpage/pgadmin4
