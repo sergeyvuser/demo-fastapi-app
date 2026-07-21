@@ -3,6 +3,9 @@ from faststream.exceptions import RejectMessage
 from faststream.rabbit import RabbitBroker
 from loguru import logger
 from redis.asyncio import Redis
+
+from notifier.config import settings
+from notifier.telegram import TelegramSender, TelegramSendError
 from shared.broker import (
     ALERTS_DEAD_QUEUE,
     ALERTS_DLX,
@@ -10,9 +13,6 @@ from shared.broker import (
     ALERTS_TRIGGERED_QUEUE,
 )
 from shared.events import AlertTriggeredEvent
-
-from notifier.config import settings
-from notifier.telegram import TelegramSender, TelegramSendError
 
 broker = RabbitBroker(url=settings.rabbitmq.url)
 app = FastStream(broker)

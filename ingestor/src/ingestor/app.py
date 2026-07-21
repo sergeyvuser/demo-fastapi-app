@@ -4,10 +4,10 @@ from contextlib import suppress
 from faststream import FastStream
 from faststream.rabbit import RabbitBroker
 from loguru import logger
-from shared.broker import TICKS_EXCHANGE
 
 from ingestor.bybit_ws import stream_ticks
 from ingestor.config import settings
+from shared.broker import TICKS_EXCHANGE
 
 broker = RabbitBroker(settings.rabbitmq.url)
 app = FastStream(broker)

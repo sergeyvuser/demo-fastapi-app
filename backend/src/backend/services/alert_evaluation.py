@@ -1,11 +1,11 @@
 from datetime import UTC, datetime
 
-from shared.events import AlertTriggeredEvent, TickEvent
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Alert
 from backend.models.alert import AlertCondition
 from backend.repositories.alert import AlertRepository
+from shared.events import AlertTriggeredEvent, TickEvent
 
 
 class AlertEvaluationService:

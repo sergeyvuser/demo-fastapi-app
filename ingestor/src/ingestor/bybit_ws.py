@@ -5,6 +5,7 @@ from decimal import Decimal
 
 import aiohttp
 from loguru import logger
+
 from shared.events import TickEvent
 
 

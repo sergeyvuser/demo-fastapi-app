@@ -8,6 +8,11 @@ from faststream import FastStream
 from faststream.rabbit import RabbitBroker
 from loguru import logger
 from redis.asyncio import Redis
+
+from backend.core.config import settings
+from backend.core.db import AsyncSessionLocal
+from backend.services.alert_evaluation import AlertEvaluationService
+from backend.services.prices import PriceCache
 from shared.broker import (
     ALERTS_DEAD_QUEUE,
     ALERTS_DLX,
@@ -17,11 +22,6 @@ from shared.broker import (
     TICKS_EXCHANGE,
 )
 from shared.events import TickEvent
-
-from backend.core.config import settings
-from backend.core.db import AsyncSessionLocal
-from backend.services.alert_evaluation import AlertEvaluationService
-from backend.services.prices import PriceCache
 
 broker = RabbitBroker(settings.rabbitmq.url)
 app = FastStream(broker)
