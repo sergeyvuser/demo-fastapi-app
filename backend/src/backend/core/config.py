@@ -46,10 +46,17 @@ class DBConfig(BaseModel):
         )
 
 
+class SMTPConfig(BaseModel):
+    host: str = "127.0.0.1"
+    port: int = 1025
+    sender: str = "alerts@crypto-alerts.local"
+
+
 class RunConfig(BaseModel):
     host: str = "127.0.0.1"
     port: int = 8080
     reload: bool = True
+    public_url: str = "http://127.0.0.1:8080"  # base for links in emails
 
 
 class APIV1PrefixConfig(BaseModel):
@@ -93,6 +100,7 @@ class Settings(BaseSettings):
     auth: AuthConfig
     redis: RedisConfig = RedisConfig()
     rabbitmq: RabbitMQConfig
+    smtp: SMTPConfig = SMTPConfig()
 
 
 settings = Settings()
