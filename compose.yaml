@@ -44,13 +44,6 @@ services:
       timeout: 5s
       retries: 10
 
-  mailpit:
-    image: axllent/mailpit
-    profiles: [ tools ]
-    ports:
-      - "127.0.0.1:1025:1025"   # SMTP — сюда приложение шлёт письма
-      - "127.0.0.1:8025:8025"   # Web UI — здесь ты их читаешь
-
   migrate:
     build:
       context: .
@@ -137,6 +130,17 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "127.0.0.1:1025:1025"   # SMTP — сюда приложение шлёт письма
+      - "127.0.0.1:8025:8025"   # Web UI — здесь ты их читаешь
+    healthcheck:
+      test: [ "CMD", "/mailpit", "readyz" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   pgadmin:
     image: dpage/pgadmin4
