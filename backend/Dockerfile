@@ -8,6 +8,8 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY backend/pyproject.toml backend/pyproject.toml
 COPY shared/pyproject.toml shared/pyproject.toml
+COPY ingestor/pyproject.toml ingestor/pyproject.toml
+COPY notifier/pyproject.toml notifier/pyproject.toml
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-workspace --package backend
 
