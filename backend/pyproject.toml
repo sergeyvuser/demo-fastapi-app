@@ -22,6 +22,10 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.51",
     "shared",
     "faststream[cli]>=0.7.2",
+    "taskiq>=0.12.4",
+    "taskiq-aio-pika>=0.6.0",
+    "taskiq-redis>=1.2.3",
+    "aiosmtplib>=5.1.2",
 ]
 
 [tool.uv.sources]
