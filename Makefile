@@ -21,11 +21,11 @@ ingestor: ## Run the Bybit tick ingestor
 notifier: ## Run the notifier (FastStream consumer)
 	cd notifier && uv run faststream run notifier.app:app
 
-lint: ## Проверка ruff
-	uv run ruff check $(BACKEND)/src
+lint: ## Ruff check across the whole workspace
+	uv run ruff check .
 
-format: ## Форматирование ruff
-	uv run ruff format $(BACKEND)/src
+format: ## Ruff format across the whole workspace
+	uv run ruff format .
 
 up: ## Поднять postgres в docker
 	docker compose up -d --build
@@ -50,10 +50,10 @@ logs: ## Логи API
 	docker compose logs -f api
 
 db-up: ## Только инфраструктура (db, redis, rabbitmq)
-	docker compose up -d db redis rabbitmq
+	docker compose up -d db redis rabbitmq mailpit
 
 tools: ## Start optional tooling (pgadmin)
-	docker compose up -d pgadmin mailpit
+	docker compose up -d pgadmin
 
 migration: ## Новая autogenerate-миграция: make migration m="сообщение"
 	@test -n "$(m)" || (echo 'использование: make migration m="сообщение"'; exit 1)

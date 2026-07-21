@@ -19,7 +19,7 @@ dev = [
 
 [tool.ruff]
 target-version = "py314"
-src = ["backend/src"]
+src = ["backend/src", "shared/src", "ingestor/src", "notifier/src"]
 
 [tool.ruff.lint]
 select = [
