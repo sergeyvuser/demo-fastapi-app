@@ -21,6 +21,12 @@ ingestor: ## Run the Bybit tick ingestor
 notifier: ## Run the notifier (FastStream consumer)
 	cd notifier && uv run faststream run notifier.app:app
 
+worker: ## Run taskiq worker
+	cd $(BACKEND) && uv run taskiq worker backend.tasks.broker:broker backend.tasks.email backend.tasks.maintenance backend.tasks.digest
+
+scheduler: ## Run taskiq scheduler (puts scheduled tasks into the queue)
+	cd $(BACKEND) && uv run taskiq scheduler backend.tasks.broker:scheduler
+
 lint: ## Ruff check across the whole workspace
 	uv run ruff check .
 
@@ -37,7 +43,7 @@ all-down: ## Down with optional tooling
 	docker compose --profile tools down
 
 stop-apps: ## Stop app containers, keep infrastructure (for local dev)
-	docker compose stop api evaluator ingestor notifier
+	docker compose stop api evaluator ingestor notifier worker scheduler
 
 reset: ## DESTROY volumes and start fresh (db data will be lost!)
 	docker compose down -v
