@@ -12,6 +12,7 @@ class User(IdUuidPkMixin, TimestampsMixin, Base):
 
     is_active: Mapped[bool] = mapped_column(default=True, server_default="true")
     is_superuser: Mapped[bool] = mapped_column(default=False, server_default="false")
+    is_verified: Mapped[bool] = mapped_column(default=False, server_default="false")
 
     telegram_chat_id: Mapped[int | None] = mapped_column(BigInteger)
 

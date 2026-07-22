@@ -11,6 +11,7 @@ from backend.repositories.refresh_token import RefreshTokenRepository
 from backend.repositories.user import UserRepository
 from backend.schemas.auth import TokenPair
 from backend.schemas.user import UserCreate, UserCreateInternal
+from backend.tasks.email import send_verification_email
 
 
 class EmailAlreadyRegisteredError(ConflictError):
@@ -49,6 +50,9 @@ class AuthService:
             )
         )
         await self.session.commit()
+        await send_verification_email.kiq(
+            user_id=str(user.id), email=user.email, username=user.username
+        )
         return user
 
     async def login(
