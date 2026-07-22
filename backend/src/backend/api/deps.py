@@ -42,6 +42,15 @@ async def get_current_user(
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
 
 
+async def get_current_verified_user(user: CurrentUserDep) -> User:
+    if not user.is_verified:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Email not verified")
+    return user
+
+
+CurrentVerifiedUserDep = Annotated[User, Depends(get_current_verified_user)]
+
+
 def get_redis(request: Request) -> Redis:
     return request.app.state.redis
 

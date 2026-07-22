@@ -1,6 +1,7 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core import security
@@ -29,15 +30,21 @@ class InvalidRefreshTokenError(UnauthorizedError):
         super().__init__("Invalid refresh token")
 
 
+class InvalidVerificationTokenError(UnauthorizedError):
+    def __init__(self):
+        super().__init__("Invalid verification token")
+
+
 # Pre-calculated hash for response time alignment (see login)
 _DUMMY_HASH = security.hash_password("dummy-password-for-timing")
 
 
 class AuthService:
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, redis: Redis | None = None):
         self.session = session
         self.users = UserRepository(session)
         self.tokens = RefreshTokenRepository(session)
+        self.redis = redis
 
     async def register(self, data: UserCreate) -> User:
         if await self.users.get_by_email(data.email):
@@ -54,6 +61,17 @@ class AuthService:
             user_id=str(user.id), email=user.email, username=user.username
         )
         return user
+
+    async def verify_email(self, token: str) -> None:
+        assert self.redis is not None
+        user_id = await self.redis.getdel(f"verify:{token}")
+        if user_id is None:
+            raise InvalidVerificationTokenError
+        user = await self.users.get_by_id(uuid.UUID(user_id))
+        if user is None:
+            raise InvalidVerificationTokenError
+        user.is_verified = True
+        await self.session.commit()
 
     async def login(
         self, email: str, password: str, user_agent: str | None = None

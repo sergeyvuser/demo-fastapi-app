@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, status
 
-from backend.api.deps import CurrentUserDep
+from backend.api.deps import CurrentUserDep, CurrentVerifiedUserDep
 from backend.core.config import settings
 from backend.core.db import AsyncSessionDep
 from backend.models.alert import AlertStatus
@@ -17,7 +17,7 @@ router = APIRouter(prefix=settings.api.v1.alerts, tags=["Alerts"])
 @router.post("", response_model=AlertRead, status_code=status.HTTP_201_CREATED)
 async def create_alert(
     data: AlertCreate,
-    user: CurrentUserDep,
+    user: CurrentVerifiedUserDep,
     session: AsyncSessionDep,
 ):
     return await AlertService(session=session).create(user_id=user.id, data=data)
