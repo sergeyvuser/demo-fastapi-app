@@ -38,7 +38,10 @@ async def send_daily_digest() -> int:
     sent = 0
     for user, user_alerts in _group_by_user(alerts):
         lines = [
-            f"- {a.symbol}: {a.condition.value} {a.threshold} (last at {a.last_triggered_at:%H:%M})"
+            (
+                f"- {a.symbol}: {a.condition.value} {a.threshold} "
+                f"(last at {a.last_triggered_at:%H:%M})"
+            )
             for a in user_alerts
         ]
         msg = EmailMessage()
