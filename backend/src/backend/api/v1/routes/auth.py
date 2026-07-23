@@ -32,6 +32,16 @@ async def register(
     return await AuthService(session).register(data)
 
 
+@router.get("/verify")
+async def verify_email(
+    token: str,
+    session: AsyncSessionDep,
+    redis: RedisDep,
+):
+    await AuthService(session, redis).verify_email(token)
+    return {"status": "verified"}
+
+
 @router.post("/login", response_model=TokenPair)
 async def login(
     form: Annotated[OAuth2PasswordRequestForm, Depends()],
