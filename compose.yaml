@@ -151,7 +151,8 @@ services:
 
   scheduler:
     build: { context: ., dockerfile: backend/Dockerfile }
-    command: [ "taskiq", "scheduler", "backend.tasks.broker:scheduler" ]
+    command: [ "taskiq", "scheduler", "backend.tasks.broker:scheduler",
+               "backend.tasks.maintenance", "backend.tasks.digest" ]
     env_file: .env
     environment:
       APP_CONFIG__RABBITMQ__HOST: rabbitmq
