@@ -66,7 +66,7 @@ services:
       APP_CONFIG__REDIS__HOST: redis
       APP_CONFIG__RUN__HOST: 0.0.0.0
       APP_CONFIG__RUN__RELOAD: "0"
-      APP_CONFIG__SMTP__HOST: mailpit
+      APP_CONFIG__RUN__PUBLIC_URL: http://127.0.0.1:8000
     ports:
       - "127.0.0.1:8000:8080"
     restart: unless-stopped
@@ -142,6 +142,7 @@ services:
       APP_CONFIG__REDIS__HOST: redis
       APP_CONFIG__RABBITMQ__HOST: rabbitmq
       APP_CONFIG__SMTP__HOST: mailpit
+      APP_CONFIG__RUN__PUBLIC_URL: http://127.0.0.1:8000
     restart: unless-stopped
     depends_on:
       rabbitmq: { condition: service_healthy }
