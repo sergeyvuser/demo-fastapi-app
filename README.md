@@ -62,17 +62,17 @@ python -c "import secrets; print(secrets.token_hex(32))"   # -> APP_CONFIG__AUTH
 make up          # build + start the full stack (migrations run automatically)
 ```
 
-- API & Swagger: http://localhost:8000/docs
-- RabbitMQ UI: http://localhost:15672
-- Mailpit (caught emails): http://localhost:8025
-- pgAdmin (optional): `docker compose --profile tools up -d` → http://localhost:5050
+- API & Swagger: http://127.0.0.1:8000/docs
+- RabbitMQ UI: http://127.0.0.1:15672
+- Mailpit (caught emails): http://127.0.0.1:8025
+- pgAdmin (optional): `docker compose --profile tools up -d` → http://127.0.0.1:5050
 
 Local development without containerizing the app:
 
 ```bash
 make db-up       # infrastructure only (postgres, redis, rabbitmq)
 make migrate
-make run         # API on http://localhost:8080
+make run         # API on http://127.0.0.1:8080
 ```
 
 ## Development
