@@ -2,7 +2,6 @@ import secrets
 from email.message import EmailMessage
 
 import aiosmtplib
-from aiosmtplib import smtp
 from loguru import logger
 from redis.asyncio import Redis
 
