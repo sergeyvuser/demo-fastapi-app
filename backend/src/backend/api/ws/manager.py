@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import uuid
+from collections import defaultdict
 from typing import Any
 
 from fastapi import WebSocket
@@ -41,6 +42,21 @@ class ConnectionManager:
 
     def unregister(self, conn: Connection) -> None:
         self._connections.discard(conn)
+
+    @property
+    def active_count(self) -> int:
+        return len(self._connections)
+
+    def stats(self) -> dict[str, int]:
+        by_symbol: dict[str, int] = defaultdict(int)
+        for conn in self._connections:
+            for s in conn.symbols:
+                by_symbol[s] += 1
+        return {
+            "connections": len(self._connections),
+            "unique_users": len({c.user_id for c in self._connections}),
+            "subscriptions_by_symbol": dict(by_symbol),
+        }
 
     async def broadcast_tick(self, tick: TickEvent) -> None:
         message = {
