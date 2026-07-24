@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from redis.asyncio import Redis
 
+from backend.api.ws.stream import stream_router
 from backend.core.config import settings
 from backend.core.db import engine
 from backend.tasks.broker import broker as taskiq_broker
@@ -30,7 +31,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     if not taskiq_broker.is_worker_process:
         await taskiq_broker.startup()
 
-    yield
+    async with stream_router.lifespan_context(app):
+        yield
+
     # Shutdown
     if not taskiq_broker.is_worker_process:
         await taskiq_broker.shutdown()
