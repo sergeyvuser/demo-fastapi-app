@@ -4,7 +4,8 @@ Async price-alert service for crypto markets. Users register, create alerts
 ("BTCUSDT above 120k"), an ingestor streams Bybit tickers into RabbitMQ, an
 evaluator matches ticks against active alerts, a notifier delivers Telegram
 alerts, and background jobs send email (verification, daily digest). A
-realtime dashboard (WebSocket) is planned.
+`/ws` endpoint streams live ticks and alerts to clients — ready for a
+realtime dashboard frontend.
 
 > Learning project: built stage by stage to practice a modern async Python
 > stack. See [Roadmap](#roadmap) for what is real today vs planned.
@@ -120,6 +121,22 @@ Reliability: durable queues (rabbitmq volume), supervised WS pump with
 reconnect, idempotent delivery (redis `SET NX`), dead-letter queue for
 undeliverable notifications.
 
+## Realtime (implemented)
+
+`GET ws://<host>/ws?token=<access_jwt>` — authenticated WebSocket. Not in
+Swagger (OpenAPI has no WebSocket); this is the contract:
+
+```
+client → {"action": "subscribe",   "symbols": ["BTCUSDT"]}
+client → {"action": "unsubscribe", "symbols": ["BTCUSDT"]}
+server → {"type": "subscriptions", "symbols": [...]}          # ack
+server → {"type": "tick",  "symbol": "...", "price": "...", "ts": "..."}
+server → {"type": "alert", "alert_id": "...", "symbol": "...", ...}  # this user only
+```
+
+Ticks are filtered by subscription; alerts are delivered only to their
+owner. The browser must reconnect on drop (server restart closes sockets).
+
 ## Background jobs (implemented)
 
 Taskiq worker + scheduler over RabbitMQ, Redis result backend:
@@ -137,6 +154,6 @@ Taskiq worker + scheduler over RabbitMQ, Redis result backend:
 - [x] 5. Redis: price cache, login rate limiting
 - [x] 6. RabbitMQ + FastStream: ingestor / evaluator / notifier
 - [x] 7. Taskiq: background & scheduled jobs (email verify, digest, cleanup)
-- [ ] 8. WebSocket realtime feed (frontend entry point)
+- [x] 8. WebSocket realtime feed (frontend entry point)
 - [ ] 9. Observability: Prometheus/Grafana, OpenTelemetry, structured logs
 - [ ] 10. Tests (pytest-asyncio, testcontainers) + CI
