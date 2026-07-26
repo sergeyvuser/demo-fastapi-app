@@ -22,3 +22,8 @@ class RedisConfig(BaseModel):
     @property
     def url(self) -> str:
         return f"redis://{self.host}:{self.port}/{self.db}"
+
+
+class LogConfig(BaseModel):
+    level: str = "INFO"
+    json_format: bool = False  # human-readable locally, structured in containers
