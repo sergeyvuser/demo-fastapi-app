@@ -1,5 +1,11 @@
 name: crypto-alerts
+
+x-app-env: &app-env
   APP_CONFIG__LOG__JSON_FORMAT: "1"
+  APP_CONFIG__DB__HOST: db
+  APP_CONFIG__REDIS__HOST: redis
+  APP_CONFIG__RABBITMQ__HOST: rabbitmq
+  APP_CONFIG__SMTP__HOST: mailpit
 
 services:
   db:
@@ -105,11 +111,8 @@ services:
       dockerfile: backend/Dockerfile
     env_file: .env
     environment:
-      APP_CONFIG__DB__HOST: db
-      APP_CONFIG__REDIS__HOST: redis
-      APP_CONFIG__RABBITMQ__HOST: rabbitmq
-      APP_CONFIG__SMTP__HOST: mailpit
-      APP_CONFIG__RUN__HOST: 0.0.0.0
+      <<: *app-env                                        # merge shared block
+      APP_CONFIG__RUN__HOST: 0.0.0.0                      # plus service-specific
       APP_CONFIG__RUN__RELOAD: "0"
       APP_CONFIG__RUN__PUBLIC_URL: http://127.0.0.1:8000
     ports:
@@ -142,9 +145,7 @@ services:
     command: [ "faststream", "run", "backend.consumers.app:app" ]
     env_file: .env
     environment:
-      APP_CONFIG__DB__HOST: db
-      APP_CONFIG__REDIS__HOST: redis
-      APP_CONFIG__RABBITMQ__HOST: rabbitmq
+      <<: *app-env
     restart: unless-stopped
     depends_on:
       rabbitmq:
@@ -160,7 +161,7 @@ services:
       dockerfile: ingestor/Dockerfile
     env_file: .env
     environment:
-      APP_CONFIG__RABBITMQ__HOST: rabbitmq
+      <<: *app-env
     restart: unless-stopped
     depends_on:
       rabbitmq:
@@ -172,8 +173,7 @@ services:
       dockerfile: notifier/Dockerfile
     env_file: .env
     environment:
-      APP_CONFIG__RABBITMQ__HOST: rabbitmq
-      APP_CONFIG__REDIS__HOST: redis
+      <<: *app-env
     restart: unless-stopped
     depends_on:
       rabbitmq:
@@ -187,10 +187,7 @@ services:
                "backend.tasks.email", "backend.tasks.maintenance", "backend.tasks.digest" ]
     env_file: .env
     environment:
-      APP_CONFIG__DB__HOST: db
-      APP_CONFIG__REDIS__HOST: redis
-      APP_CONFIG__RABBITMQ__HOST: rabbitmq
-      APP_CONFIG__SMTP__HOST: mailpit
+      <<: *app-env
       APP_CONFIG__RUN__PUBLIC_URL: http://127.0.0.1:8000
     restart: unless-stopped
     depends_on:
@@ -205,7 +202,7 @@ services:
                "backend.tasks.maintenance", "backend.tasks.digest" ]
     env_file: .env
     environment:
-      APP_CONFIG__RABBITMQ__HOST: rabbitmq
+      <<: *app-env
     restart: unless-stopped
     depends_on:
       rabbitmq: { condition: service_healthy }
