@@ -7,6 +7,7 @@ it reuses models, repositories and services directly.
 from faststream import FastStream
 from faststream.rabbit import RabbitBroker
 from loguru import logger
+from prometheus_client import start_http_server
 from redis.asyncio import Redis
 
 from backend.core.config import settings
@@ -22,6 +23,7 @@ from shared.broker import (
     TICKS_EXCHANGE,
 )
 from shared.events import TickEvent
+from shared.metrics import alerts_fired, ticks_processed
 
 broker = RabbitBroker(settings.rabbitmq.url)
 app = FastStream(broker)
@@ -40,6 +42,11 @@ async def startup() -> None:
     )
     await redis.ping()
     _price_cache = PriceCache(redis)
+
+
+@app.on_startup
+async def start_metrics_server() -> None:
+    start_http_server(9101)  # for Prometheus /metrics
 
 
 @app.after_startup
@@ -75,9 +82,12 @@ async def on_ticks(tick: TickEvent) -> None:
             exchange=ALERTS_EXCHANGE,
             routing_key="alert.triggered",
         )
+        alerts_fired.labels(event.condition).inc()
         logger.info(
             "alert fired: {} {} at {}",
             event.symbol,
             event.condition,
             event.price,
         )
+
+    ticks_processed.inc()

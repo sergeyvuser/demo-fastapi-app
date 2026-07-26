@@ -2,6 +2,7 @@ from faststream import FastStream
 from faststream.exceptions import RejectMessage
 from faststream.rabbit import RabbitBroker
 from loguru import logger
+from prometheus_client import start_http_server
 from redis.asyncio import Redis
 
 from notifier.config import settings
@@ -13,6 +14,7 @@ from shared.broker import (
     ALERTS_TRIGGERED_QUEUE,
 )
 from shared.events import AlertTriggeredEvent
+from shared.metrics import notifications_failed, notifications_sent
 
 broker = RabbitBroker(url=settings.rabbitmq.url)
 app = FastStream(broker)
@@ -34,6 +36,11 @@ async def startup() -> None:
     )
     await _redis.ping()
     _sender = TelegramSender(settings.telegram.bot_token.get_secret_value())
+
+
+@app.on_startup
+async def start_metrics_server() -> None:
+    start_http_server(9102)  # for Prometheus /metrics
 
 
 @app.after_startup
@@ -77,9 +84,11 @@ async def on_alert(event: AlertTriggeredEvent) -> None:
     )
     try:
         await _sender.send_message(chat_id=event.telegram_chat_id, text=text)
+        notifications_sent.inc()
     except TelegramSendError as exc:
         # We claimed the dedup key but failed to deliver — release it so
         # a redelivery attempt can try again, then dead-letter this one.
         await _redis.delete(dedup_key)
         logger.error("delivery failed, dead-lettering: {}", exc)
+        notifications_failed.inc()
         raise RejectMessage from exc

@@ -4,10 +4,12 @@ from contextlib import suppress
 from faststream import FastStream
 from faststream.rabbit import RabbitBroker
 from loguru import logger
+from prometheus_client import start_http_server
 
 from ingestor.bybit_ws import stream_ticks
 from ingestor.config import settings
 from shared.broker import TICKS_EXCHANGE
+from shared.metrics import ticks_published
 
 broker = RabbitBroker(settings.rabbitmq.url)
 app = FastStream(broker)
@@ -34,9 +36,15 @@ async def _pump() -> None:
                     exchange=TICKS_EXCHANGE,
                     routing_key=tick.symbol,
                 )
+                ticks_published.labels(tick.symbol).inc()
         except Exception:
             logger.exception("tick pump crashed; restart in 5s")
             await asyncio.sleep(5)
+
+
+@app.on_startup
+async def start_metrics_server() -> None:
+    start_http_server(9100)  # for Prometheus /metrics
 
 
 @app.after_startup

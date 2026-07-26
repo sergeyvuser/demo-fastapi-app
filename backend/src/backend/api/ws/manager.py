@@ -8,6 +8,7 @@ from fastapi import WebSocket
 from loguru import logger
 
 from shared.events import AlertTriggeredEvent, TickEvent
+from shared.metrics import ws_connections
 
 _QUEUE_SIZE = 100
 
@@ -39,9 +40,11 @@ class ConnectionManager:
 
     def register(self, conn: Connection) -> None:
         self._connections.add(conn)
+        ws_connections.inc()
 
     def unregister(self, conn: Connection) -> None:
         self._connections.discard(conn)
+        ws_connections.dec()
 
     @property
     def active_count(self) -> int:
