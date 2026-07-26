@@ -12,12 +12,22 @@ from taskiq_aio_pika import AioPikaBroker
 from taskiq_redis import RedisAsyncResultBackend
 
 from backend.core.config import settings
+from backend.tasks.middlewares import CorrelationTaskiqMiddleware
+from shared.logging import configure_logging
 
-broker = AioPikaBroker(
-    url=settings.rabbitmq.url,
-    queue_name="taskiq.tasks",
-).with_result_backend(
-    RedisAsyncResultBackend(settings.redis.url, result_ex_time=3600),
+configure_logging(settings.log)
+
+broker = (
+    AioPikaBroker(
+        url=settings.rabbitmq.url,
+        queue_name="taskiq.tasks",
+    )
+    .with_result_backend(
+        RedisAsyncResultBackend(settings.redis.url, result_ex_time=3600),
+    )
+    .with_middlewares(
+        CorrelationTaskiqMiddleware(),
+    )
 )
 
 

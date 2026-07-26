@@ -14,9 +14,18 @@ from shared.broker import (
     ALERTS_TRIGGERED_QUEUE,
 )
 from shared.events import AlertTriggeredEvent
+from shared.logging import configure_logging
 from shared.metrics import notifications_failed, notifications_sent
+from shared.middlewares import CorrelationMiddleware
 
-broker = RabbitBroker(url=settings.rabbitmq.url)
+configure_logging(settings.log)
+
+# noinspection PyTypeChecker
+broker = RabbitBroker(
+    url=settings.rabbitmq.url,
+    # class, not instance: FastStream calls it per message as a builder
+    middlewares=[CorrelationMiddleware],
+)
 app = FastStream(broker)
 
 _redis: Redis | None = None

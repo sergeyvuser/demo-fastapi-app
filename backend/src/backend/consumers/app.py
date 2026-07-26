@@ -23,9 +23,18 @@ from shared.broker import (
     TICKS_EXCHANGE,
 )
 from shared.events import TickEvent
+from shared.logging import configure_logging
 from shared.metrics import alerts_fired, ticks_processed
+from shared.middlewares import CorrelationMiddleware
 
-broker = RabbitBroker(settings.rabbitmq.url)
+configure_logging(settings.log)
+
+# noinspection PyTypeChecker
+broker = RabbitBroker(
+    url=settings.rabbitmq.url,
+    # class, not instance: FastStream calls it per message as a builder
+    middlewares=[CorrelationMiddleware],
+)
 app = FastStream(broker)
 
 _price_cache: PriceCache | None = None

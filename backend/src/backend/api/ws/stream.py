@@ -15,8 +15,14 @@ from backend.api.ws.manager import manager
 from backend.core.config import settings
 from shared.broker import ALERTS_EXCHANGE, TICKS_EXCHANGE
 from shared.events import AlertTriggeredEvent, TickEvent
+from shared.middlewares import CorrelationMiddleware
 
-stream_router = RabbitRouter(settings.rabbitmq.url)
+# noinspection PyTypeChecker
+stream_router = RabbitRouter(
+    url=settings.rabbitmq.url,
+    # class, not instance: FastStream calls it per message as a builder
+    middlewares=[CorrelationMiddleware],
+)
 
 _instance = uuid.uuid4().hex[:8]
 

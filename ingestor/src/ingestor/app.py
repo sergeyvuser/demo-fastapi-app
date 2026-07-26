@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 from contextlib import suppress
 
 from faststream import FastStream
@@ -9,9 +10,18 @@ from prometheus_client import start_http_server
 from ingestor.bybit_ws import stream_ticks
 from ingestor.config import settings
 from shared.broker import TICKS_EXCHANGE
+from shared.logging import configure_logging, correlation_id
 from shared.metrics import ticks_published
+from shared.middlewares import CorrelationMiddleware
 
-broker = RabbitBroker(settings.rabbitmq.url)
+configure_logging(settings.log)
+
+# noinspection PyTypeChecker
+broker = RabbitBroker(
+    url=settings.rabbitmq.url,
+    # class, not instance: FastStream calls it per message as a builder
+    middlewares=[CorrelationMiddleware],
+)
 app = FastStream(broker)
 
 _pump_task: asyncio.Task[None] | None = None
@@ -31,6 +41,7 @@ async def _pump() -> None:
                 settings.stream.symbols,
                 settings.stream.reconnect_delay_seconds,
             ):
+                correlation_id.set(uuid.uuid4().hex)  # new chain starts here
                 await broker.publish(
                     tick.model_dump(mode="json"),
                     exchange=TICKS_EXCHANGE,
