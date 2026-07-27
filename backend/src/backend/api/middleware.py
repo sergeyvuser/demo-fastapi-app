@@ -1,8 +1,12 @@
+import time
 import uuid
 
+from loguru import logger
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from shared.logging import correlation_id
+
+_SKIP_PATHS = {"/metrics", "/healthz", "/readyz"}
 
 
 class CorrelationIdMiddleware:
@@ -21,6 +25,9 @@ class CorrelationIdMiddleware:
         rid = incoming.decode() if incoming else uuid.uuid4().hex
         token = correlation_id.set(rid)
 
+        start = time.perf_counter()
+        status = 500  # if the app blows up before responding
+
         async def send_with_header(message):
             if message["type"] == "http.response.start":
                 message.setdefault("headers", []).append(
@@ -31,4 +38,11 @@ class CorrelationIdMiddleware:
         try:
             await self.app(scope, receive, send_with_header)
         finally:
+            if scope["path"] not in _SKIP_PATHS:
+                logger.bind(
+                    method=scope["method"],
+                    path=scope["path"],
+                    status=status,
+                    duration_ms=round((time.perf_counter() - start) * 1000, 1),
+                ).info("request handled")
             correlation_id.reset(token)
