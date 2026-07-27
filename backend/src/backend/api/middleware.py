@@ -29,7 +29,9 @@ class CorrelationIdMiddleware:
         status = 500  # if the app blows up before responding
 
         async def send_with_header(message):
+            nonlocal status
             if message["type"] == "http.response.start":
+                status = message["status"]
                 message.setdefault("headers", []).append(
                     (b"x-request-id", rid.encode())
                 )
