@@ -172,6 +172,7 @@ services:
     env_file: .env
     environment:
       <<: *app-env
+      APP_CONFIG__OTEL__SAMPLE_RATIO: "0.02" # tick stream is high-volume
     restart: unless-stopped
     depends_on:
       rabbitmq:

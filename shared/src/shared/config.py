@@ -49,6 +49,7 @@ class LogConfig(BaseModel):
 class OtelConfig(BaseModel):
     enabled: bool = True
     endpoint: str = "http://127.0.0.1:4317"
+    sample_ratio: float = 1.0
 
 
 class BaseServiceSettings(BaseSettings):
