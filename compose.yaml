@@ -111,6 +111,7 @@ services:
     image: jaegertracing/all-in-one:latest
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
+      MEMORY_MAX_TRACES: "20000"   # ring buffer instead of unbounded growth
     ports:
       - "127.0.0.1:16686:16686"   # UI
       - "127.0.0.1:4317:4317"     # OTLP gRPC receiver
@@ -172,7 +173,8 @@ services:
     env_file: .env
     environment:
       <<: *app-env
-      APP_CONFIG__OTEL__SAMPLE_RATIO: "0.02" # tick stream is high-volume
+      APP_CONFIG__OTEL__SAMPLE_RATIO: "1.0" # trace every tick locally: volume is low
+      # and complete tick→alert chains are the point
     restart: unless-stopped
     depends_on:
       rabbitmq:
