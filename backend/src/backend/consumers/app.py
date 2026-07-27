@@ -92,11 +92,17 @@ async def on_ticks(tick: TickEvent) -> None:
             routing_key="alert.triggered",
         )
         alerts_fired.labels(event.condition).inc()
-        logger.info(
-            "alert fired: {} {} at {}",
-            event.symbol,
-            event.condition,
-            event.price,
+        (
+            logger.bind(
+                alert_id=str(event.alert_id),
+                user_id=str(event.user_id),
+                threshold=str(event.threshold),
+            ).info(
+                "alert fired: {} {} at {}",
+                event.symbol,
+                event.condition,
+                event.price,
+            )
         )
 
     ticks_processed.inc()
