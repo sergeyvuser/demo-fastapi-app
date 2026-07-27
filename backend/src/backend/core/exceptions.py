@@ -6,13 +6,15 @@ class AppError(Exception):
 
     status_code: int = 500
     title: str = "Internal Server Error"
+    default_detail: str | None = None
+    metric_reason: str | None = None
 
     def __init__(
         self, detail: str | None = None, headers: dict[str, str] | None = None
     ):
-        self.detail = detail
+        self.detail = detail or self.default_detail
         self.headers = headers
-        super().__init__(detail or self.title)
+        super().__init__(self.detail or self.title)
 
 
 class NotFoundError(AppError):

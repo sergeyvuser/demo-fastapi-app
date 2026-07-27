@@ -16,23 +16,22 @@ from backend.tasks.email import send_verification_email
 
 
 class EmailAlreadyRegisteredError(ConflictError):
-    def __init__(self):
-        super().__init__("Email already registered")
+    default_detail = "Email already registered"
 
 
 class InvalidCredentialsError(UnauthorizedError):
-    def __init__(self):
-        super().__init__("Incorrect email or password")
+    default_detail = "Incorrect email or password"
+    metric_reason = "invalid_credentials"
 
 
 class InvalidRefreshTokenError(UnauthorizedError):
-    def __init__(self):
-        super().__init__("Invalid refresh token")
+    default_detail = "Invalid refresh token"
+    metric_reason = "invalid_refresh"
 
 
 class InvalidVerificationTokenError(UnauthorizedError):
-    def __init__(self):
-        super().__init__("Invalid verification token")
+    default_detail = "Invalid verification token"
+    metric_reason = "invalid_verification"
 
 
 # Pre-calculated hash for response time alignment (see login)

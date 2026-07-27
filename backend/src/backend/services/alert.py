@@ -11,8 +11,7 @@ MAX_ALERTS_PER_USER = 20
 
 
 class AlertNotFoundError(NotFoundError):
-    def __init__(self):
-        super().__init__("Alert not found")
+    default_detail = "Alert not found"
 
 
 class AlertLimitExceededError(ConflictError):
