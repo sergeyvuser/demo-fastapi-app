@@ -10,6 +10,7 @@ import logging
 import sys
 
 from loguru import logger
+from opentelemetry import trace
 
 from shared.config import LogConfig
 
@@ -22,6 +23,8 @@ correlation_id: contextvars.ContextVar[str] = contextvars.ContextVar(
 def _patch(record) -> None:
     # inject current correlation id into every record's extra
     record["extra"]["correlation_id"] = correlation_id.get()
+    ctx = trace.get_current_span().get_span_context()
+    record["extra"]["trace_id"] = format(ctx.trace_id, "032x") if ctx.is_valid else "-"
 
 
 class InterceptHandler(logging.Handler):

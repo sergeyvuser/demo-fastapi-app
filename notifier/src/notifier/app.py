@@ -1,7 +1,10 @@
 from faststream import FastStream
 from faststream.exceptions import RejectMessage
 from faststream.rabbit import RabbitBroker
+from faststream.rabbit.opentelemetry import RabbitTelemetryMiddleware
 from loguru import logger
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.instrumentation.redis import RedisInstrumentor
 from prometheus_client import start_http_server
 from redis.asyncio import Redis
 
@@ -17,16 +20,21 @@ from shared.events import AlertTriggeredEvent
 from shared.logging import configure_logging
 from shared.metrics import notifications_failed, notifications_sent
 from shared.middlewares import CorrelationMiddleware
+from shared.tracing import configure_tracing
 
 configure_logging(settings.log)
+configure_tracing("notifier", settings.otel)
 
 # noinspection PyTypeChecker
 broker = RabbitBroker(
     url=settings.rabbitmq.url,
     # class, not instance: FastStream calls it per message as a builder
-    middlewares=[CorrelationMiddleware],
+    middlewares=[CorrelationMiddleware, RabbitTelemetryMiddleware()],
 )
 app = FastStream(broker)
+
+HTTPXClientInstrumentor().instrument()
+RedisInstrumentor().instrument()
 
 _redis: Redis | None = None
 _sender: TelegramSender | None = None

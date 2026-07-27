@@ -6,7 +6,7 @@ Tasks follow the consumers/ rules: one task = one unit of work,
 sessions via AsyncSessionLocal, JSON-serializable arguments only.
 """
 
-from taskiq import TaskiqScheduler
+from taskiq import TaskiqEvents, TaskiqScheduler, TaskiqState
 from taskiq.schedule_sources import LabelScheduleSource
 from taskiq_aio_pika import AioPikaBroker
 from taskiq_redis import RedisAsyncResultBackend
@@ -14,8 +14,7 @@ from taskiq_redis import RedisAsyncResultBackend
 from backend.core.config import settings
 from backend.tasks.middlewares import CorrelationTaskiqMiddleware
 from shared.logging import configure_logging
-
-configure_logging(settings.log)
+from shared.tracing import configure_tracing
 
 broker = (
     AioPikaBroker(
@@ -29,6 +28,15 @@ broker = (
         CorrelationTaskiqMiddleware(),
     )
 )
+
+
+@broker.on_event(TaskiqEvents.WORKER_STARTUP)
+async def _setup_worker_observability(state: TaskiqState) -> None:
+    # Only in the actual worker process: importing this module from the
+    # API (AuthService -> tasks.email -> broker) must not configure
+    # anything — set_tracer_provider is one-shot and the first caller wins.
+    configure_logging(settings.log)
+    configure_tracing("worker", settings.otel)
 
 
 scheduler = TaskiqScheduler(

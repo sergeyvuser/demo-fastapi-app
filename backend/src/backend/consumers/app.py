@@ -6,12 +6,15 @@ it reuses models, repositories and services directly.
 
 from faststream import FastStream
 from faststream.rabbit import RabbitBroker
+from faststream.rabbit.opentelemetry import RabbitTelemetryMiddleware
 from loguru import logger
+from opentelemetry.instrumentation.redis import RedisInstrumentor
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from prometheus_client import start_http_server
 from redis.asyncio import Redis
 
 from backend.core.config import settings
-from backend.core.db import AsyncSessionLocal
+from backend.core.db import AsyncSessionLocal, engine
 from backend.services.alert_evaluation import AlertEvaluationService
 from backend.services.prices import PriceCache
 from shared.broker import (
@@ -26,16 +29,21 @@ from shared.events import TickEvent
 from shared.logging import configure_logging
 from shared.metrics import alerts_fired, ticks_processed
 from shared.middlewares import CorrelationMiddleware
+from shared.tracing import configure_tracing
 
 configure_logging(settings.log)
+configure_tracing("evaluator", settings.otel)
 
 # noinspection PyTypeChecker
 broker = RabbitBroker(
     url=settings.rabbitmq.url,
     # class, not instance: FastStream calls it per message as a builder
-    middlewares=[CorrelationMiddleware],
+    middlewares=[CorrelationMiddleware, RabbitTelemetryMiddleware()],
 )
 app = FastStream(broker)
+
+SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)
+RedisInstrumentor().instrument()
 
 _price_cache: PriceCache | None = None
 

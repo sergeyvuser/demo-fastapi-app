@@ -8,10 +8,15 @@ from backend.api.ws.stream import stream_router
 from backend.core.config import settings
 from backend.core.db import engine
 from backend.tasks.broker import broker as taskiq_broker
+from shared.tracing import configure_tracing
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+    # Tracing must be set up in the process that serves requests: granian
+    # forks a worker, and BatchSpanProcessor's export thread does not
+    # survive the fork.
+    configure_tracing("api", settings.otel)
     # Startup
     redis = Redis.from_url(
         settings.redis.url,

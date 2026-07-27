@@ -10,6 +10,7 @@ import uuid
 
 from faststream.rabbit import RabbitQueue
 from faststream.rabbit.fastapi import RabbitRouter
+from faststream.rabbit.opentelemetry import RabbitTelemetryMiddleware
 
 from backend.api.ws.manager import manager
 from backend.core.config import settings
@@ -21,7 +22,7 @@ from shared.middlewares import CorrelationMiddleware
 stream_router = RabbitRouter(
     url=settings.rabbitmq.url,
     # class, not instance: FastStream calls it per message as a builder
-    middlewares=[CorrelationMiddleware],
+    middlewares=[CorrelationMiddleware, RabbitTelemetryMiddleware()],
 )
 
 _instance = uuid.uuid4().hex[:8]

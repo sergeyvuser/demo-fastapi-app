@@ -4,6 +4,7 @@ from contextlib import suppress
 
 from faststream import FastStream
 from faststream.rabbit import RabbitBroker
+from faststream.rabbit.opentelemetry import RabbitTelemetryMiddleware
 from loguru import logger
 from prometheus_client import start_http_server
 
@@ -13,14 +14,16 @@ from shared.broker import TICKS_EXCHANGE
 from shared.logging import configure_logging, correlation_id
 from shared.metrics import ticks_published
 from shared.middlewares import CorrelationMiddleware
+from shared.tracing import configure_tracing
 
 configure_logging(settings.log)
+configure_tracing("ingestor", settings.otel)
 
 # noinspection PyTypeChecker
 broker = RabbitBroker(
     url=settings.rabbitmq.url,
     # class, not instance: FastStream calls it per message as a builder
-    middlewares=[CorrelationMiddleware],
+    middlewares=[CorrelationMiddleware, RabbitTelemetryMiddleware()],
 )
 app = FastStream(broker)
 
