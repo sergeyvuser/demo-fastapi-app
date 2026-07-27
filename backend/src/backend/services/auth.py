@@ -13,6 +13,7 @@ from backend.repositories.user import UserRepository
 from backend.schemas.auth import TokenPair
 from backend.schemas.user import UserCreate, UserCreateInternal
 from backend.tasks.email import send_verification_email
+from shared.metrics import auth_successes
 
 
 class EmailAlreadyRegisteredError(ConflictError):
@@ -87,6 +88,7 @@ class AuthService:
             raise InvalidCredentialsError
         pair = await self._issue_pair(user_id=user.id, user_agent=user_agent)
         await self.session.commit()
+        auth_successes.inc()
         return pair
 
     async def refresh(

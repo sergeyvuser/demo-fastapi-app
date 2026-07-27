@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 
 from backend.core.exceptions import AppError
+from shared.metrics import auth_failures
 
 
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
@@ -15,6 +16,9 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
         "request failed: {}",
         exc.detail,
     )
+    reason = getattr(exc, "metric_reason", None)
+    if reason:
+        auth_failures.labels(reason).inc()
     return JSONResponse(
         status_code=exc.status_code,
         media_type="application/problem+json",

@@ -1,6 +1,7 @@
 from redis.asyncio import Redis
 
 from backend.core.exceptions import AppError
+from shared.metrics import rate_limit_hits
 
 
 class RateLimitExceededError(AppError):
@@ -38,4 +39,5 @@ class FixedWindowRateLimiter:
             )
             if count > self.limit:
                 ttl = await self.redis.ttl(redis_key)
+                rate_limit_hits.labels(self.prefix).inc()
                 raise RateLimitExceededError(retry_after=max(ttl, 1))

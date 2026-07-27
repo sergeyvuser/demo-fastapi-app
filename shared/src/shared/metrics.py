@@ -32,3 +32,17 @@ ws_connections = Gauge(
     "ws_active_connections",
     "Active WebSocket connections",
 )
+auth_failures = Counter(
+    "auth_failures_total",
+    "Failed authentication attempts",
+    ["reason"],
+)
+auth_successes = Counter(
+    "auth_successes_total",
+    "Successful logins",
+)
+rate_limit_hits = Counter(
+    "rate_limit_hits_total",
+    "Requests rejected by the rate limiter",
+    ["scope"],
+)
