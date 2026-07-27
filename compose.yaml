@@ -193,7 +193,7 @@ services:
 
   worker:
     build: { context: ., dockerfile: backend/Dockerfile }
-    command: [ "taskiq", "worker", "backend.tasks.broker:broker",
+    command: [ "taskiq", "worker", "backend.tasks.worker:broker",
                "backend.tasks.email", "backend.tasks.maintenance", "backend.tasks.digest" ]
     env_file: .env
     environment:
@@ -208,7 +208,7 @@ services:
 
   scheduler:
     build: { context: ., dockerfile: backend/Dockerfile }
-    command: [ "taskiq", "scheduler", "backend.tasks.broker:scheduler",
+    command: [ "taskiq", "scheduler", "backend.tasks.worker:scheduler",
                "backend.tasks.maintenance", "backend.tasks.digest" ]
     env_file: .env
     environment:

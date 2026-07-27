@@ -22,10 +22,10 @@ notifier: ## Run the notifier (FastStream consumer)
 	cd notifier && uv run faststream run notifier.app:app
 
 worker: ## Run taskiq worker
-	cd $(BACKEND) && uv run taskiq worker backend.tasks.broker:broker backend.tasks.email backend.tasks.maintenance backend.tasks.digest
+	cd $(BACKEND) && uv run taskiq worker backend.tasks.worker:broker backend.tasks.email backend.tasks.maintenance backend.tasks.digest
 
 scheduler: ## Run taskiq scheduler (puts scheduled tasks into the queue)
-	cd $(BACKEND) && uv run taskiq scheduler backend.tasks.broker:scheduler backend.tasks.maintenance backend.tasks.digest
+	cd $(BACKEND) && uv run taskiq scheduler backend.tasks.worker:scheduler backend.tasks.maintenance backend.tasks.digest
 
 lint: ## Ruff check across the whole workspace
 	uv run ruff check .
