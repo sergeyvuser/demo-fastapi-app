@@ -1,3 +1,5 @@
+import logging
+
 from faststream import FastStream
 from faststream.exceptions import RejectMessage
 from faststream.rabbit import RabbitBroker
@@ -28,6 +30,7 @@ configure_tracing("notifier", settings.otel)
 # noinspection PyTypeChecker
 broker = RabbitBroker(
     url=settings.rabbitmq.url,
+    log_level=logging.WARNING,
     # class, not instance: FastStream calls it per message as a builder
     middlewares=[CorrelationMiddleware, RabbitTelemetryMiddleware()],
 )

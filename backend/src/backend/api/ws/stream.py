@@ -6,6 +6,7 @@ copy of all ticks/alerts without competing with notifier or other
 api replicas.
 """
 
+import logging
 import uuid
 
 from faststream.rabbit import RabbitQueue
@@ -21,6 +22,7 @@ from shared.middlewares import CorrelationMiddleware
 # noinspection PyTypeChecker
 stream_router = RabbitRouter(
     url=settings.rabbitmq.url,
+    log_level=logging.WARNING,
     # class, not instance: FastStream calls it per message as a builder
     middlewares=[CorrelationMiddleware, RabbitTelemetryMiddleware()],
 )

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 from contextlib import suppress
 
@@ -22,6 +23,7 @@ configure_tracing("ingestor", settings.otel)
 # noinspection PyTypeChecker
 broker = RabbitBroker(
     url=settings.rabbitmq.url,
+    log_level=logging.WARNING,
     # class, not instance: FastStream calls it per message as a builder
     middlewares=[CorrelationMiddleware, RabbitTelemetryMiddleware()],
 )

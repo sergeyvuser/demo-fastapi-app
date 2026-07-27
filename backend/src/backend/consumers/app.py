@@ -4,6 +4,8 @@ Separate process from the API (run via `faststream run`), same codebase —
 it reuses models, repositories and services directly.
 """
 
+import logging
+
 from faststream import FastStream
 from faststream.rabbit import RabbitBroker
 from faststream.rabbit.opentelemetry import RabbitTelemetryMiddleware
@@ -37,6 +39,7 @@ configure_tracing("evaluator", settings.otel)
 # noinspection PyTypeChecker
 broker = RabbitBroker(
     url=settings.rabbitmq.url,
+    log_level=logging.WARNING,
     # class, not instance: FastStream calls it per message as a builder
     middlewares=[CorrelationMiddleware, RabbitTelemetryMiddleware()],
 )
