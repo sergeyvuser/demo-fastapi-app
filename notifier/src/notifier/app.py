@@ -1,4 +1,5 @@
 import logging
+import re
 
 from faststream import FastStream
 from faststream.exceptions import RejectMessage
@@ -36,7 +37,19 @@ broker = RabbitBroker(
 )
 app = FastStream(broker)
 
-HTTPXClientInstrumentor().instrument()
+_TOKEN_RE = re.compile(r"/bot[^/]+/")
+
+
+def _redact_url(span, request) -> None:
+    """Telegram puts the bot token in the URL path — never export it."""
+    if span is None or not span.is_recording():
+        return
+    safe = _TOKEN_RE.sub("/bot<redacted>/", str(request.url))
+    span.set_attribute("url.full", safe)  # new semconv
+    span.set_attribute("http.url", safe)  # older attribute name, if present
+
+
+HTTPXClientInstrumentor().instrument(request_hook=_redact_url)
 RedisInstrumentor().instrument()
 
 _redis: Redis | None = None
