@@ -75,7 +75,10 @@ async def on_alert(event: AlertTriggeredEvent) -> None:
     assert _redis is not None and _sender is not None
 
     if event.telegram_chat_id is None:
-        logger.info("alert {} for user without telegram — skipped", event.alert_id)
+        logger.bind(
+            alert_id=str(event.alert_id),
+            user_id=str(event.user_id),
+        ).info("alert skipped: yser has no telegram")
         return  # ack: nothing to deliver is a handled outcome
 
     # Idempotency: redeliveries (crash after send, before ack) must not
@@ -83,7 +86,10 @@ async def on_alert(event: AlertTriggeredEvent) -> None:
     dedup_key = f"notified:{event.alert_id}:{event.triggered_at.isoformat()}"
     first_time = await _redis.set(dedup_key, "1", nx=True, ex=_DEDUP_TTL_SECONDS)
     if not first_time:
-        logger.info("duplicate delivery of {} — skipped", dedup_key)
+        logger.bind(
+            alert_id=str(event.alert_id),
+            dedup_key=dedup_key,
+        ).info("duplicate delivery - skipped")
         return  # ack: already handled earlier
 
     text = (
@@ -93,11 +99,19 @@ async def on_alert(event: AlertTriggeredEvent) -> None:
     )
     try:
         await _sender.send_message(chat_id=event.telegram_chat_id, text=text)
+        logger.bind(
+            alert_id=str(event.alert_id),
+            chat_id=event.telegram_chat_id,
+        ).info("notification delivered")
         notifications_sent.inc()
     except TelegramSendError as exc:
         # We claimed the dedup key but failed to deliver — release it so
         # a redelivery attempt can try again, then dead-letter this one.
         await _redis.delete(dedup_key)
-        logger.error("delivery failed, dead-lettering: {}", exc)
+        logger.bind(
+            alert_id=str(event.alert_id),
+            user_id=str(event.user_id),
+            chat_id=event.telegram_chat_id,
+        ).error("delivery failed, dead-lettering: {}", exc)
         notifications_failed.inc()
         raise RejectMessage from exc

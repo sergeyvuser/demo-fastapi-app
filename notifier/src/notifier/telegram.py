@@ -41,15 +41,14 @@ class TelegramSender:
                         f"permanent: {response.status_code} {response.text}"
                     )
             except (httpx.TransportError, httpx.TimeoutException) as exc:
-                logger.warning(
-                    "telegram send failed ({}), attempt {}/{}",
-                    exc,
-                    attempt,
-                    _MAX_ATTEMPTS,
-                )
+                logger.bind(
+                    chat_id=chat_id,
+                    attempt=attempt,
+                ).warning("telegram send failed ({})", exc)
             else:
-                logger.warning(
-                    "telegram 5xx/429, attempt {}/{}", attempt, _MAX_ATTEMPTS
-                )
+                logger.bind(
+                    chat_id=chat_id,
+                    attempt=attempt,
+                ).warning("telegram 5xx/429")
             await asyncio.sleep(_RETRY_DELAY_SECONDS * attempt)
         raise TelegramSendError(f"gave up after {_MAX_ATTEMPTS} attempts")

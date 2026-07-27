@@ -29,5 +29,5 @@ async def cleanup_refresh_tokens() -> int:
             )
         )
         await session.commit()
-    logger.info("cleanup: {} refresh tokens purged", result.rowcount)
+    logger.bind(purged=result.rowcount).info("refresh token cleanup finished")
     return result.rowcount

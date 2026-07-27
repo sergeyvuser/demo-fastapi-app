@@ -5,6 +5,7 @@ from itertools import groupby
 from typing import TYPE_CHECKING
 
 import aiosmtplib
+from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -51,4 +52,5 @@ async def send_daily_digest() -> int:
         msg.set_content("Triggered in the last 24h:\n\n" + "\n".join(lines))
         await aiosmtplib.send(msg, hostname=settings.smtp.host, port=settings.smtp.port)
         sent += 1
+    logger.bind(recipients=sent).info("daily digest sent")
     return sent

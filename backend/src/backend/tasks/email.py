@@ -37,4 +37,7 @@ async def send_verification_email(user_id: str, email: str, username: str) -> No
         f"The link is valid for 24 hours."
     )
     await aiosmtplib.send(msg, hostname=settings.smtp.host, port=settings.smtp.port)
-    logger.info("verification email sent to {}", email)
+    logger.bind(
+        user_id=user_id,
+        email=email,
+    ).info("verification email sent")
