@@ -13,6 +13,7 @@ dependencies = [
     "opentelemetry-api>=1.44.0", # logging.py: get_current_span
     "opentelemetry-exporter-otlp-proto-grpc>=1.44.0", # tracing.py: OTLPSpanExporter
     "opentelemetry-sdk>=1.44.0", # tracing.py: TracerProvider
+    "orjson>=3.11.9",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.2",
 ]
