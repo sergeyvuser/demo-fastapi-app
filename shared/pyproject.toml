@@ -14,6 +14,7 @@ dependencies = [
     "opentelemetry-exporter-otlp-proto-grpc>=1.44.0", # tracing.py: OTLPSpanExporter
     "opentelemetry-sdk>=1.44.0", # tracing.py: TracerProvider
     "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.2",
 ]
 
 [build-system]
