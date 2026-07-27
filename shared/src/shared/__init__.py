@@ -1,7 +1,7 @@
-"""Contracts shared between services.
+"""Shared platform kernel for all services.
 
-Event schemas, broker topology, and connection-settings models for
-SHARED infrastructure (rabbitmq, redis) only. No business logic, no
-I/O, no service-private config (db, auth, telegram) — everyone depends
-on shared, shared depends on no one.
+Contracts (event schemas, broker topology) plus the common runtime
+foundation: settings base, logging and tracing setup, infra configs.
+No business logic, no service-private config (db, auth, telegram) —
+everyone depends on shared, shared depends on no one.
 """

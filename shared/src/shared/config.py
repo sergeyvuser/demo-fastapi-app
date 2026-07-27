@@ -1,4 +1,21 @@
+from pathlib import Path
+
 from pydantic import BaseModel, SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _find_env_file() -> Path | None:
+    """Locate .env by walking up from CWD.
+
+    Works from the repo root and from any member directory (Makefile
+    does `cd backend && uv run ...`). Returns None in containers, where
+    there is no .env by design — config comes from the environment.
+    """
+    for directory in (Path.cwd(), *Path.cwd().parents):
+        candidate = directory / ".env"
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 class RabbitMQConfig(BaseModel):
@@ -32,3 +49,21 @@ class LogConfig(BaseModel):
 class OtelConfig(BaseModel):
     enabled: bool = True
     endpoint: str = "http://127.0.0.1:4317"
+
+
+class BaseServiceSettings(BaseSettings):
+    """Common settings every service shares (env prefix, infra, observability)."""
+
+    model_config = SettingsConfigDict(
+        env_file=_find_env_file(),
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        env_nested_delimiter="__",
+        env_prefix="APP_CONFIG__",
+        extra="ignore",
+    )
+
+    redis: RedisConfig = RedisConfig()
+    rabbitmq: RabbitMQConfig
+    log: LogConfig = LogConfig()
+    otel: OtelConfig = OtelConfig()
