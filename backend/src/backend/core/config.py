@@ -1,13 +1,7 @@
-from pathlib import Path
-
 from pydantic import BaseModel, SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
-from shared.config import LogConfig, OtelConfig, RabbitMQConfig, RedisConfig
-
-ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
-ENV_PATH = ROOT_DIR.parent / ".env"
+from shared.config import BaseServiceSettings
 
 
 class SQLAlchemyConfig(BaseModel):
@@ -86,24 +80,12 @@ class AuthConfig(BaseModel):
     register_rate_window_seconds: int = 300
 
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=ENV_PATH,
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        env_nested_delimiter="__",
-        env_prefix="APP_CONFIG__",
-        extra="ignore",
-    )
+class Settings(BaseServiceSettings):
     run: RunConfig = RunConfig()
     api: APIPrefixConfig = APIPrefixConfig()
     db: DBConfig
     auth: AuthConfig
-    redis: RedisConfig = RedisConfig()
-    rabbitmq: RabbitMQConfig
     smtp: SMTPConfig = SMTPConfig()
-    log: LogConfig = LogConfig()
-    otel: OtelConfig = OtelConfig()
 
 
 settings = Settings()
