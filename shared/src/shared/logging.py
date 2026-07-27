@@ -8,7 +8,9 @@ import contextvars
 import inspect
 import logging
 import sys
+import traceback
 
+import orjson
 from loguru import logger
 from opentelemetry import trace
 
@@ -18,6 +20,30 @@ correlation_id: contextvars.ContextVar[str] = contextvars.ContextVar(
     "correlation_id",
     default="-",
 )
+
+
+def _json_sink(message) -> None:
+    """Emit a flat, query-friendly line: OTel-ish field names, extras inlined."""
+    record = message.record
+    payload = {
+        "timestamp": record["time"].isoformat(),
+        "level": record["level"].name,
+        "message": record["message"],
+        "logger": f"{record['name']}:{record['function']}:{record['line']}",
+        **record["extra"],  # correlation_id, trace_id, alert_id, user_id, ...
+    }
+    exc = record["exception"]
+    if exc is not None:
+        payload["exception"] = {
+            "type": exc.type.__name__ if exc.type else None,
+            "value": str(exc.value),
+            "traceback": "".join(
+                traceback.format_exception(exc.type, exc.value, exc.traceback)
+            ),
+        }
+    # orjson returns bytes and appends no newline
+    sys.stdout.buffer.write(orjson.dumps(payload, default=str) + b"\n")
+    sys.stdout.buffer.flush()
 
 
 def _patch(record) -> None:
@@ -56,9 +82,8 @@ def configure_logging(cfg: LogConfig) -> None:
     if cfg.json_format:
         # containers: structured stdout, platform handles collection
         logger.add(
-            sys.stdout,
+            _json_sink,
             level=cfg.level,
-            serialize=True,
             enqueue=True,
         )
     else:
