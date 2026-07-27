@@ -3,7 +3,7 @@ from pathlib import Path
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from shared.config import LogConfig, RabbitMQConfig
+from shared.config import LogConfig, OtelConfig, RabbitMQConfig
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 ENV_PATH = ROOT_DIR.parent / ".env"
@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     rabbitmq: RabbitMQConfig
     stream: StreamConfig = StreamConfig()
     log: LogConfig = LogConfig()
+    otel: OtelConfig = OtelConfig()
 
 
 settings = Settings()

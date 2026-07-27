@@ -3,7 +3,7 @@ from pathlib import Path
 from pydantic import BaseModel, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from shared.config import LogConfig, RabbitMQConfig, RedisConfig
+from shared.config import LogConfig, OtelConfig, RabbitMQConfig, RedisConfig
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 ENV_PATH = ROOT_DIR.parent / ".env"
@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     redis: RedisConfig = RedisConfig()
     telegram: TelegramConfig
     log: LogConfig = LogConfig()
+    otel: OtelConfig = OtelConfig()
 
 
 settings = Settings()

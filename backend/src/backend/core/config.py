@@ -4,7 +4,7 @@ from pydantic import BaseModel, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
-from shared.config import LogConfig, RabbitMQConfig, RedisConfig
+from shared.config import LogConfig, OtelConfig, RabbitMQConfig, RedisConfig
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
 ENV_PATH = ROOT_DIR.parent / ".env"
@@ -103,6 +103,7 @@ class Settings(BaseSettings):
     rabbitmq: RabbitMQConfig
     smtp: SMTPConfig = SMTPConfig()
     log: LogConfig = LogConfig()
+    otel: OtelConfig = OtelConfig()
 
 
 settings = Settings()
