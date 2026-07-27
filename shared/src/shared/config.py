@@ -27,3 +27,8 @@ class RedisConfig(BaseModel):
 class LogConfig(BaseModel):
     level: str = "INFO"
     json_format: bool = False  # human-readable locally, structured in containers
+
+
+class OtelConfig(BaseModel):
+    enabled: bool = True
+    endpoint: str = "http://127.0.0.1:4317"
