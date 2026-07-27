@@ -39,7 +39,7 @@ configure_tracing("evaluator", settings.otel)
 # noinspection PyTypeChecker
 broker = RabbitBroker(
     url=settings.rabbitmq.url,
-    log_level=logging.WARNING,
+    log_level=logging.DEBUG,
     # class, not instance: FastStream calls it per message as a builder
     middlewares=[CorrelationMiddleware, RabbitTelemetryMiddleware()],
 )
