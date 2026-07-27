@@ -28,6 +28,9 @@ dependencies = [
     "aiosmtplib>=5.1.2",
     "prometheus-fastapi-instrumentator>=8.0.2",
     "prometheus-client>=0.26.0",
+    "opentelemetry-instrumentation-fastapi>=0.65b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.65b0",
+    "opentelemetry-instrumentation-redis>=0.65b0",
 ]
 
 [tool.uv.sources]
