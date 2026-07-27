@@ -10,8 +10,9 @@ requires-python = ">=3.14"
 dependencies = [
     "faststream[rabbit]>=0.7.2",
     "loguru>=0.7.3",
-    "opentelemetry-exporter-otlp-proto-grpc>=1.44.0",
-    "opentelemetry-sdk>=1.44.0",
+    "opentelemetry-api>=1.44.0", # logging.py: get_current_span
+    "opentelemetry-exporter-otlp-proto-grpc>=1.44.0", # tracing.py: OTLPSpanExporter
+    "opentelemetry-sdk>=1.44.0", # tracing.py: TracerProvider
     "pydantic>=2.13.4",
 ]
 
