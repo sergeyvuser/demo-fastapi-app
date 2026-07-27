@@ -69,3 +69,6 @@ def configure_logging(cfg: LogConfig) -> None:
             enqueue=True,
         )
     logging.basicConfig(handlers=[InterceptHandler()], level=logging.INFO, force=True)
+    # httpx logs full request URLs at INFO — telegram puts the bot token in the path
+    for noisy in ("httpx", "aiormq", "aio_pika"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
