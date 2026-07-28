@@ -21,7 +21,7 @@ realtime dashboard frontend.
 | Messaging                 | RabbitMQ + FastStream (events), Taskiq (background + scheduled jobs)     |
 | Cache                     | Redis (price cache, rate limiting, dedup, result backend)               |
 | Email                     | aiosmtplib + Mailpit (dev SMTP sandbox)                                  |
-| Observability *(planned)* | Prometheus + Grafana, OpenTelemetry                                      |
+| Observability             | Prometheus + Grafana (metrics), structured JSON logs with correlation id, OpenTelemetry + Jaeger (traces) |
 
 ## Repository layout
 
@@ -40,8 +40,9 @@ realtime dashboard frontend.
 ├── ingestor/         # Bybit WS → RabbitMQ ticks
 ├── notifier/         # alert events → Telegram
 ├── shared/           # event schemas, broker topology, shared infra config
-├── compose.yaml      # db, redis, rabbitmq, mailpit, migrate, api, evaluator,
-│                     #   ingestor, notifier, worker, scheduler
+├── observability/    # prometheus config, grafana provisioning (datasource, dashboards)
+├── compose.yaml      # db, redis, rabbitmq, mailpit, migrate, api, evaluator, ingestor,
+│                     #   notifier, worker, scheduler, prometheus, grafana, jaeger
 ├── Makefile          # dev entrypoints (see `make`)
 └── .env.template     # copy to .env and fill in
 ```
@@ -66,7 +67,12 @@ make up          # build + start the full stack (migrations run automatically)
 - API & Swagger: http://127.0.0.1:8000/docs
 - RabbitMQ UI: http://127.0.0.1:15672
 - Mailpit (caught emails): http://127.0.0.1:8025
+- Grafana (dashboards): http://127.0.0.1:3000
+- Prometheus: http://127.0.0.1:9090 · Jaeger (traces): http://127.0.0.1:16686
 - pgAdmin (optional): `docker compose --profile tools up -d` → http://127.0.0.1:5050
+
+> Use `127.0.0.1`, not `localhost`: ports are published on IPv4 only, and on
+> Windows `localhost` resolves to `::1` first.
 
 Local development without containerizing the app:
 
@@ -145,6 +151,24 @@ Taskiq worker + scheduler over RabbitMQ, Redis result backend:
 - **daily digest** (cron) — email summary of alerts triggered in the last 24h
 - **refresh-token cleanup** (cron) — purge tokens expired/revoked > 30 days ago
 
+## Observability (implemented)
+
+Three pillars, each answering a different question:
+
+- **Metrics** — `/metrics` on every service (RED metrics for HTTP plus custom
+  counters: ticks, alerts fired, notifications, auth failures, WS connections).
+  Scraped by Prometheus, charted in Grafana.
+- **Logs** — flat JSON to stdout, one line per event, with structured fields
+  (`logger.bind(...)`). Every line carries `correlation_id` (propagated across
+  HTTP → broker → tasks) and `trace_id`, so one grep reconstructs a whole
+  cross-service operation.
+- **Traces** — OpenTelemetry with automatic instrumentation (FastAPI,
+  SQLAlchemy, Redis, httpx) and context propagation through RabbitMQ, so a
+  single trace spans ingestor → evaluator → notifier. Exported to Jaeger.
+
+Sampling is per service (`APP_CONFIG__OTEL__SAMPLE_RATIO`); secrets are
+redacted from span attributes before export.
+
 ## Roadmap
 
 - [x] 0–1. Skeleton fixes, async SQLAlchemy, first migrations
@@ -155,5 +179,5 @@ Taskiq worker + scheduler over RabbitMQ, Redis result backend:
 - [x] 6. RabbitMQ + FastStream: ingestor / evaluator / notifier
 - [x] 7. Taskiq: background & scheduled jobs (email verify, digest, cleanup)
 - [x] 8. WebSocket realtime feed (frontend entry point)
-- [ ] 9. Observability: Prometheus/Grafana, OpenTelemetry, structured logs
+- [x] 9. Observability: Prometheus/Grafana, OpenTelemetry, structured logs
 - [ ] 10. Tests (pytest-asyncio, testcontainers) + CI
