@@ -40,7 +40,7 @@ app = FastStream(broker)
 _TOKEN_RE = re.compile(r"/bot[^/]+/")
 
 
-def _redact_url(span, request) -> None:
+async def _redact_url(span, request) -> None:
     """Telegram puts the bot token in the URL path — never export it."""
     if span is None or not span.is_recording():
         return
@@ -49,7 +49,7 @@ def _redact_url(span, request) -> None:
     span.set_attribute("http.url", safe)  # older attribute name, if present
 
 
-HTTPXClientInstrumentor().instrument(request_hook=_redact_url)
+HTTPXClientInstrumentor().instrument(async_request_hook=_redact_url)
 RedisInstrumentor().instrument()
 
 _redis: Redis | None = None
