@@ -1,5 +1,4 @@
 import logging
-import re
 
 from faststream import FastStream
 from faststream.exceptions import RejectMessage
@@ -12,6 +11,7 @@ from prometheus_client import start_http_server
 from redis.asyncio import Redis
 
 from notifier.config import settings
+from notifier.redaction import redact_bot_token
 from notifier.telegram import TelegramSender, TelegramSendError
 from shared.broker import (
     ALERTS_DEAD_QUEUE,
@@ -37,14 +37,12 @@ broker = RabbitBroker(
 )
 app = FastStream(broker)
 
-_TOKEN_RE = re.compile(r"/bot[^/]+/")
-
 
 async def _redact_url(span, request) -> None:
     """Telegram puts the bot token in the URL path — never export it."""
     if span is None or not span.is_recording():
         return
-    safe = _TOKEN_RE.sub("/bot<redacted>/", str(request.url))
+    safe = redact_bot_token(str(request.url))
     span.set_attribute("url.full", safe)  # new semconv
     span.set_attribute("http.url", safe)  # older attribute name, if present
 
