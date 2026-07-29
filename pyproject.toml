@@ -38,3 +38,23 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "backend/src/backend/alembic/versions/*" = ["E501"]
+
+[tool.pytest]
+testpaths = ["shared/tests", "backend/tests", "ingestor/tests", "notifier/tests"]
+addopts = [
+    "-ra",
+    #"-q",
+    "-vv",
+    "--strict-markers",
+    "--strict-config",
+    "--import-mode=importlib",
+]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+# importlib mode names test modules after their path (shared.tests.test_events)
+# and would register a stub `shared` parent that shadows the real package —
+# this makes pytest resolve package roots through sys.path instead
+consider_namespace_packages = true
+markers = [
+    "integration: requires docker (testcontainers)",
+]

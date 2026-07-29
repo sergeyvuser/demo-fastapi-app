@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 BACKEND := backend
 
-.PHONY: help install run evaluator ingestor notifier format up down reset dev logs db-up tools tools-down migration migrate migrate-down migrate-check
+.PHONY: help install run evaluator ingestor notifier worker scheduler up down reset dev logs db-up tools tools-down migration migrate migrate-down migrate-check lint format test test-unit
 
 help: ## Показать доступные команды
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -26,12 +26,6 @@ worker: ## Run taskiq worker
 
 scheduler: ## Run taskiq scheduler (puts scheduled tasks into the queue)
 	cd $(BACKEND) && uv run taskiq scheduler backend.tasks.worker:scheduler backend.tasks.maintenance backend.tasks.digest
-
-lint: ## Ruff check across the whole workspace
-	uv run ruff check .
-
-format: ## Ruff format across the whole workspace
-	uv run ruff format .
 
 up: ## Поднять postgres в docker
 	docker compose up -d --build
@@ -75,3 +69,15 @@ migrate-check: ## Проверить обратимость последней �
 	cd $(BACKEND) && uv run alembic downgrade -1
 	cd $(BACKEND) && uv run alembic upgrade head
 	cd $(BACKEND) && uv run alembic check
+
+lint: ## Ruff check across the whole workspace
+	uv run ruff check .
+
+format: ## Ruff format across the whole workspace
+	uv run ruff format .
+
+test: ## Run the whole test suite
+	uv run pytest
+
+test-unit: ## Fast tests only — no docker required
+	uv run pytest -m "not integration"
