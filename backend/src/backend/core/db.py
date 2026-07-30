@@ -9,16 +9,21 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from backend.core.config import settings
+from backend.core.config import DBConfig, settings
 
-engine: AsyncEngine = create_async_engine(
-    url=settings.db.async_url,
-    echo=settings.db.sqla.echo,
-    echo_pool=settings.db.sqla.echo_pool,
-    pool_pre_ping=settings.db.sqla.pool_pre_ping,
-    pool_size=settings.db.sqla.pool_size,
-    max_overflow=settings.db.sqla.max_overflow,
-)
+
+def make_engine(cfg: DBConfig) -> AsyncEngine:
+    return create_async_engine(
+        url=cfg.async_url,
+        echo=cfg.sqla.echo,
+        echo_pool=cfg.sqla.echo_pool,
+        pool_pre_ping=cfg.sqla.pool_pre_ping,
+        pool_size=cfg.sqla.pool_size,
+        max_overflow=cfg.sqla.max_overflow,
+    )
+
+
+engine: AsyncEngine = make_engine(settings.db)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
