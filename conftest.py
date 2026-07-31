@@ -20,6 +20,7 @@ os.environ.update(
         "APP_CONFIG__DB__PASSWORD": "test",
         "APP_CONFIG__DB__HOST": "127.0.0.1",
         "APP_CONFIG__DB__PORT": "5432",
+        "APP_CONFIG__DB__SQLA__ECHO": "false",
         "APP_CONFIG__AUTH__SECRET_KEY": "test-secret-key-not-for-production",
         "APP_CONFIG__RABBITMQ__PASSWORD": "test",
         # no exporter, no background export thread during tests

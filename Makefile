@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 BACKEND := backend
 
-.PHONY: help install run evaluator ingestor notifier worker scheduler up down reset dev logs db-up tools tools-down migration migrate migrate-down migrate-check lint format test test-unit
+.PHONY: help install run evaluator ingestor notifier worker scheduler up down reset dev logs db-up tools tools-down migration migrate migrate-down migrate-check lint format test test-unit test-integration
 
 help: ## Показать доступные команды
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -81,3 +81,6 @@ test: ## Run the whole test suite
 
 test-unit: ## Fast tests only — no docker required
 	uv run pytest -m "not integration"
+
+test-integration: ## Docker-backed tests only
+	uv run pytest -m integration
