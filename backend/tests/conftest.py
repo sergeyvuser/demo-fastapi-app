@@ -7,25 +7,38 @@ code between test modules.
 """
 
 import uuid
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Callable, Generator
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 from alembic import command
 from alembic.config import Config
+from httpx import ASGITransport, AsyncClient
 from polyfactory.factories.pydantic_factory import ModelFactory
 from pydantic import SecretStr
+from redis.asyncio import Redis
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from testcontainers.community.postgres import PostgresContainer
+from testcontainers.community.redis import RedisContainer
 
+from backend.core import security
 from backend.core.config import settings
-from backend.core.db import AsyncSessionLocal, make_engine
+from backend.core.db import AsyncSessionLocal, get_async_db_session, make_engine
+from backend.main import app as fastapi_app
 from backend.models import User
 from backend.schemas.alert import AlertCreate
+from backend.tasks.email import send_verification_email
 
 BACKEND_DIR = Path(__file__).parents[1]
+
+PASSWORD = "correct-horse-battery-staple"
+
+
+@pytest.fixture
+def password() -> str:
+    return PASSWORD
 
 
 def pytest_collection_modifyitems(items) -> None:
@@ -106,6 +119,46 @@ async def session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
         await transaction.rollback()
 
 
+@pytest.fixture(scope="session")
+def redis_dsn() -> Generator[str]:
+    # same tag as compose: Lua scripting and expiry semantics must match
+    with RedisContainer("redis:8-alpine") as container:
+        host = container.get_container_host_ip()
+        yield f"redis://{host}:{container.get_exposed_port(6379)}/0"
+
+
+@pytest.fixture(scope="session")
+async def redis_client(redis_dsn: str) -> AsyncGenerator[Redis]:
+    client = Redis.from_url(redis_dsn, decode_responses=True)
+    yield client
+    await client.aclose()
+
+
+@pytest.fixture
+async def api_client(
+    session: AsyncSession, redis_client: Redis
+) -> AsyncGenerator[AsyncClient]:
+    """HTTP client that drives the app in-process.
+
+    ASGITransport speaks ASGI directly: no socket, no server — and NO
+    lifespan. Everything lifespan would have wired up has to be supplied
+    here by hand, which is exactly what the three lines below do.
+    """
+    # the counter for rate limiting outlives a single test otherwise
+    await redis_client.flushdb()
+
+    fastapi_app.dependency_overrides[get_async_db_session] = lambda: session
+    fastapi_app.state.redis = redis_client
+
+    async with AsyncClient(
+        transport=ASGITransport(app=fastapi_app),
+        base_url="http://test",
+    ) as client:
+        yield client
+
+    fastapi_app.dependency_overrides.clear()
+
+
 class AlertCreateFactory(ModelFactory[AlertCreate]):
     # symbol and threshold are constrained types; polyfactory can satisfy them
     # on its own, but pinned values keep assertion failures readable
@@ -140,3 +193,39 @@ async def user(session: AsyncSession) -> User:
 @pytest.fixture
 async def other_user(session: AsyncSession) -> User:
     return await _create_user(session)
+
+
+@pytest.fixture
+async def verified_user(session: AsyncSession) -> User:
+    return await _create_user(session, telegram_chat_id=424242, is_verified=True)
+
+
+@pytest.fixture
+async def user_with_password(session: AsyncSession) -> User:
+    return await _create_user(session, hashed_password=security.hash_password(PASSWORD))
+
+
+@pytest.fixture
+def auth_headers() -> Callable[[User], dict[str, str]]:
+    """Mint a bearer header for any user — no login round-trip needed."""
+    return lambda user: {
+        "Authorization": f"Bearer {security.create_access_token(user.id)}"
+    }
+
+
+@pytest.fixture
+def enqueued_emails(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
+    """Capture verification tasks instead of publishing them.
+
+    The API process is a taskiq CLIENT, and its broker is started by the
+    lifespan we are not running — .kiq() would fail on a closed connection.
+    What matters at this layer is that the task WAS handed over with the
+    right arguments; running it is part 4's job.
+    """
+    sent: list[dict] = []
+
+    async def fake_kiq(**kwargs) -> None:
+        sent.append(kwargs)
+
+    monkeypatch.setattr(send_verification_email, "kiq", fake_kiq)
+    return sent
