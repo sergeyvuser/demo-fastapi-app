@@ -1,4 +1,15 @@
 apiVersion: 1
+
+# Grafana resolves an already-provisioned datasource by uid. Pinning the uid
+# after the datasource had first been created without one leaves the record in
+# the volume unreachable: provisioning fails with "data source not found" and
+# takes the whole process down with it — the HTTP server depends on it.
+# Deleting by name first makes this file self-healing on any existing volume;
+# deleting a datasource that is not there is a no-op.
+deleteDatasources:
+  - name: Prometheus
+    orgId: 1
+
 datasources:
   - name: Prometheus
     uid: prometheus
