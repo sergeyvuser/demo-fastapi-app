@@ -20,6 +20,7 @@ from pydantic import SecretStr
 from redis.asyncio import Redis
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from taskiq import AsyncBroker
 from testcontainers.community.postgres import PostgresContainer
 from testcontainers.community.redis import RedisContainer
 
@@ -29,6 +30,7 @@ from backend.core.db import AsyncSessionLocal, get_async_db_session, make_engine
 from backend.main import app as fastapi_app
 from backend.models import User
 from backend.schemas.alert import AlertCreate
+from backend.tasks.broker import broker
 from backend.tasks.email import send_verification_email
 
 BACKEND_DIR = Path(__file__).parents[1]
@@ -120,23 +122,23 @@ async def session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
 
 
 @pytest.fixture(scope="session")
-def redis_dsn() -> Generator[str]:
-    # same tag as compose: Lua scripting and expiry semantics must match
-    with RedisContainer("redis:8-alpine") as container:
-        host = container.get_container_host_ip()
-        yield f"redis://{host}:{container.get_exposed_port(6379)}/0"
+def _redis_settings(redis_endpoint: tuple[str, int]) -> Generator[None]:
+    """Point backend settings at the test Redis.
 
-
-@pytest.fixture(scope="session")
-async def redis_client(redis_dsn: str) -> AsyncGenerator[Redis]:
-    client = Redis.from_url(redis_dsn, decode_responses=True)
-    yield client
-    await client.aclose()
+    Code that builds its own client from settings — the verification email
+    task, the evaluator's price cache — must land in the same container the
+    fixtures inspect, or a test asserts on an empty database.
+    """
+    host, port = redis_endpoint
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(settings.redis, "host", host)
+        mp.setattr(settings.redis, "port", port)
+        yield
 
 
 @pytest.fixture
 async def api_client(
-    session: AsyncSession, redis_client: Redis
+    session: AsyncSession, clean_redis: Redis, _redis_settings: Generator[None]
 ) -> AsyncGenerator[AsyncClient]:
     """HTTP client that drives the app in-process.
 
@@ -144,11 +146,9 @@ async def api_client(
     lifespan. Everything lifespan would have wired up has to be supplied
     here by hand, which is exactly what the three lines below do.
     """
-    # the counter for rate limiting outlives a single test otherwise
-    await redis_client.flushdb()
 
     fastapi_app.dependency_overrides[get_async_db_session] = lambda: session
-    fastapi_app.state.redis = redis_client
+    fastapi_app.state.redis = clean_redis
 
     async with AsyncClient(
         transport=ASGITransport(app=fastapi_app),
@@ -157,6 +157,17 @@ async def api_client(
         yield client
 
     fastapi_app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="session")
+async def taskiq_broker(_redis_settings: None) -> AsyncGenerator[AsyncBroker]:
+    """The in-memory broker, started by hand.
+
+    In production the API lifespan starts it; we do not run lifespan.
+    """
+    await broker.startup()
+    yield broker
+    await broker.shutdown()
 
 
 class AlertCreateFactory(ModelFactory[AlertCreate]):

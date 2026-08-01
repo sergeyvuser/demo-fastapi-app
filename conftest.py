@@ -12,6 +12,11 @@ machine that has the right .env is not a test suite.
 """
 
 import os
+from collections.abc import AsyncGenerator, Generator
+
+import pytest
+from redis.asyncio import Redis
+from testcontainers.community.redis import RedisContainer
 
 os.environ.update(
     {
@@ -26,5 +31,33 @@ os.environ.update(
         # no exporter, no background export thread during tests
         "APP_CONFIG__OTEL__ENABLED": "false",
         "APP_CONFIG__LOG__LEVEL": "WARNING",
+        # testing
+        "APP_CONFIG__TESTING": "true",
+        "APP_CONFIG__TELEGRAM__BOT_TOKEN": "123456:test-token",
     }
 )
+
+
+@pytest.fixture(scope="session")
+def redis_endpoint() -> Generator[tuple[str, int]]:
+    """Redis for every service that needs one — backend and notifier alike."""
+    # same tag as compose: Lua scripting and expiry semantics must match
+    with RedisContainer("redis:8-alpine") as container:
+        host = container.get_container_host_ip()
+        yield host, int(container.get_exposed_port(6379))
+
+
+@pytest.fixture(scope="session")
+async def redis_client(redis_endpoint: tuple[str, int]) -> AsyncGenerator[Redis]:
+    host, port = redis_endpoint
+    client = Redis.from_url(f"redis://{host}:{port}/0", decode_responses=True)
+    yield client
+    await client.aclose()
+
+
+@pytest.fixture
+async def clean_redis(redis_client: Redis) -> Redis:
+    """Redis with no leftovers: dedup keys and rate-limit counters must not
+    survive into the next test."""
+    await redis_client.flushdb()
+    return redis_client
