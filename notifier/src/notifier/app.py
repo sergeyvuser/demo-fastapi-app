@@ -14,10 +14,9 @@ from notifier.config import settings
 from notifier.redaction import redact_bot_token
 from notifier.telegram import TelegramSender, TelegramSendError
 from shared.broker import (
-    ALERTS_DEAD_QUEUE,
-    ALERTS_DLX,
     ALERTS_EXCHANGE,
     ALERTS_TRIGGERED_QUEUE,
+    declare_alerts_topology,
 )
 from shared.events import AlertTriggeredEvent
 from shared.logging import configure_logging
@@ -75,13 +74,9 @@ async def start_metrics_server() -> None:
 
 
 @app.after_startup
-async def declare_alerts_topology() -> None:
-    # Dead-letter path. Must exist BEFORE the first reject happens:
-    # dead-lettering into a missing exchange is a SILENT no-op — the
-    # broker just drops the message, no error anywhere.
-    dlx = await broker.declare_exchange(ALERTS_DLX)
-    dead_queue = await broker.declare_queue(ALERTS_DEAD_QUEUE)
-    await dead_queue.bind(dlx)  # fanout ignores routing keys
+async def declare_topology() -> None:
+    # requires a live broker connection
+    await declare_alerts_topology(broker=broker)
 
 
 @app.on_shutdown

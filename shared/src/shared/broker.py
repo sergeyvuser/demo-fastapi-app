@@ -1,4 +1,4 @@
-from faststream.rabbit import ExchangeType, RabbitExchange, RabbitQueue
+from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange, RabbitQueue
 from faststream.rabbit.schemas.queue import ClassicQueueArgs
 
 # Producers publish here. Topic exchange: routing key = symbol,
@@ -36,3 +36,28 @@ ALERTS_TRIGGERED_QUEUE = RabbitQueue(
     durable=True,
     arguments=_ALERTS_QUEUE_ARGS,
 )
+
+
+async def declare_alerts_topology(broker: RabbitBroker) -> None:
+    """Declare the alerts flow: exchange, queue, and the dead-letter path.
+
+    Every service touching alerts calls this at startup. The dead-letter
+    exchange must exist BEFORE the first reject happens: dead-lettering into
+    a missing exchange is a SILENT no-op — the broker simply drops the
+    message and reports nothing.
+    """
+    # requires a live broker connection
+    # The alerts exchange is ours to publish into, but no subscriber in
+    # this process declares it. Declare exchange + queue + binding
+    # explicitly so triggered alerts are retained even while the
+    # notifier service does not exist / is down.
+    exchange = await broker.declare_exchange(ALERTS_EXCHANGE)
+    queue = await broker.declare_queue(ALERTS_TRIGGERED_QUEUE)
+    await queue.bind(exchange, routing_key="alert.triggered")
+
+    # Dead-letter path. Must exist BEFORE the first reject happens:
+    # dead-lettering into a missing exchange is a SILENT no-op — the
+    # broker just drops the message, no error anywhere.
+    dlx = await broker.declare_exchange(ALERTS_DLX)
+    dead_queue = await broker.declare_queue(ALERTS_DEAD_QUEUE)
+    await dead_queue.bind(dlx)  # fanout ignores routing keys

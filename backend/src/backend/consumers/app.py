@@ -20,12 +20,10 @@ from backend.core.db import AsyncSessionLocal, engine
 from backend.services.alert_evaluation import AlertEvaluationService
 from backend.services.prices import PriceCache
 from shared.broker import (
-    ALERTS_DEAD_QUEUE,
-    ALERTS_DLX,
     ALERTS_EXCHANGE,
-    ALERTS_TRIGGERED_QUEUE,
     TICKS_EVALUATOR_QUEUE,
     TICKS_EXCHANGE,
+    declare_alerts_topology,
 )
 from shared.events import TickEvent
 from shared.logging import configure_logging
@@ -70,22 +68,9 @@ async def start_metrics_server() -> None:
 
 
 @app.after_startup
-async def declare_alerts_topology() -> None:
+async def declare_topology() -> None:
     # requires a live broker connection
-    # The alerts exchange is ours to publish into, but no subscriber in
-    # this process declares it. Declare exchange + queue + binding
-    # explicitly so triggered alerts are retained even while the
-    # notifier service does not exist / is down.
-    exchange = await broker.declare_exchange(ALERTS_EXCHANGE)
-    queue = await broker.declare_queue(ALERTS_TRIGGERED_QUEUE)
-    await queue.bind(exchange, routing_key="alert.triggered")
-
-    # Dead-letter path. Must exist BEFORE the first reject happens:
-    # dead-lettering into a missing exchange is a SILENT no-op — the
-    # broker just drops the message, no error anywhere.
-    dlx = await broker.declare_exchange(ALERTS_DLX)
-    dead_queue = await broker.declare_queue(ALERTS_DEAD_QUEUE)
-    await dead_queue.bind(dlx)  # fanout ignores routing keys
+    await declare_alerts_topology(broker=broker)
 
 
 @broker.subscriber(TICKS_EVALUATOR_QUEUE, TICKS_EXCHANGE)
