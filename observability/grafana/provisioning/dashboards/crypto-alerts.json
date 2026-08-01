@@ -2,9 +2,9 @@
   "apiVersion": "dashboard.grafana.app/v2",
   "kind": "Dashboard",
   "metadata": {
-    "name": "adsjhdd",
+    "name": "crypto-alerts",
     "namespace": "default",
-    "uid": "prometheus",
+    "uid": "crypto-alerts",
     "resourceVersion": "1785169475610007",
     "generation": 7,
     "creationTimestamp": "2026-07-25T13:56:39Z",
@@ -63,7 +63,7 @@
                       "group": "prometheus",
                       "version": "v0",
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "spec": {
                         "editorMode": "code",
@@ -183,7 +183,7 @@
                       "group": "prometheus",
                       "version": "v0",
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "spec": {
                         "editorMode": "code",
@@ -303,7 +303,7 @@
                       "group": "prometheus",
                       "version": "v0",
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "spec": {
                         "editorMode": "code",
@@ -423,7 +423,7 @@
                       "group": "prometheus",
                       "version": "v0",
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "spec": {
                         "editorMode": "code",
@@ -543,7 +543,7 @@
                       "group": "prometheus",
                       "version": "v0",
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "spec": {
                         "editorMode": "code",
@@ -663,7 +663,7 @@
                       "group": "prometheus",
                       "version": "v0",
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "spec": {
                         "editorMode": "code",
@@ -783,7 +783,7 @@
                       "group": "prometheus",
                       "version": "v0",
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "spec": {
                         "editorMode": "code",
@@ -867,7 +867,7 @@
                       "group": "prometheus",
                       "version": "v0",
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "spec": {
                         "editorMode": "code",
@@ -888,7 +888,7 @@
                       "group": "prometheus",
                       "version": "v0",
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "spec": {
                         "editorMode": "code",
@@ -1009,7 +1009,7 @@
                       "group": "prometheus",
                       "version": "v0",
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "spec": {
                         "editorMode": "code",
@@ -1030,7 +1030,7 @@
                       "group": "prometheus",
                       "version": "v0",
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "spec": {
                         "editorMode": "code",
@@ -1052,7 +1052,7 @@
                       "group": "prometheus",
                       "version": "v0",
                       "datasource": {
-                        "name": "PBFA97CFB590B2093"
+                        "name": "prometheus"
                       },
                       "spec": {
                         "editorMode": "code",
