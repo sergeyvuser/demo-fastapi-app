@@ -43,13 +43,6 @@ def password() -> str:
     return PASSWORD
 
 
-def pytest_collection_modifyitems(items) -> None:
-    """Anything under tests/integration needs Docker - mark it automatically."""
-    for item in items:
-        if "integration" in item.path.parts:
-            item.add_marker("integration")
-
-
 @pytest.fixture(scope="session")
 def postgres_dsn() -> Generator[str]:
     # Same image tag as compose runs: tests and production meet the same server.

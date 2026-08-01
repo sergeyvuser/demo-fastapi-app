@@ -61,3 +61,10 @@ async def clean_redis(redis_client: Redis) -> Redis:
     survive into the next test."""
     await redis_client.flushdb()
     return redis_client
+
+
+def pytest_collection_modifyitems(items) -> None:
+    """Anything under tests/integration needs Docker - mark it automatically."""
+    for item in items:
+        if "integration" in item.path.parts:
+            item.add_marker("integration")
