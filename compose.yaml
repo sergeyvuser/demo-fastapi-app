@@ -66,7 +66,7 @@ services:
       retries: 10
 
   mailpit:
-    image: axllent/mailpit
+    image: axllent/mailpit:v1.30.6
     ports:
       - "127.0.0.1:1025:1025"   # SMTP — сюда приложение шлёт письма
       - "127.0.0.1:8025:8025"   # Web UI — здесь ты их читаешь
@@ -86,7 +86,7 @@ services:
       - "127.0.0.1:5050:80"
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.13.1
     volumes:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -94,7 +94,7 @@ services:
       - "127.0.0.1:9090:9090"
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.1.1
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
       GF_AUTH_ANONYMOUS_ENABLED: "true"    # dev: без логина
@@ -108,7 +108,7 @@ services:
       - prometheus
 
   jaeger:
-    image: jaegertracing/all-in-one:latest
+    image: jaegertracing/all-in-one:1.76.0
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
       MEMORY_MAX_TRACES: "20000"   # ring buffer instead of unbounded growth
