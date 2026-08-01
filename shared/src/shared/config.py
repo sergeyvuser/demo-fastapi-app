@@ -68,3 +68,4 @@ class BaseServiceSettings(BaseSettings):
     rabbitmq: RabbitMQConfig
     log: LogConfig = LogConfig()
     otel: OtelConfig = OtelConfig()
+    testing: bool = False
