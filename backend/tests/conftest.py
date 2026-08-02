@@ -22,7 +22,6 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from taskiq import AsyncBroker
 from testcontainers.community.postgres import PostgresContainer
-from testcontainers.community.redis import RedisContainer
 
 from backend.core import security
 from backend.core.config import settings
