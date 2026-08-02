@@ -15,12 +15,30 @@ members = [
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
+    "mypy>=2.3.0",
     "polyfactory>=3.3.0",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.15.20",
     "testcontainers>=4.15.0",
 ]
+
+[tool.mypy]
+python_version = "3.14"
+plugins = ["pydantic.mypy"]
+files = ["backend/src", "shared/src", "ingestor/src", "notifier/src"]
+# faststream/taskiq/testcontainers тянут пакеты без аннотаций
+ignore_missing_imports = true
+# гигиена: ignore, ставший ненужным, должен ломать сборку, а не гнить
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+# shared — контракт между сервисами, здесь требуем аннотации везде
+module = "shared.*"
+disallow_untyped_defs = true
 
 [tool.ruff]
 target-version = "py314"

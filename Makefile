@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 BACKEND := backend
 
-.PHONY: help install run evaluator ingestor notifier worker scheduler up down reset dev logs db-up tools tools-down migration migrate migrate-down migrate-check lint format test test-unit test-integration
+.PHONY: help install run evaluator ingestor notifier worker scheduler up down reset dev logs db-up tools tools-down migration migrate migrate-down migrate-check lint format test test-unit test-integration check-ports docker-clean types
 
 help: ## Показать доступные команды
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -84,3 +84,20 @@ test-unit: ## Fast tests only — no docker required
 
 test-integration: ## Docker-backed tests only
 	uv run pytest -m integration
+
+check-ports: ## Check that the container ports are accessible from the host
+	@uv run python -c "import socket,sys; \
+	bad=[p for p in (8000,3000,9090,16686,15672,5432,6379) \
+	     if (lambda s: (s.settimeout(1), s.connect_ex(('127.0.0.1',p)), s.close())[1])(socket.socket())]; \
+	print('ports are not available:', bad) if bad else print('all ports are available'); \
+	sys.exit(1 if bad else 0)"
+
+docker-clean: ## Убрать кэш сборки, висячие образы и мусор от тестов
+	-docker rm -f $$(docker ps -aq --filter "label=org.testcontainers=true") 2>/dev/null
+	-docker volume ls -q | grep -E "^[0-9a-f]{64}$$" | xargs -r docker volume rm
+	docker image prune -f
+	docker builder prune -f --filter until=168h
+	@docker system df
+
+types: ## Статическая проверка типов
+	uv run mypy
