@@ -12,6 +12,7 @@ machine that has the right .env is not a test suite.
 """
 
 import os
+import sys
 from collections.abc import AsyncGenerator, Generator
 
 import pytest
@@ -34,6 +35,17 @@ os.environ.update(
         # testing
         "APP_CONFIG__TESTING": "true",
         "APP_CONFIG__TELEGRAM__BOT_TOKEN": "123456:test-token",
+        # Ryuk is testcontainers' crash-cleanup sidekick: it starts before
+        # everything else and reaps containers if pytest dies without running
+        # teardown. On Docker Desktop for Windows its published port is
+        # regularly unreachable from the host — it is the first container of
+        # the session and the port proxy is not warm yet — and the whole run
+        # dies in its 50-second retry loop.
+        #
+        # Our fixtures stop their containers themselves, so the only thing
+        # lost is cleanup after a hard kill. Kept enabled everywhere else,
+        # notably in CI, where it works and matters more.
+        **({"TESTCONTAINERS_RYUK_DISABLED": "true"} if sys.platform == "win32" else {}),
     }
 )
 
