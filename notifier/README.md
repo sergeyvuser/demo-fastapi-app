@@ -25,6 +25,24 @@ exchange "alerts" ──► queue alerts.triggered ──► notifier ──► 
   `alerts.triggered.dead` — never silently dropped.
 - **The bot token is redacted** from tracing span attributes before export:
   Telegram puts it in the URL path, so observability tooling would otherwise
-  leak it into traces (and httpx request logging into logs).
+  leak it into traces (and httpx request logging into logs). The redaction
+  helper lives in its own module (`redaction.py`) rather than in `app.py`,
+  which configures logging, tracing and a broker at import — a unit test must
+  not have to start a service to check one regex.
+
+## Tests
+
+- `tests/unit/test_redaction.py` — a regression test for the leak above: the
+  token really was published once and had to be revoked through BotFather.
+- `tests/integration/` — the consumer over `TestRabbitBroker` (in-memory
+  delivery) with a real Redis container and a stub sender in place of the
+  Telegram API. Covers what the dedup contract promises: a redelivered message
+  reaches the user once, a failed delivery **releases** the dedup key so a
+  retry can happen, and a user without a linked chat is skipped rather than
+  failed.
+
+  The dead-letter path itself is verified one level down, in `shared/tests/` —
+  whether a rejected message actually lands in `alerts.triggered.dead` is a
+  property of the broker, and an in-memory one cannot show it.
 
 See the [root README](../README.md) for the full picture and quickstart.

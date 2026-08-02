@@ -1,5 +1,7 @@
 # Crypto Alerts
 
+[![CI](https://github.com/sergeyvuser/demo-fastapi-app/actions/workflows/ci.yml/badge.svg)](https://github.com/sergeyvuser/demo-fastapi-app/actions/workflows/ci.yml)
+
 Async price-alert service for crypto markets. Users register, create alerts
 ("BTCUSDT above 120k"), an ingestor streams Bybit tickers into RabbitMQ, an
 evaluator matches ticks against active alerts, a notifier delivers Telegram
@@ -41,11 +43,17 @@ realtime dashboard frontend.
 ├── notifier/         # alert events → Telegram
 ├── shared/           # event schemas, broker topology, shared infra config
 ├── observability/    # prometheus config, grafana provisioning (datasource, dashboards)
+├── .github/workflows/ # CI: lint, types, tests, secret scan, image builds
 ├── compose.yaml      # db, redis, rabbitmq, mailpit, migrate, api, evaluator, ingestor,
 │                     #   notifier, worker, scheduler, prometheus, grafana, jaeger
+├── conftest.py       # test env + fixtures shared by every package
+├── .gitleaks.toml    # secret-scanner rules
 ├── Makefile          # dev entrypoints (see `make`)
 └── .env.template     # copy to .env and fill in
 ```
+
+Tests live inside the package they cover (`backend/tests/`, `shared/tests/`,
+`notifier/tests/`), split into `unit/` (no Docker) and `integration/`.
 
 uv workspace members: `backend`, `ingestor`, `notifier`, `shared` — one
 `uv.lock` at the root, each service builds a minimal image from its own
@@ -94,9 +102,13 @@ make run         # API on http://127.0.0.1:8080
 | `make evaluator` / `ingestor` / `notifier` | run a stream service locally                      |
 | `make worker` / `make scheduler`     | taskiq worker / scheduler locally                       |
 | `make lint` / `make format`          | ruff (whole workspace)                                  |
+| `make types`                         | mypy (blocking in CI)                                   |
+| `make test`                          | full suite (starts throwaway containers)                |
+| `make test-unit` / `make test-integration` | fast slice without Docker / Docker-backed only    |
 | `make migration m="msg"`             | new autogenerate migration (review it before applying!) |
 | `make migrate` / `make migrate-down` | apply / roll back one                                   |
 | `make migrate-check`                 | downgrade→upgrade round-trip + model/schema drift check |
+| `make docker-clean`                  | reclaim build cache and test leftovers (keeps volumes)  |
 
 Conventions:
 
@@ -105,6 +117,7 @@ Conventions:
 - Layering: `api → services → repositories → models`; imports point down only.
 - Schema changes go through Alembic only; `make migrate-check` must stay green.
 - Code comments and docstrings in English.
+- Nothing merges red: ruff, mypy and the whole test suite run on every push.
 
 ## Auth model (implemented)
 
@@ -169,6 +182,34 @@ Three pillars, each answering a different question:
 Sampling is per service (`APP_CONFIG__OTEL__SAMPLE_RATIO`); secrets are
 redacted from span attributes before export.
 
+## Tests & CI (implemented)
+
+53 tests in five layers, each catching what the layer below cannot:
+
+| Layer | Backed by | Catches |
+|---|---|---|
+| unit | nothing | boundaries, security properties, pure logic |
+| services | postgres container | SQL, transactions, ownership, schema drift |
+| HTTP | `ASGITransport` + redis container | status codes, auth, rate limiting, error shape |
+| broker (in-memory) | `TestBroker`, `InMemoryBroker` | our handlers: parsing, publishing, dedup |
+| broker (live) | RabbitMQ container | dead-lettering, queue arguments, fan-out |
+
+Containers are started by the tests themselves (testcontainers), so a fresh
+clone needs nothing but Docker. Each test runs inside a transaction that is
+rolled back afterwards — the service layer commits freely and still leaks
+nothing between tests.
+
+```bash
+make test-unit   # ~1s, no Docker
+make test        # everything
+```
+
+CI runs six jobs in parallel on every push: `lint` (ruff check + format),
+`types` (mypy), `test`, `secrets` (gitleaks over the **full history**), and
+image builds for all three services. There is no separate "migrations are up
+to date" job — a test asserts that models and migrations agree against a live
+database.
+
 ## Roadmap
 
 - [x] 0–1. Skeleton fixes, async SQLAlchemy, first migrations
@@ -180,4 +221,4 @@ redacted from span attributes before export.
 - [x] 7. Taskiq: background & scheduled jobs (email verify, digest, cleanup)
 - [x] 8. WebSocket realtime feed (frontend entry point)
 - [x] 9. Observability: Prometheus/Grafana, OpenTelemetry, structured logs
-- [ ] 10. Tests (pytest-asyncio, testcontainers) + CI
+- [x] 10. Tests (pytest-asyncio, testcontainers) + mypy + GitHub Actions
