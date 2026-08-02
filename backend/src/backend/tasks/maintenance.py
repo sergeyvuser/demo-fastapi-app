@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
+from typing import Any, cast
 
 from loguru import logger
-from sqlalchemy import delete, or_
+from sqlalchemy import CursorResult, delete, or_
 
 from backend.core.db import AsyncSessionLocal
 from backend.models import RefreshToken
@@ -20,14 +21,20 @@ async def cleanup_refresh_tokens() -> int:
 
     cutoff = datetime.now() - RETENTION
     async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            delete(RefreshToken).where(
-                or_(
-                    RefreshToken.expires_at < cutoff,
-                    RefreshToken.revoked_at < cutoff,
+        # DML execute returns a CursorResult at runtime; the signature says Result
+        result = cast(
+            CursorResult[Any],
+            await session.execute(
+                delete(RefreshToken).where(
+                    or_(
+                        RefreshToken.expires_at < cutoff,
+                        RefreshToken.revoked_at < cutoff,
+                    )
                 )
-            )
+            ),
         )
         await session.commit()
     logger.bind(purged=result.rowcount).info("refresh token cleanup finished")
+    # rowcount is a SQLAlchemy memoized_property; PyCharm reads the raw function
+    # noinspection PyTypeChecker
     return result.rowcount

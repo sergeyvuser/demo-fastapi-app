@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 import uuid
 from collections import defaultdict
-from typing import Any
+from typing import Any, TypedDict
 
 from fastapi import WebSocket
 
@@ -10,6 +10,12 @@ from shared.events import AlertTriggeredEvent, TickEvent
 from shared.metrics import ws_connections
 
 _QUEUE_SIZE = 100
+
+
+class WsStats(TypedDict):
+    connections: int
+    unique_users: int
+    subscriptions_by_symbol: dict[str, int]
 
 
 class Connection:
@@ -49,7 +55,7 @@ class ConnectionManager:
     def active_count(self) -> int:
         return len(self._connections)
 
-    def stats(self) -> dict[str, int]:
+    def stats(self) -> WsStats:
         by_symbol: dict[str, int] = defaultdict(int)
         for conn in self._connections:
             for s in conn.symbols:

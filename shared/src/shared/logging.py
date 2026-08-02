@@ -9,6 +9,7 @@ import inspect
 import logging
 import sys
 import traceback
+from typing import TYPE_CHECKING, Any
 
 import orjson
 from loguru import logger
@@ -16,16 +17,19 @@ from opentelemetry import trace
 
 from shared.config import LogConfig
 
+if TYPE_CHECKING:
+    from loguru import Message, Record
+
 correlation_id: contextvars.ContextVar[str] = contextvars.ContextVar(
     "correlation_id",
     default="-",
 )
 
 
-def _json_sink(message) -> None:
+def _json_sink(message: Message) -> None:
     """Emit a flat, query-friendly line: OTel-ish field names, extras inlined."""
     record = message.record
-    payload = {
+    payload: dict[str, Any] = {
         "timestamp": record["time"].isoformat(),
         "level": record["level"].name,
         "message": record["message"],
@@ -46,7 +50,7 @@ def _json_sink(message) -> None:
     sys.stdout.buffer.flush()
 
 
-def _patch(record) -> None:
+def _patch(record: Record) -> None:
     # inject current correlation id into every record's extra
     record["extra"]["correlation_id"] = correlation_id.get()
     ctx = trace.get_current_span().get_span_context()

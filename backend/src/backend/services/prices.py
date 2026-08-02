@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import cast
 
 from redis.asyncio import Redis
 
@@ -19,5 +20,6 @@ class PriceCache:
         await self.redis.set(f"price:{symbol}", str(price), ex=PRICE_TTL_SECONDS)
 
     async def get(self, symbol: str) -> Decimal | None:
-        raw = await self.redis.get(f"price:{symbol}")
+        # decode_responses=True on the client: values are str, the stubs say bytes|str
+        raw = cast("str | None", await self.redis.get(f"price:{symbol}"))
         return Decimal(raw) if raw is not None else None

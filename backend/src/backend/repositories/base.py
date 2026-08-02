@@ -16,7 +16,12 @@ class BaseRepository[ModelT, CreateSchemaT: BaseModel, UpdateSchemaT: BaseModel]
         return await self.session.get(self.model, item_id)
 
     async def get_multi(self, skip: int = 0, limit: int = 100) -> Sequence[ModelT]:
-        stmt = select(self.model).order_by(self.model.id).offset(skip).limit(limit)
+        stmt = (
+            select(self.model)
+            .order_by(self.model.id)  # type: ignore[attr-defined]
+            .offset(skip)
+            .limit(limit)
+        )
         result = await self.session.scalars(stmt)
         return result.all()
 

@@ -34,4 +34,4 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
 
 
 def register_error_handlers(app: FastAPI) -> None:
-    app.add_exception_handler(AppError, app_error_handler)
+    app.add_exception_handler(AppError, app_error_handler)  # type: ignore[arg-type]

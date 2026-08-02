@@ -32,11 +32,12 @@ class FixedWindowRateLimiter:
     async def hit(self, key: str) -> None:
         redis_key = f"ratelimit:{self.prefix}:{key}"
         async with self.redis.pipeline(transaction=True) as pipe:
-            count, _ = (
-                await pipe.incr(redis_key)
-                .expire(redis_key, self.window, nx=True)
-                .execute()
-            )
+            # buffered pipeline commands return the pipeline itself, not a coroutine
+            # noinspection PyAsyncCall
+            pipe.incr(redis_key)
+            # noinspection PyAsyncCall
+            pipe.expire(redis_key, self.window, nx=True)
+            count, _ = await pipe.execute()
             if count > self.limit:
                 ttl = await self.redis.ttl(redis_key)
                 rate_limit_hits.labels(self.prefix).inc()

@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,7 +65,7 @@ class AuthService:
 
     async def verify_email(self, token: str) -> None:
         assert self.redis is not None
-        user_id = await self.redis.getdel(f"verify:{token}")
+        user_id = cast("str | None", await self.redis.getdel(f"verify:{token}"))
         if user_id is None:
             raise InvalidVerificationTokenError
         user = await self.users.get_by_id(uuid.UUID(user_id))
