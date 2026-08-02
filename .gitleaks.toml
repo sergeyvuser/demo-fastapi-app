@@ -1,0 +1,14 @@
+title = "crypto-alerts"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Deliberately fake credentials used by the test suite"
+regexes = [
+    # lengthened on purpose so pyjwt stops warning about short HMAC keys —
+    # which is exactly what pushed its entropy over the generic-api-key rule
+    '''attacker-key-long-enough-for-hs256''',
+    '''test-secret-key-not-for-production''',
+    '''123456:test-token''',
+]
