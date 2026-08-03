@@ -21,8 +21,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     redis = Redis.from_url(
         settings.redis.url,
         decode_responses=True,
-        socket_connect_timeout=3,
-        socket_timeout=3,
+        socket_connect_timeout=settings.redis.connect_timeout,
+        socket_timeout=settings.redis.socket_timeout,
     )
     # fail fast: a broken cache config should stop the app at startup,
     # not surface as 500s under traffic

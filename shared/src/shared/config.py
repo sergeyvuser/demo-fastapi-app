@@ -32,9 +32,22 @@ class RabbitMQConfig(BaseModel):
 
 
 class RedisConfig(BaseModel):
+    """Connection policy for every service that talks to redis.
+
+        Clients are built locally (shared must not depend on the redis package —
+    ingestor would inherit it for nothing), but the numbers live here so they
+    cannot drift between services, and so prod can tune them.
+        Clients are always built with decode_responses=True — the code treats
+    values as str everywhere (Decimal(raw), UUID(user_id), dedup keys). That
+    is a contract, not a setting, so it is not a field here. Note the redis-py
+    stubs still type responses as bytes|str, hence the casts at call sites.
+    """
+
     host: str = "127.0.0.1"
     port: int = 6379
     db: int = 0
+    connect_timeout: int = 3
+    socket_timeout: int = 3
 
     @property
     def url(self) -> str:

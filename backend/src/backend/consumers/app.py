@@ -26,13 +26,11 @@ from shared.broker import (
     declare_alerts_topology,
 )
 from shared.events import TickEvent
-from shared.logging import configure_logging
-from shared.metrics import alerts_fired, ticks_processed
+from shared.metrics import EVALUATOR_METRICS_PORT, alerts_fired, ticks_processed
 from shared.middlewares import CorrelationMiddleware
-from shared.tracing import configure_tracing
+from shared.service import configure_service
 
-configure_logging(settings.log)
-configure_tracing("evaluator", settings.otel)
+configure_service(name="evaluator", settings=settings)
 
 # noinspection PyTypeChecker
 broker = RabbitBroker(
@@ -55,8 +53,8 @@ async def startup() -> None:
     redis = Redis.from_url(
         settings.redis.url,
         decode_responses=True,
-        socket_connect_timeout=3,
-        socket_timeout=3,
+        socket_connect_timeout=settings.redis.connect_timeout,
+        socket_timeout=settings.redis.socket_timeout,
     )
     await redis.ping()
     _price_cache = PriceCache(redis)
@@ -64,7 +62,7 @@ async def startup() -> None:
 
 @app.on_startup
 async def start_metrics_server() -> None:
-    start_http_server(9101)  # for Prometheus /metrics
+    start_http_server(EVALUATOR_METRICS_PORT)  # for Prometheus /metrics
 
 
 @app.after_startup

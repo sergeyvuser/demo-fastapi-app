@@ -12,13 +12,12 @@ from prometheus_client import start_http_server
 from ingestor.bybit_ws import stream_ticks
 from ingestor.config import settings
 from shared.broker import TICKS_EXCHANGE
-from shared.logging import configure_logging, correlation_id
-from shared.metrics import ticks_published
+from shared.logging import correlation_id
+from shared.metrics import INGESTOR_METRICS_PORT, ticks_published
 from shared.middlewares import CorrelationMiddleware
-from shared.tracing import configure_tracing
+from shared.service import configure_service
 
-configure_logging(settings.log)
-configure_tracing("ingestor", settings.otel)
+configure_service(name="ingestor", settings=settings)
 
 # noinspection PyTypeChecker
 broker = RabbitBroker(
@@ -60,7 +59,7 @@ async def _pump() -> None:
 
 @app.on_startup
 async def start_metrics_server() -> None:
-    start_http_server(9100)  # for Prometheus /metrics
+    start_http_server(INGESTOR_METRICS_PORT)  # for Prometheus /metrics
 
 
 @app.after_startup

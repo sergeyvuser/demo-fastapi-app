@@ -1,6 +1,7 @@
 global:
   scrape_interval: 10s
 
+# ports are defined in shared/metrics.py — keep both sides in sync
 scrape_configs:
   - job_name: api
     static_configs: [ { targets: [ "api:8080" ] } ]

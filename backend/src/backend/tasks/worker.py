@@ -11,11 +11,9 @@ from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from backend.core.config import settings
 from backend.core.db import engine
 from backend.tasks.broker import broker, scheduler
-from shared.logging import configure_logging
-from shared.tracing import configure_tracing
+from shared.service import configure_service
 
-configure_logging(settings.log)
-configure_tracing("worker", settings.otel)
+configure_service(name="worker", settings=settings)
 
 SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)
 RedisInstrumentor().instrument()

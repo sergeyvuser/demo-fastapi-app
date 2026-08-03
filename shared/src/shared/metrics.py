@@ -6,6 +6,13 @@ source of truth, like event schemas and broker topology.
 
 from prometheus_client import Counter, Gauge
 
+# Metrics endpoints. FastStream services have no HTTP server of their own,
+# so each starts a tiny one; the API exposes /metrics on its own port.
+# Keep in sync with observability/prometheus.yml.
+INGESTOR_METRICS_PORT = 9100
+EVALUATOR_METRICS_PORT = 9101
+NOTIFIER_METRICS_PORT = 9102
+
 ticks_published = Counter(
     "ticks_published_total",
     "Ticks published by ingestor",

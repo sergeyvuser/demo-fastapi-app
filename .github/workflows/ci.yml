@@ -41,7 +41,7 @@ jobs:
           enable-cache: true
       - run: uv sync --all-packages
       # docker is preinstalled on ubuntu runners, so testcontainers just work;
-      # Ryuk stays enabled here — it is only disabled on windows dev machines
+      # Ryuk stays enabled here — it is only disabled on Windows dev machines
       - run: uv run pytest
 
   secrets:

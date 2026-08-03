@@ -19,13 +19,15 @@ from shared.broker import (
     declare_alerts_topology,
 )
 from shared.events import AlertTriggeredEvent
-from shared.logging import configure_logging
-from shared.metrics import notifications_failed, notifications_sent
+from shared.metrics import (
+    NOTIFIER_METRICS_PORT,
+    notifications_failed,
+    notifications_sent,
+)
 from shared.middlewares import CorrelationMiddleware
-from shared.tracing import configure_tracing
+from shared.service import configure_service
 
-configure_logging(settings.log)
-configure_tracing("notifier", settings.otel)
+configure_service(name="notifier", settings=settings)
 
 # noinspection PyTypeChecker
 broker = RabbitBroker(
@@ -61,8 +63,8 @@ async def startup() -> None:
     _redis = Redis.from_url(
         url=settings.redis.url,
         decode_responses=True,
-        socket_connect_timeout=3,
-        socket_timeout=3,
+        socket_connect_timeout=settings.redis.connect_timeout,
+        socket_timeout=settings.redis.socket_timeout,
     )
     await _redis.ping()
     _sender = TelegramSender(settings.telegram.bot_token.get_secret_value())
@@ -70,7 +72,7 @@ async def startup() -> None:
 
 @app.on_startup
 async def start_metrics_server() -> None:
-    start_http_server(9102)  # for Prometheus /metrics
+    start_http_server(NOTIFIER_METRICS_PORT)  # for Prometheus /metrics
 
 
 @app.after_startup
