@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, SecretStr
 from sqlalchemy import URL
 
@@ -42,9 +44,22 @@ class DBConfig(BaseModel):
 
 
 class SMTPConfig(BaseModel):
+    """Outbound mail.
+
+    Locally this is Mailpit: no auth, no TLS, accepts anything. Production
+    points at a real provider, which always requires both.
+    """
+
     host: str = "127.0.0.1"
     port: int = 1025
     sender: str = "alerts@crypto-alerts.local"
+    username: str = ""
+    password: SecretStr = SecretStr("")
+    # one field, not two booleans: starttls and implicit tls are mutually
+    # exclusive, and a pair of flags would allow an impossible combination
+    security: Literal["none", "starttls", "tls"] = "none"
+    # a stuck SMTP connection holds a worker slot; the task retries anyway
+    timeout: int = 15
 
 
 class RunConfig(BaseModel):
