@@ -96,9 +96,8 @@ services:
   grafana:
     image: grafana/grafana:13.1.1
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
-      GF_AUTH_ANONYMOUS_ENABLED: "true"    # dev: без логина
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?set GRAFANA_PASSWORD}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
       # dashboard schema v2 (feature-flagged, on by default in 13.x) does not
       # survive a round-trip: Grafana exports panels the file provisioner then
       # rejects field by field. Classic schema is what provisioning supports.
