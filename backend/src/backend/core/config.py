@@ -52,6 +52,13 @@ class RunConfig(BaseModel):
     port: int = 8080
     reload: bool = True
     public_url: str = "http://127.0.0.1:8080"  # base for links in emails
+    # Peers allowed to set X-Forwarded-*: the reverse proxy in front of us.
+    # Empty = no proxy (development). Headers from anyone else are ignored.
+    trusted_proxies: list[str] = []
+    # empty = any host (dev); production must pin its domain
+    allowed_hosts: list[str] = []
+    # browsers need this once the UI lives on another origin
+    cors_origins: list[str] = []
 
 
 class APIV1PrefixConfig(BaseModel):

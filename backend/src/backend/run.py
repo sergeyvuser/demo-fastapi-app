@@ -7,7 +7,7 @@ from backend.core.config import settings
 def start() -> None:
     """Run Granian server"""
     granian.Granian(
-        "backend.main:app",
+        "backend.main:asgi_app",
         address=settings.run.host,
         port=settings.run.port,
         interface=Interfaces.ASGI,
