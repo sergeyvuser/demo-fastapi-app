@@ -218,3 +218,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Agent scratch space (local issue tracker: specs and tickets)
+.scratch/
