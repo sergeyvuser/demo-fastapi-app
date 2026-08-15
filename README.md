@@ -44,8 +44,9 @@ realtime dashboard frontend.
 ├── shared/           # event schemas, broker topology, shared infra config
 ├── observability/    # prometheus config, grafana provisioning (datasource, dashboards)
 ├── .github/workflows/ # CI: lint, types, tests, secret scan, image builds
-├── compose.yaml      # db, redis, rabbitmq, mailpit, migrate, api, evaluator, ingestor,
-│                     #   notifier, worker, scheduler, prometheus, grafana, jaeger
+├── compose.yaml      # db, redis, rabbitmq, migrate, api, evaluator, ingestor, notifier,
+│                     #   worker, scheduler, prometheus, grafana, jaeger
+│                     #   + `tools` profile: mailpit, pgadmin
 ├── conftest.py       # test env + fixtures shared by every package
 ├── .gitleaks.toml    # secret-scanner rules
 ├── Makefile          # dev entrypoints (see `make`)
@@ -77,7 +78,11 @@ make up          # build + start the full stack (migrations run automatically)
 - Mailpit (caught emails): http://127.0.0.1:8025
 - Grafana (dashboards): http://127.0.0.1:3000
 - Prometheus: http://127.0.0.1:9090 · Jaeger (traces): http://127.0.0.1:16686
-- pgAdmin (optional): `docker compose --profile tools up -d` → http://127.0.0.1:5050
+- pgAdmin: http://127.0.0.1:5050
+
+Mailpit and pgAdmin are development tools behind the `tools` compose profile; the
+Makefile enables it for you (`COMPOSE_PROFILES=tools`), so `make up` starts them as
+usual. A plain `docker compose up` — what a deployment runs — starts neither.
 
 > Use `127.0.0.1`, not `localhost`: ports are published on IPv4 only, and on
 > Windows `localhost` resolves to `::1` first.
@@ -85,7 +90,7 @@ make up          # build + start the full stack (migrations run automatically)
 Local development without containerizing the app:
 
 ```bash
-make db-up       # infrastructure only (postgres, redis, rabbitmq)
+make db-up       # infrastructure only (postgres, redis, rabbitmq, mailpit)
 make migrate
 make run         # API on http://127.0.0.1:8080
 ```
@@ -98,7 +103,8 @@ make run         # API on http://127.0.0.1:8080
 | `make up` / `make down`              | start / stop the full container stack                   |
 | `make dev`                           | full stack with live-reload (`compose watch`)           |
 | `make run`                           | API locally (Granian, auto-reload)                      |
-| `make db-up`                         | infrastructure only (postgres, redis, rabbitmq)         |
+| `make db-up`                         | infrastructure only (postgres, redis, rabbitmq, mailpit)|
+| `make tools`                         | dev tools only (mailpit, pgadmin)                       |
 | `make evaluator` / `ingestor` / `notifier` | run a stream service locally                      |
 | `make worker` / `make scheduler`     | taskiq worker / scheduler locally                       |
 | `make lint` / `make format`          | ruff (whole workspace)                                  |

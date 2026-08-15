@@ -1,7 +1,12 @@
 .DEFAULT_GOAL := help
 BACKEND := backend
 
-.PHONY: help install run evaluator ingestor notifier worker scheduler up down reset dev logs db-up tools tools-down migration migrate migrate-down migrate-check lint format test test-unit test-integration check-ports docker-clean types
+# Developer tooling (mailpit, pgadmin) sits behind the `tools` profile so the plain
+# compose file is the deployable stack. Every make target opts back into it, so local
+# habits are unchanged; `docker compose up` without this variable starts neither.
+export COMPOSE_PROFILES ?= tools
+
+.PHONY: help install run evaluator ingestor notifier worker scheduler up down stop-apps reset dev logs db-up tools migration migrate migrate-down migrate-check lint format test test-unit test-integration check-ports docker-clean types
 
 help: ## Показать доступные команды
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -30,11 +35,8 @@ scheduler: ## Run taskiq scheduler (puts scheduled tasks into the queue)
 up: ## Поднять postgres в docker
 	docker compose up -d --build
 
-down: ## Остановить docker-сервисы (but not tools like pgadmin)
+down: ## Остановить docker-сервисы, включая tools (mailpit, pgadmin)
 	docker compose down
-
-all-down: ## Down with optional tooling
-	docker compose --profile tools down
 
 stop-apps: ## Stop app containers, keep infrastructure (for local dev)
 	docker compose stop api evaluator ingestor notifier worker scheduler
@@ -49,11 +51,11 @@ dev: ## Стек с live-reload по правкам src/
 logs: ## Логи API
 	docker compose logs -f api
 
-db-up: ## Только инфраструктура (db, redis, rabbitmq)
+db-up: ## Всё, что нужно приложению, запущенному на хосте (db, redis, rabbitmq, mailpit)
 	docker compose up -d db redis rabbitmq mailpit
 
-tools: ## Start optional tooling (pgadmin)
-	docker compose up -d pgadmin
+tools: ## Start the development tools only (mailpit, pgadmin)
+	docker compose up -d mailpit pgadmin
 
 migration: ## Новая autogenerate-миграция: make migration m="сообщение"
 	@test -n "$(m)" || (echo 'использование: make migration m="сообщение"'; exit 1)

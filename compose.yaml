@@ -6,6 +6,8 @@ x-app-env: &app-env
   APP_CONFIG__DB__HOST: db
   APP_CONFIG__REDIS__HOST: redis
   APP_CONFIG__RABBITMQ__HOST: rabbitmq
+  # mailpit only runs under the `tools` profile; a deployment overrides this block
+  # with an overlay file, not through .env (this `environment:` wins over env_file)
   APP_CONFIG__SMTP__HOST: mailpit
   APP_CONFIG__OTEL__ENDPOINT: "http://jaeger:4317"
 
@@ -67,6 +69,7 @@ services:
 
   mailpit:
     image: axllent/mailpit:v1.30.6
+    profiles: [ tools ]
     ports:
       - "127.0.0.1:1025:1025"   # SMTP — сюда приложение шлёт письма
       - "127.0.0.1:8025:8025"   # Web UI — здесь ты их читаешь
@@ -209,8 +212,9 @@ services:
     depends_on:
       rabbitmq: { condition: service_healthy }
       redis: { condition: service_healthy }
-      mailpit: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
+      # no mailpit here on purpose: depending on a profiled service would make the
+      # stack unstartable without that profile
 
   scheduler:
     build: { context: ., dockerfile: backend/Dockerfile }
