@@ -4,14 +4,13 @@ from email.message import EmailMessage
 from itertools import groupby
 from typing import TYPE_CHECKING
 
-import aiosmtplib
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from backend.core.config import settings
 from backend.core.db import AsyncSessionLocal
-from backend.models import Alert, User
+from backend.core.mail import send_email
+from backend.models import Alert
 from backend.tasks.broker import broker
 
 if TYPE_CHECKING:
@@ -46,11 +45,10 @@ async def send_daily_digest() -> int:
             for a in user_alerts
         ]
         msg = EmailMessage()
-        msg["From"] = settings.smtp.sender
         msg["To"] = user.email
         msg["Subject"] = f"Your alerts digest: {len(user_alerts)} triggered"
         msg.set_content("Triggered in the last 24h:\n\n" + "\n".join(lines))
-        await aiosmtplib.send(msg, hostname=settings.smtp.host, port=settings.smtp.port)
+        await send_email(msg)
         sent += 1
     logger.bind(recipients=sent).info("daily digest sent")
     return sent
