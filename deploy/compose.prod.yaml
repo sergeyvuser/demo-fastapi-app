@@ -12,6 +12,11 @@
 # Relative paths resolve against the FIRST file, i.e. the repository root, so
 # the server keeps the repository layout under /opt/alerts/.
 #
+# On the server both files sit next to compose.yaml in /opt/alerts/. In the
+# repository they exist only as templates — deploy/.env.example and
+# deploy/.env.secrets.example — which is what `make prod-config` and the test
+# render against.
+#
 # `!reset` / `!override` must be written out per service: passing them through
 # a YAML anchor silently drops the tag and the base value survives.
 
@@ -135,6 +140,13 @@ services:
         required: false
     environment:
       <<: *prod-env
+      # Inherited from the base file, restated here so it is a decision rather
+      # than a laptop value that leaked: head sampling happens at the start of
+      # the chain, so anything below 1.0 loses most tick→alert→notify traces —
+      # the one thing worth showing here. Two symbols at a few ticks a second
+      # fill Jaeger's 10 000-trace buffer in tens of minutes; if that window
+      # proves too short, raise MEMORY_MAX_TRACES rather than lower this.
+      APP_CONFIG__OTEL__SAMPLE_RATIO: "1.0"
     depends_on:
       migrate:
         condition: service_completed_successfully
