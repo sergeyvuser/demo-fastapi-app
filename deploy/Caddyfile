@@ -18,7 +18,8 @@
 	acme_ca {$ACME_CA}
 }
 
-# Shared by both sites.
+# Shared by both sites: what every response carries, what gets written down,
+# and what never leaves the compose network.
 (edge) {
 	header {
 		# One year. No includeSubDomains: the zone is personal and carries
@@ -41,17 +42,20 @@
 	log {
 		format json
 	}
+
+	# Both sites, not just the API: Prometheus scrapes api:8080/metrics inside
+	# the compose network, and Grafana serves its own /metrics unauthenticated
+	# by default — verified on grafana/grafana:13.1.1, a plain 200. From the
+	# outside neither must even admit to existing, hence 404 rather than 403.
+	# Handle blocks are sorted by path specificity, so this one wins over each
+	# site's catch-all no matter that the import comes first.
+	handle /metrics* {
+		respond 404
+	}
 }
 
 alerts.vorobev.dev {
 	import edge
-
-	# Prometheus keeps scraping api:8080/metrics inside the compose network.
-	# From the outside the endpoint must not even admit to existing, hence 404
-	# rather than 403. The `*` also covers anything below /metrics.
-	handle /metrics* {
-		respond 404
-	}
 
 	# Everything else, /docs and /openapi.json included on purpose — they are
 	# the shop window. WebSocket upgrades on /ws need no configuration:
@@ -66,5 +70,10 @@ alerts.vorobev.dev {
 grafana.vorobev.dev {
 	import edge
 
-	reverse_proxy grafana:3000
+	# `handle` rather than a bare directive: the snippet now brings a handle
+	# block, and mixing the two styles in one site turns precedence into a
+	# puzzle for whoever reads this next.
+	handle {
+		reverse_proxy grafana:3000
+	}
 }
