@@ -17,7 +17,7 @@ services:
     environment:
       POSTGRES_DB: ${APP_CONFIG__DB__NAME}
       POSTGRES_USER: ${APP_CONFIG__DB__USERNAME}
-      POSTGRES_PASSWORD: ${APP_CONFIG__DB__PASSWORD}
+      POSTGRES_PASSWORD: ${APP_CONFIG__DB__PASSWORD:?set APP_CONFIG__DB__PASSWORD}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -55,7 +55,7 @@ services:
     hostname: rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: ${APP_CONFIG__RABBITMQ__USERNAME}
-      RABBITMQ_DEFAULT_PASS: ${APP_CONFIG__RABBITMQ__PASSWORD}
+      RABBITMQ_DEFAULT_PASS: ${APP_CONFIG__RABBITMQ__PASSWORD:?set APP_CONFIG__RABBITMQ__PASSWORD}
     ports:
       - "127.0.0.1:5672:5672"
       - "127.0.0.1:15672:15672"
@@ -83,8 +83,8 @@ services:
     image: dpage/pgadmin4
     profiles: [ tools ]
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
     ports:
       - "127.0.0.1:5050:80"
 
