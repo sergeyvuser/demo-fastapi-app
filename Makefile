@@ -6,7 +6,7 @@ BACKEND := backend
 # habits are unchanged; `docker compose up` without this variable starts neither.
 export COMPOSE_PROFILES ?= tools
 
-.PHONY: help install run evaluator ingestor notifier worker scheduler up down stop-apps reset dev logs db-up tools migration migrate migrate-down migrate-check lint format test test-unit test-integration check-ports docker-clean types prod-config
+.PHONY: help install run evaluator ingestor notifier worker scheduler up down stop-apps reset dev logs db-up tools migration migrate migrate-down migrate-check lint format types test test-unit test-integration check-ports docker-clean prod-config
 
 help: ## Показать доступные команды
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'

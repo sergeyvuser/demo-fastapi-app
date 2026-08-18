@@ -33,17 +33,20 @@ APP_SERVICES = frozenset(
 # `migrate` is one-shot — it must not restart and cannot depend on itself
 LONG_RUNNING = APP_SERVICES - {"migrate"}
 
+ENV_MARKER = "MARKER_FROM_ENV"
+SECRETS_MARKER = "MARKER_FROM_SECRETS"
+
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture(scope="module")
-def rendered(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
+def _render(project_dir: Path) -> dict[str, Any]:
+    """Render the production stack from `project_dir`, return its services."""
     result = subprocess.run(
         [
             "docker",
             "compose",
             "--project-directory",
-            str(tmp_path_factory.mktemp("prod")),
+            str(project_dir),
             "-f",
             str(REPO_ROOT / "compose.yaml"),
             "-f",
@@ -68,60 +71,99 @@ def rendered(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     return services
 
 
-def test_application_services_run_from_pinned_published_images(rendered):
+@pytest.fixture(scope="module")
+def rendered_services(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
+    # an empty project directory: neither env file exists, which is what CI
+    # sees and what keeps the developer's real .env out of the render
+    return _render(tmp_path_factory.mktemp("prod"))
+
+
+@pytest.fixture(scope="module")
+def services_reading_env_files(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, Any]:
+    # the same render with both env files present, each carrying one marker
+    project_dir = tmp_path_factory.mktemp("prod-env")
+    (project_dir / ".env").write_text(f"{ENV_MARKER}=1\n", encoding="utf-8")
+    (project_dir / ".env.secrets").write_text(f"{SECRETS_MARKER}=1\n", encoding="utf-8")
+    return _render(project_dir)
+
+
+def test_application_services_run_from_pinned_published_images(
+    rendered_services: dict[str, Any],
+) -> None:
     for name in sorted(APP_SERVICES):
-        image = rendered[name]["image"]
+        image = rendered_services[name]["image"]
         assert image.startswith(f"{REGISTRY}/"), name
         assert image.endswith(f":{IMAGE_TAG}"), name
 
 
-def test_nothing_is_built_on_the_server(rendered):
-    assert sorted(n for n, s in rendered.items() if "build" in s) == []
+def test_nothing_is_built_on_the_server(rendered_services: dict[str, Any]) -> None:
+    assert sorted(n for n, s in rendered_services.items() if "build" in s) == []
 
 
-def test_nothing_is_published_to_the_host(rendered):
+def test_nothing_is_published_to_the_host(rendered_services: dict[str, Any]) -> None:
     # ticket 06 adds Caddy — the only service ever allowed to publish ports
-    assert sorted(n for n, s in rendered.items() if s.get("ports")) == []
+    assert sorted(n for n, s in rendered_services.items() if s.get("ports")) == []
 
 
-def test_application_services_wait_for_migrations(rendered):
+def test_application_services_wait_for_migrations(
+    rendered_services: dict[str, Any],
+) -> None:
     for name in sorted(LONG_RUNNING):
-        migrate = rendered[name].get("depends_on", {}).get("migrate", {})
+        migrate = rendered_services[name].get("depends_on", {}).get("migrate", {})
         assert migrate.get("condition") == "service_completed_successfully", name
 
 
-def test_migrations_run_once(rendered):
-    assert "restart" not in rendered["migrate"]
+def test_migrations_run_once(rendered_services: dict[str, Any]) -> None:
+    assert "restart" not in rendered_services["migrate"]
 
 
-def test_services_restart_and_are_memory_capped(rendered):
-    for name, service in sorted(rendered.items()):
+def test_services_restart_and_are_memory_capped(
+    rendered_services: dict[str, Any],
+) -> None:
+    for name, service in sorted(rendered_services.items()):
         limits = service.get("deploy", {}).get("resources", {}).get("limits", {})
         assert limits.get("memory"), name
         if name != "migrate":
             assert service.get("restart") == "unless-stopped", name
 
 
-def test_development_tooling_does_not_start(rendered):
-    assert "mailpit" not in rendered
-    assert "pgadmin" not in rendered
+def test_configuration_comes_from_both_env_files(
+    services_reading_env_files: dict[str, Any],
+) -> None:
+    # `config` inlines env_file contents into `environment` and drops the key,
+    # so the two-file split can only be asserted through its effect: a marker
+    # from each file has to reach every application service
+    for name in sorted(APP_SERVICES):
+        environment = services_reading_env_files[name]["environment"]
+        assert environment.get(ENV_MARKER) == "1", name
+        assert environment.get(SECRETS_MARKER) == "1", name
 
 
-def test_mail_does_not_go_to_the_local_catcher(rendered):
+def test_development_tooling_does_not_start(rendered_services: dict[str, Any]) -> None:
+    assert "mailpit" not in rendered_services
+    assert "pgadmin" not in rendered_services
+
+
+def test_mail_does_not_go_to_the_local_catcher(
+    rendered_services: dict[str, Any],
+) -> None:
     # migrate is excluded: it inherits no app env block and sends nothing
     for name in sorted(LONG_RUNNING):
-        host = rendered[name]["environment"]["APP_CONFIG__SMTP__HOST"]
+        host = rendered_services[name]["environment"]["APP_CONFIG__SMTP__HOST"]
         assert host == "smtp.resend.com", name
 
 
-def test_grafana_is_public_read_only(rendered):
-    env = rendered["grafana"]["environment"]
+def test_grafana_is_public_read_only(rendered_services: dict[str, Any]) -> None:
+    env = rendered_services["grafana"]["environment"]
     assert env["GF_AUTH_ANONYMOUS_ENABLED"] == "true"
     assert env["GF_AUTH_ANONYMOUS_ORG_ROLE"] == "Viewer"
     assert env["GF_EXPLORE_ENABLED"] == "false"
     assert env["GF_SECURITY_ADMIN_PASSWORD"]
 
 
-def test_telemetry_storage_is_bounded(rendered):
-    assert "--storage.tsdb.retention.time=7d" in rendered["prometheus"]["command"]
-    assert rendered["jaeger"]["environment"]["MEMORY_MAX_TRACES"] == "10000"
+def test_telemetry_storage_is_bounded(rendered_services: dict[str, Any]) -> None:
+    prometheus = rendered_services["prometheus"]["command"]
+    assert "--storage.tsdb.retention.time=7d" in prometheus
+    assert rendered_services["jaeger"]["environment"]["MEMORY_MAX_TRACES"] == "10000"

@@ -81,5 +81,5 @@ asyncio_default_test_loop_scope = "session"
 # this makes pytest resolve package roots through sys.path instead
 consider_namespace_packages = true
 markers = [
-    "integration: requires docker (testcontainers)",
+    "integration: requires docker (testcontainers or the compose CLI)",
 ]
