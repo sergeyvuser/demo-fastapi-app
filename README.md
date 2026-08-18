@@ -14,16 +14,16 @@ realtime dashboard frontend.
 
 ## Stack
 
-| Layer                     | Choice                                                                   |
-|---------------------------|--------------------------------------------------------------------------|
-| Runtime                   | Python 3.14, [uv](https://docs.astral.sh/uv/) workspace monorepo         |
-| API                       | FastAPI on [Granian](https://github.com/emmett-framework/granian) (ASGI) |
-| Database                  | PostgreSQL 18, SQLAlchemy 2.0 (async) + asyncpg, Alembic migrations      |
-| Auth                      | JWT access + rotating opaque refresh tokens, argon2 (pwdlib)             |
-| Messaging                 | RabbitMQ + FastStream (events), Taskiq (background + scheduled jobs)     |
-| Cache                     | Redis (price cache, rate limiting, dedup, result backend)               |
-| Email                     | aiosmtplib + Mailpit (dev SMTP sandbox)                                  |
-| Observability             | Prometheus + Grafana (metrics), structured JSON logs with correlation id, OpenTelemetry + Jaeger (traces) |
+| Layer         | Choice                                                                                                    |
+|---------------|-----------------------------------------------------------------------------------------------------------|
+| Runtime       | Python 3.14, [uv](https://docs.astral.sh/uv/) workspace monorepo                                          |
+| API           | FastAPI on [Granian](https://github.com/emmett-framework/granian) (ASGI)                                  |
+| Database      | PostgreSQL 18, SQLAlchemy 2.0 (async) + asyncpg, Alembic migrations                                       |
+| Auth          | JWT access + rotating opaque refresh tokens, argon2 (pwdlib)                                              |
+| Messaging     | RabbitMQ + FastStream (events), Taskiq (background + scheduled jobs)                                      |
+| Cache         | Redis (price cache, rate limiting, dedup, result backend)                                                 |
+| Email         | aiosmtplib + Mailpit (dev SMTP sandbox)                                                                   |
+| Observability | Prometheus + Grafana (metrics), structured JSON logs with correlation id, OpenTelemetry + Jaeger (traces) |
 
 ## Repository layout
 
@@ -50,7 +50,7 @@ realtime dashboard frontend.
 ├── conftest.py       # test env + fixtures shared by every package
 ├── .gitleaks.toml    # secret-scanner rules
 ├── Makefile          # dev entrypoints (see `make`)
-└── .env.template     # copy to .env and fill in
+└── .env.example     # copy to .env and fill in
 ```
 
 Tests live inside the package they cover (`backend/tests/`, `shared/tests/`,
@@ -65,7 +65,7 @@ uv workspace members: `backend`, `ingestor`, `notifier`, `shared` — one
 Prerequisites: `uv`, `docker compose`, `make` (Git Bash on Windows).
 
 ```bash
-cp .env.template .env
+cp .env.example .env
 # generate a real secret:
 python -c "import secrets; print(secrets.token_hex(32))"   # -> APP_CONFIG__AUTH__SECRET_KEY
 # edit DB credentials; set APP_CONFIG__TELEGRAM__BOT_TOKEN for notifications
@@ -97,24 +97,24 @@ make run         # API on http://127.0.0.1:8080
 
 ## Development
 
-| Command                              | Purpose                                                 |
-|--------------------------------------|---------------------------------------------------------|
-| `make`                               | list all targets                                        |
-| `make up` / `make down`              | start / stop the full container stack                   |
-| `make dev`                           | full stack with live-reload (`compose watch`)           |
-| `make run`                           | API locally (Granian, auto-reload)                      |
-| `make db-up`                         | infrastructure only (postgres, redis, rabbitmq, mailpit)|
-| `make tools`                         | dev tools only (mailpit, pgadmin)                       |
-| `make evaluator` / `ingestor` / `notifier` | run a stream service locally                      |
-| `make worker` / `make scheduler`     | taskiq worker / scheduler locally                       |
-| `make lint` / `make format`          | ruff (whole workspace)                                  |
-| `make types`                         | mypy (blocking in CI)                                   |
-| `make test`                          | full suite (starts throwaway containers)                |
-| `make test-unit` / `make test-integration` | fast slice without Docker / Docker-backed only    |
-| `make migration m="msg"`             | new autogenerate migration (review it before applying!) |
-| `make migrate` / `make migrate-down` | apply / roll back one                                   |
-| `make migrate-check`                 | downgrade→upgrade round-trip + model/schema drift check |
-| `make docker-clean`                  | reclaim build cache and test leftovers (keeps volumes)  |
+| Command                                    | Purpose                                                  |
+|--------------------------------------------|----------------------------------------------------------|
+| `make`                                     | list all targets                                         |
+| `make up` / `make down`                    | start / stop the full container stack                    |
+| `make dev`                                 | full stack with live-reload (`compose watch`)            |
+| `make run`                                 | API locally (Granian, auto-reload)                       |
+| `make db-up`                               | infrastructure only (postgres, redis, rabbitmq, mailpit) |
+| `make tools`                               | dev tools only (mailpit, pgadmin)                        |
+| `make evaluator` / `ingestor` / `notifier` | run a stream service locally                             |
+| `make worker` / `make scheduler`           | taskiq worker / scheduler locally                        |
+| `make lint` / `make format`                | ruff (whole workspace)                                   |
+| `make types`                               | mypy (blocking in CI)                                    |
+| `make test`                                | full suite (starts throwaway containers)                 |
+| `make test-unit` / `make test-integration` | fast slice without Docker / Docker-backed only           |
+| `make migration m="msg"`                   | new autogenerate migration (review it before applying!)  |
+| `make migrate` / `make migrate-down`       | apply / roll back one                                    |
+| `make migrate-check`                       | downgrade→upgrade round-trip + model/schema drift check  |
+| `make docker-clean`                        | reclaim build cache and test leftovers (keeps volumes)   |
 
 Conventions:
 
@@ -192,13 +192,13 @@ redacted from span attributes before export.
 
 53 tests in five layers, each catching what the layer below cannot:
 
-| Layer | Backed by | Catches |
-|---|---|---|
-| unit | nothing | boundaries, security properties, pure logic |
-| services | postgres container | SQL, transactions, ownership, schema drift |
-| HTTP | `ASGITransport` + redis container | status codes, auth, rate limiting, error shape |
-| broker (in-memory) | `TestBroker`, `InMemoryBroker` | our handlers: parsing, publishing, dedup |
-| broker (live) | RabbitMQ container | dead-lettering, queue arguments, fan-out |
+| Layer              | Backed by                         | Catches                                        |
+|--------------------|-----------------------------------|------------------------------------------------|
+| unit               | nothing                           | boundaries, security properties, pure logic    |
+| services           | postgres container                | SQL, transactions, ownership, schema drift     |
+| HTTP               | `ASGITransport` + redis container | status codes, auth, rate limiting, error shape |
+| broker (in-memory) | `TestBroker`, `InMemoryBroker`    | our handlers: parsing, publishing, dedup       |
+| broker (live)      | RabbitMQ container                | dead-lettering, queue arguments, fan-out       |
 
 Containers are started by the tests themselves (testcontainers), so a fresh
 clone needs nothing but Docker. Each test runs inside a transaction that is
@@ -219,12 +219,21 @@ database.
 ## Roadmap
 
 - [x] 0–1. Skeleton fixes, async SQLAlchemy, first migrations
-- [x] 2. Auth: JWT + rotating refresh, service layer owning transactions
-- [x] 3. Alerts domain: CRUD, ownership, pagination, RFC 9457 errors
-- [x] 4. Docker: multi-stage uv image, full compose with one-shot migrate
-- [x] 5. Redis: price cache, login rate limiting
-- [x] 6. RabbitMQ + FastStream: ingestor / evaluator / notifier
-- [x] 7. Taskiq: background & scheduled jobs (email verify, digest, cleanup)
-- [x] 8. WebSocket realtime feed (frontend entry point)
-- [x] 9. Observability: Prometheus/Grafana, OpenTelemetry, structured logs
-- [x] 10. Tests (pytest-asyncio, testcontainers) + mypy + GitHub Actions
+- [x] 
+    2. Auth: JWT + rotating refresh, service layer owning transactions
+- [x] 
+    3. Alerts domain: CRUD, ownership, pagination, RFC 9457 errors
+- [x] 
+    4. Docker: multi-stage uv image, full compose with one-shot migrate
+- [x] 
+    5. Redis: price cache, login rate limiting
+- [x] 
+    6. RabbitMQ + FastStream: ingestor / evaluator / notifier
+- [x] 
+    7. Taskiq: background & scheduled jobs (email verify, digest, cleanup)
+- [x] 
+    8. WebSocket realtime feed (frontend entry point)
+- [x] 
+    9. Observability: Prometheus/Grafana, OpenTelemetry, structured logs
+- [x] 
+    10. Tests (pytest-asyncio, testcontainers) + mypy + GitHub Actions
