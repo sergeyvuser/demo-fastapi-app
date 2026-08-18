@@ -1,0 +1,4 @@
+# Shell scripts run on Linux; a CRLF working copy on Windows breaks them in
+# ways that read like syntax errors in your own code (a heredoc terminator
+# carrying a carriage return never matches).
+*.sh text eol=lf
