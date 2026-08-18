@@ -200,3 +200,35 @@ services:
     environment:
       MEMORY_MAX_TRACES: "10000"   # half the local ring buffer: 4 GB host
     deploy: { resources: { limits: { memory: 384M } } }
+
+  # The only service that publishes anything, and the only one that exists in
+  # production alone. Deliberately without depends_on: if the API is broken the
+  # door still has to open. ACME validation, Grafana and the 404 page do not
+  # need the application, and a certificate that cannot be renewed during an
+  # outage turns one incident into two.
+  caddy:
+    image: caddy:2.11.4-alpine
+    restart: unless-stopped
+    ports:
+      # No 127.0.0.1 prefix, unlike every port in the development file: this is
+      # the one place that is meant to be reachable from the internet.
+      - "80:80"          # ACME HTTP challenge, and the redirect to HTTPS
+      - "443:443"
+      - "443:443/udp"    # HTTP/3, which Caddy advertises via Alt-Svc anyway
+    environment:
+      # No env_file here on purpose: the door has no business holding the
+      # database password or the bot token.
+      ACME_EMAIL: ${ACME_EMAIL:?}
+      ACME_CA: ${ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates and the ACME account key. Lose this volume and every
+      # container recreation asks for fresh certificates, straight into the
+      # duplicate-certificate rate limit.
+      - caddy_data:/data
+      - caddy_config:/config
+    deploy: { resources: { limits: { memory: 128M } } }
+
+volumes:
+  caddy_data:
+  caddy_config:

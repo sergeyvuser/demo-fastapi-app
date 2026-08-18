@@ -1,0 +1,70 @@
+# The single public door into the system. Every other service publishes no
+# ports at all, so what is described here is the whole public surface.
+#
+# Mounted read-only at /etc/caddy/Caddyfile by deploy/compose.prod.yaml. The
+# hostnames are literals — they are public DNS records anyway — while the two
+# ACME settings arrive as container environment: a personal address stays out
+# of a public repository, and the staging endpoint can be switched on for a
+# rehearsal without editing a file that travels with the commit.
+{
+	email {$ACME_EMAIL}
+
+	# Which ACME directory issues our certificates. The compose file defaults
+	# this to Let's Encrypt production. The first issuance on a new host is
+	# rehearsed against the staging directory, whose certificates browsers
+	# reject but whose rate limits are effectively unlimited: production allows
+	# 5 duplicate certificates per week and that is the one mistake here which
+	# cannot be fixed by trying again.
+	acme_ca {$ACME_CA}
+}
+
+# Shared by both sites.
+(edge) {
+	header {
+		# One year. No includeSubDomains: the zone is personal and carries
+		# names this proxy does not serve.
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	# Skipped automatically for upgraded connections and already-compressed
+	# bodies; what it actually buys is /docs and the JSON responses.
+	encode zstd gzip
+
+	# Access logging is off by default in Caddy. Without it there is no record
+	# of who asked for what — including the ACME challenge requests during the
+	# first issuance. The daemon's own log (certificate events, errors) is
+	# separate and always on.
+	log {
+		format json
+	}
+}
+
+alerts.vorobev.dev {
+	import edge
+
+	# Prometheus keeps scraping api:8080/metrics inside the compose network.
+	# From the outside the endpoint must not even admit to existing, hence 404
+	# rather than 403. The `*` also covers anything below /metrics.
+	handle /metrics* {
+		respond 404
+	}
+
+	# Everything else, /docs and /openapi.json included on purpose — they are
+	# the shop window. WebSocket upgrades on /ws need no configuration:
+	# reverse_proxy recognises the upgrade and switches to a raw bidirectional
+	# stream. The Host header is passed through unchanged (unlike nginx's
+	# default), which is what lets TrustedHostMiddleware see the real name.
+	handle {
+		reverse_proxy api:8080
+	}
+}
+
+grafana.vorobev.dev {
+	import edge
+
+	reverse_proxy grafana:3000
+}
