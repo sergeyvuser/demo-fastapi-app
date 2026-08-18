@@ -102,9 +102,80 @@ def test_nothing_is_built_on_the_server(rendered_services: dict[str, Any]) -> No
     assert sorted(n for n, s in rendered_services.items() if "build" in s) == []
 
 
-def test_nothing_is_published_to_the_host(rendered_services: dict[str, Any]) -> None:
-    # ticket 06 adds Caddy — the only service ever allowed to publish ports
-    assert sorted(n for n, s in rendered_services.items() if s.get("ports")) == []
+def test_only_the_proxy_is_published(rendered_services: dict[str, Any]) -> None:
+    published = sorted(n for n, s in rendered_services.items() if s.get("ports"))
+    assert published == ["caddy"]
+
+
+def test_the_proxy_serves_http_https_and_quic(
+    rendered_services: dict[str, Any],
+) -> None:
+    ports = {
+        (str(p["published"]), p["protocol"])
+        for p in rendered_services["caddy"]["ports"]
+    }
+    # 80 is not decoration: the ACME HTTP challenge and the redirect to HTTPS
+    # both live there, and dropping it makes issuance fail in a way that looks
+    # like a DNS problem
+    assert ports == {("80", "tcp"), ("443", "tcp"), ("443", "udp")}
+
+
+def test_certificates_survive_container_recreation(
+    rendered_services: dict[str, Any],
+) -> None:
+    mounts = {v["target"]: v for v in rendered_services["caddy"]["volumes"]}
+    assert mounts["/data"]["type"] == "volume"
+    assert mounts["/etc/caddy/Caddyfile"]["read_only"] is True
+
+
+def test_the_proxy_holds_no_application_secrets(
+    rendered_services: dict[str, Any],
+) -> None:
+    # it reads neither env file, so this set is the whole of what it knows
+    assert set(rendered_services["caddy"]["environment"]) == {"ACME_EMAIL", "ACME_CA"}
+
+
+def test_certificates_come_from_the_production_ca(
+    rendered_services: dict[str, Any],
+) -> None:
+    # staging is a deliberate, temporary override made on the server
+    acme_ca = rendered_services["caddy"]["environment"]["ACME_CA"]
+    assert acme_ca == "https://acme-v02.api.letsencrypt.org/directory"
+
+
+def test_the_caddyfile_parses(rendered_services: dict[str, Any]) -> None:
+    """`caddy validate` against the very image the server will run.
+
+    Not a test of the routing — of the syntax. A typo here is otherwise found
+    on the server, where the edit-and-check cycle costs a deploy.
+    """
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--mount",
+            f"type=bind,source={DEPLOY / 'Caddyfile'}"
+            ",target=/etc/caddy/Caddyfile,readonly",
+            # both placeholders must expand to something: `email` and `acme_ca`
+            # with an empty argument are parse errors
+            "-e",
+            "ACME_EMAIL=nobody@example.com",
+            "-e",
+            "ACME_CA=https://acme-staging-v02.api.letsencrypt.org/directory",
+            rendered_services["caddy"]["image"],  # never drifts from the deploy
+            "caddy",
+            "validate",
+            "--adapter",
+            "caddyfile",
+            "--config",
+            "/etc/caddy/Caddyfile",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_application_services_wait_for_migrations(
