@@ -61,7 +61,7 @@ select = [
 "backend/src/backend/alembic/versions/*" = ["E501"]
 
 [tool.pytest]
-testpaths = ["shared/tests", "backend/tests", "ingestor/tests", "notifier/tests"]
+testpaths = ["tests", "shared/tests", "backend/tests", "ingestor/tests", "notifier/tests"]
 addopts = [
     "-ra",
     #"-q",
