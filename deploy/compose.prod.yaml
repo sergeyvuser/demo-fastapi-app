@@ -1,0 +1,190 @@
+# Production overlay, applied on top of the development compose file:
+#
+#   docker compose -f compose.yaml -f deploy/compose.prod.yaml \
+#     --env-file .env --env-file .env.secrets up -d
+#
+# Two things that look alike and are not:
+#   * `--env-file` feeds ${...} substitution inside these YAML files;
+#   * `env_file:` feeds the environment of a container.
+# Infrastructure images take their credentials through substitution, the
+# application takes its configuration through env_file — hence both.
+#
+# Relative paths resolve against the FIRST file, i.e. the repository root, so
+# the server keeps the repository layout under /opt/alerts/.
+#
+# `!reset` / `!override` must be written out per service: passing them through
+# a YAML anchor silently drops the tag and the base value survives.
+
+x-backend-image: &backend-image ghcr.io/sergeyvuser/demo-fastapi-app/backend:${IMAGE_TAG:?}
+x-ingestor-image: &ingestor-image ghcr.io/sergeyvuser/demo-fastapi-app/ingestor:${IMAGE_TAG:?}
+x-notifier-image: &notifier-image ghcr.io/sergeyvuser/demo-fastapi-app/notifier:${IMAGE_TAG:?}
+
+# Overrides of the base x-app-env block. `environment:` wins over `env_file:`,
+# so anything the base pins to a laptop value must be pinned again here.
+x-prod-env: &prod-env
+  APP_CONFIG__SMTP__HOST: smtp.resend.com
+  APP_CONFIG__SMTP__PORT: "465"
+  APP_CONFIG__SMTP__SECURITY: tls
+  APP_CONFIG__SMTP__USERNAME: resend        # a literal, not the account name
+  APP_CONFIG__SMTP__SENDER: "Crypto Alerts <alerts@vorobev.dev>"
+  APP_CONFIG__RUN__PUBLIC_URL: https://alerts.vorobev.dev
+
+services:
+  db:
+    ports: !reset [ ]
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 512M } } }
+
+  redis:
+    ports: !reset [ ]
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 128M } } }
+
+  rabbitmq:
+    ports: !reset [ ]
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 512M } } }
+
+  # One-shot: every application service waits for it to exit 0. Deliberately
+  # without `restart` — a restarting migration would deadlock the stack.
+  migrate:
+    image: *backend-image
+    build: !reset null
+    # both optional: the configuration must render without secrets, which is
+    # what the test does and what CI has. Written out per service — a tag on an
+    # alias node is a YAML syntax error, and a tag inside the anchor body is
+    # silently dropped when the alias is expanded.
+    env_file: !override
+      - path: .env
+        required: false
+      - path: .env.secrets
+        required: false
+    deploy: { resources: { limits: { memory: 320M } } }
+
+  api:
+    image: *backend-image
+    build: !reset null
+    develop: !reset { }
+    ports: !reset [ ]            # Caddy is the only published service (ticket 06)
+    env_file: !override
+      - path: .env
+        required: false
+      - path: .env.secrets
+        required: false
+    environment:
+      <<: *prod-env
+      # 127.0.0.1 must stay: the container healthcheck calls itself by IP and
+      # TrustedHostMiddleware would answer it 400, i.e. "unhealthy forever".
+      APP_CONFIG__RUN__ALLOWED_HOSTS: '["alerts.vorobev.dev","127.0.0.1"]'
+      # Not "*": with a wildcard granian trusts the FIRST X-Forwarded-For entry,
+      # which is whatever the client sent, and per-IP rate limiting becomes
+      # opt-out. With a subnet it walks right to left and returns the first
+      # address outside it — the real client as Caddy saw it.
+      APP_CONFIG__RUN__TRUSTED_PROXIES: '["172.16.0.0/12"]'
+    deploy: { resources: { limits: { memory: 384M } } }
+
+  evaluator:
+    image: *backend-image
+    build: !reset null
+    env_file: !override
+      - path: .env
+        required: false
+      - path: .env.secrets
+        required: false
+    environment:
+      <<: *prod-env
+    deploy: { resources: { limits: { memory: 320M } } }
+
+  worker:
+    image: *backend-image
+    build: !reset null
+    env_file: !override
+      - path: .env
+        required: false
+      - path: .env.secrets
+        required: false
+    environment:
+      <<: *prod-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    deploy: { resources: { limits: { memory: 320M } } }
+
+  scheduler:
+    image: *backend-image
+    build: !reset null
+    env_file: !override
+      - path: .env
+        required: false
+      - path: .env.secrets
+        required: false
+    environment:
+      <<: *prod-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    deploy: { resources: { limits: { memory: 256M } } }
+
+  ingestor:
+    image: *ingestor-image
+    build: !reset null
+    env_file: !override
+      - path: .env
+        required: false
+      - path: .env.secrets
+        required: false
+    environment:
+      <<: *prod-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    deploy: { resources: { limits: { memory: 256M } } }
+
+  notifier:
+    image: *notifier-image
+    build: !reset null
+    env_file: !override
+      - path: .env
+        required: false
+      - path: .env.secrets
+        required: false
+    environment:
+      <<: *prod-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    deploy: { resources: { limits: { memory: 256M } } }
+
+  prometheus:
+    ports: !reset [ ]
+    restart: unless-stopped
+    # Overriding `command` drops the image's default arguments, so the config
+    # path and the data path have to be restated. The legacy console templates
+    # are not restated on purpose — nothing uses them.
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --storage.tsdb.retention.size=2GB
+    deploy: { resources: { limits: { memory: 384M } } }
+
+  grafana:
+    ports: !reset [ ]
+    restart: unless-stopped
+    environment:
+      # Public and read-only: anonymous Viewer, no sign-up, and Explore off —
+      # with Explore an anonymous visitor runs arbitrary PromQL against the
+      # unexposed Prometheus. The admin password stays required (base file).
+      GF_SERVER_ROOT_URL: https://grafana.vorobev.dev
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_EXPLORE_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    deploy: { resources: { limits: { memory: 256M } } }
+
+  jaeger:
+    ports: !reset [ ]
+    restart: unless-stopped
+    environment:
+      MEMORY_MAX_TRACES: "10000"   # half the local ring buffer: 4 GB host
+    deploy: { resources: { limits: { memory: 384M } } }
