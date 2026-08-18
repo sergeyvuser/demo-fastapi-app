@@ -89,6 +89,12 @@ def services_reading_env_files(
     return _render(project_dir)
 
 
+@pytest.fixture(scope="module")
+def caddy_mounts(rendered_services: dict[str, Any]) -> dict[str, Any]:
+    """The proxy's mounts keyed by their path inside the container."""
+    return {v["target"]: v for v in rendered_services["caddy"]["volumes"]}
+
+
 def test_application_services_run_from_pinned_published_images(
     rendered_services: dict[str, Any],
 ) -> None:
@@ -120,12 +126,18 @@ def test_the_proxy_serves_http_https_and_quic(
     assert ports == {("80", "tcp"), ("443", "tcp"), ("443", "udp")}
 
 
-def test_certificates_survive_container_recreation(
-    rendered_services: dict[str, Any],
+def test_the_proxy_keeps_its_state_on_named_volumes(
+    caddy_mounts: dict[str, Any],
 ) -> None:
-    mounts = {v["target"]: v for v in rendered_services["caddy"]["volumes"]}
-    assert mounts["/data"]["type"] == "volume"
-    assert mounts["/etc/caddy/Caddyfile"]["read_only"] is True
+    # /data holds the certificates and the ACME account key: on a bind mount
+    # that a redeploy wipes, every recreation asks for new certificates and
+    # walks into the duplicate-certificate rate limit
+    assert caddy_mounts["/data"]["type"] == "volume"
+    assert caddy_mounts["/config"]["type"] == "volume"
+
+
+def test_the_proxy_configuration_is_read_only(caddy_mounts: dict[str, Any]) -> None:
+    assert caddy_mounts["/etc/caddy/Caddyfile"]["read_only"] is True
 
 
 def test_the_proxy_holds_no_application_secrets(
@@ -138,7 +150,7 @@ def test_the_proxy_holds_no_application_secrets(
 def test_certificates_come_from_the_production_ca(
     rendered_services: dict[str, Any],
 ) -> None:
-    # staging is a deliberate, temporary override made on the server
+    # the staging directory is a temporary override made on the server
     acme_ca = rendered_services["caddy"]["environment"]["ACME_CA"]
     assert acme_ca == "https://acme-v02.api.letsencrypt.org/directory"
 
