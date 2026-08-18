@@ -50,7 +50,7 @@ realtime dashboard frontend.
 ├── conftest.py       # test env + fixtures shared by every package
 ├── .gitleaks.toml    # secret-scanner rules
 ├── Makefile          # dev entrypoints (see `make`)
-└── .env.example     # copy to .env and fill in
+└── .env.example      # copy to .env and fill in
 ```
 
 Tests live inside the package they cover (`backend/tests/`, `shared/tests/`,
@@ -219,21 +219,12 @@ database.
 ## Roadmap
 
 - [x] 0–1. Skeleton fixes, async SQLAlchemy, first migrations
-- [x] 
-    2. Auth: JWT + rotating refresh, service layer owning transactions
-- [x] 
-    3. Alerts domain: CRUD, ownership, pagination, RFC 9457 errors
-- [x] 
-    4. Docker: multi-stage uv image, full compose with one-shot migrate
-- [x] 
-    5. Redis: price cache, login rate limiting
-- [x] 
-    6. RabbitMQ + FastStream: ingestor / evaluator / notifier
-- [x] 
-    7. Taskiq: background & scheduled jobs (email verify, digest, cleanup)
-- [x] 
-    8. WebSocket realtime feed (frontend entry point)
-- [x] 
-    9. Observability: Prometheus/Grafana, OpenTelemetry, structured logs
-- [x] 
-    10. Tests (pytest-asyncio, testcontainers) + mypy + GitHub Actions
+- [x] 2. Auth: JWT + rotating refresh, service layer owning transactions
+- [x] 3. Alerts domain: CRUD, ownership, pagination, RFC 9457 errors
+- [x] 4. Docker: multi-stage uv image, full compose with one-shot migrate
+- [x] 5. Redis: price cache, login rate limiting
+- [x] 6. RabbitMQ + FastStream: ingestor / evaluator / notifier
+- [x] 7. Taskiq: background & scheduled jobs (email verify, digest, cleanup)
+- [x] 8. WebSocket realtime feed (frontend entry point)
+- [x] 9. Observability: Prometheus/Grafana, OpenTelemetry, structured logs
+- [x] 10. Tests (pytest-asyncio, testcontainers) + mypy + GitHub Actions
