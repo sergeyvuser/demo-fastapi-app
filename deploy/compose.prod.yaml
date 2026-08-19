@@ -78,9 +78,15 @@ services:
         required: false
     environment:
       <<: *prod-env
-      # 127.0.0.1 must stay: the container healthcheck calls itself by IP and
-      # TrustedHostMiddleware would answer it 400, i.e. "unhealthy forever".
-      APP_CONFIG__RUN__ALLOWED_HOSTS: '["alerts.vorobev.dev","127.0.0.1"]'
+      # Both internal names are load-bearing, and neither is reachable from
+      # outside: Caddy only forwards the two public hostnames, so no client can
+      # put "api" or "127.0.0.1" in a Host header that reaches this service.
+      #   127.0.0.1 — the container healthcheck calls itself by IP, and
+      #               TrustedHostMiddleware would answer it 400 forever;
+      #   api       — the name Prometheus scrapes by. The middleware compares
+      #               Host before routing, so without this every scrape of
+      #               /metrics is a 400 and the API has no metrics at all.
+      APP_CONFIG__RUN__ALLOWED_HOSTS: '["alerts.vorobev.dev","127.0.0.1","api"]'
       # Not "*": with a wildcard granian trusts the FIRST X-Forwarded-For entry,
       # which is whatever the client sent, and per-IP rate limiting becomes
       # opt-out. With a subnet it walks right to left and returns the first
