@@ -57,6 +57,22 @@
 alerts.vorobev.dev {
 	import edge
 
+	# Two paths that must not be public. Both are fixed in the application as
+	# well (ticket 08); they are blocked here too because the proxy needs no
+	# rebuild, and because an upgrade of FastStream could re-add its schema
+	# route without anyone noticing.
+	#   /asyncapi*      — FastStream's schema, which published the broker URL
+	#                     with its password to anonymous callers
+	#   /api/v1/users   — returned every registered address; the exact path
+	#                     only, so /api/v1/users/me keeps working
+	handle /asyncapi* {
+		respond 404
+	}
+
+	handle /api/v1/users {
+		respond 404
+	}
+
 	# Everything else, /docs and /openapi.json included on purpose — they are
 	# the shop window. WebSocket upgrades on /ws need no configuration:
 	# reverse_proxy recognises the upgrade and switches to a raw bidirectional
