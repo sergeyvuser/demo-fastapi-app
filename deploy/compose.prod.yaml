@@ -119,7 +119,12 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-    deploy: { resources: { limits: { memory: 320M } } }
+    # Measured at 252 MiB idle in production — 79% of the 320M this used to
+    # have, and the highest ratio in the stack, because this process imports
+    # taskiq plus all three task modules. Idle is the wrong number to size a
+    # limit against: the digest task fans out over rows, and the failure mode
+    # of getting it wrong is a silent OOM kill mid-task, not a slow worker.
+    deploy: { resources: { limits: { memory: 448M } } }
 
   scheduler:
     image: *backend-image
