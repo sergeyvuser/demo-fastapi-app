@@ -22,6 +22,12 @@ from shared.middlewares import CorrelationMiddleware
 # noinspection PyTypeChecker
 stream_router = RabbitRouter(
     url=settings.rabbitmq.url,
+    # No AsyncAPI docs. This router is mounted into the public API, and the
+    # generated schema puts the broker URL — credentials and all — into its
+    # `servers` block. Observed in production: /asyncapi.json served the
+    # RabbitMQ password to anonymous callers. `asyncapi_url` would only mask
+    # the password and still publish the topology, so the route goes instead.
+    schema_url=None,
     log_level=logging.DEBUG,
     # class, not instance: FastStream calls it per message as a builder
     middlewares=[CorrelationMiddleware, RabbitTelemetryMiddleware()],
