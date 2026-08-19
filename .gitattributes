@@ -1,4 +1,12 @@
-# Shell scripts run on Linux; a CRLF working copy on Windows breaks them in
-# ways that read like syntax errors in your own code (a heredoc terminator
-# carrying a carriage return never matches).
-*.sh text eol=lf
+# Every consumer of this repository is Linux: the container images, the CI
+# runners, and the server. Nothing here is read by a Windows program, so the
+# working copy is normalised to LF too — a carriage return can only arrive as
+# a defect, and it arrives silently.
+#
+# Two ways this has actually bitten:
+#   * a heredoc terminator carrying a carriage return never matches, which
+#     reads like a syntax error in your own script;
+#   * `git archive` applies core.autocrlf, so on Windows the archive of a
+#     commit is not the commit — the Caddyfile and the compose files reached
+#     the server with CRLF on the first deploy.
+* text=auto eol=lf
