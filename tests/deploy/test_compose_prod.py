@@ -247,6 +247,32 @@ def test_grafana_is_public_read_only(rendered_services: dict[str, Any]) -> None:
 
 
 def test_telemetry_storage_is_bounded(rendered_services: dict[str, Any]) -> None:
+    """Neither telemetry store may grow without a ceiling.
+
+    The ceilings themselves are tuned against measurements — Jaeger was
+    OOM-killed once because its buffer was sized by guesswork — so this asserts
+    that a bound exists, not what it currently is. Both Prometheus caps matter:
+    time alone stops bounding the disk as soon as the ingest rate changes.
+    """
     prometheus = rendered_services["prometheus"]["command"]
-    assert "--storage.tsdb.retention.time=7d" in prometheus
-    assert rendered_services["jaeger"]["environment"]["MEMORY_MAX_TRACES"] == "10000"
+    assert any(a.startswith("--storage.tsdb.retention.time=") for a in prometheus)
+    assert any(a.startswith("--storage.tsdb.retention.size=") for a in prometheus)
+
+    max_traces = rendered_services["jaeger"]["environment"]["MEMORY_MAX_TRACES"]
+    assert int(max_traces) > 0
+
+
+def test_telemetry_cannot_starve_the_product_of_cpu(
+    rendered_services: dict[str, Any],
+) -> None:
+    """The anonymously reachable telemetry path needs a CPU ceiling, not just RAM.
+
+    Grafana is public and its Viewer can run arbitrary PromQL, so the cost of a
+    query is attacker-controlled. Prometheus caps how much memory one query may
+    touch and how many run at once, but two concurrent queries on a two-vCPU
+    host are the whole host — a limit on memory alone leaves the product to be
+    starved by something cheap.
+    """
+    for name in ("prometheus", "grafana", "jaeger"):
+        limits = rendered_services[name]["deploy"]["resources"]["limits"]
+        assert float(limits["cpus"]) > 0, name

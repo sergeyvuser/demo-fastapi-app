@@ -92,7 +92,12 @@ services:
       # opt-out. With a subnet it walks right to left and returns the first
       # address outside it — the real client as Caddy saw it.
       APP_CONFIG__RUN__TRUSTED_PROXIES: '["172.16.0.0/12"]'
-    deploy: { resources: { limits: { memory: 384M } } }
+    # Raised as a stopgap, not as a fix. Measured in production: 170 MiB at
+    # start, 321 MiB fifteen hours later, against a 384M limit — the only
+    # service in the stack whose footprint moves at all, and on that trend the
+    # next OOM kill was hours away. This buys observation time; the growth
+    # itself is still unexplained and is tracked as its own piece of work.
+    deploy: { resources: { limits: { memory: 512M } } }
 
   evaluator:
     image: *backend-image
@@ -189,28 +194,106 @@ services:
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=7d
       - --storage.tsdb.retention.size=2GB
-    deploy: { resources: { limits: { memory: 384M } } }
+      # Grafana is public and anonymous, and an anonymous visitor can run any
+      # PromQL they like — see the note on the grafana service below. So the
+      # query engine has to survive a hostile query, not merely our own, and
+      # the default 50M samples is roughly 1.6 GiB of engine memory against a
+      # 384M limit: a container that runs out of memory here is killed silently.
+      #
+      # The bound is measured against this deployment, not guessed. There are
+      # 288 active series in total, 36 of them the latency histogram, scraped
+      # every 10s:
+      #   * heaviest real panel — p99 over the histogram across the full 7d
+      #     retention — loads about 1.1M samples (30 per [5m] window x ~1000
+      #     steps x 36 series); the raw range holds 2.2M;
+      #   * a scan of every series over the same 7d is 17.4M samples, ~550 MiB,
+      #     which is the query this cap exists to refuse.
+      # 2M sits between the two with roughly 2x headroom over the real panel,
+      # and bounds the engine at ~64 MiB per query, ~128 MiB across the two
+      # concurrent slots. Exceeding it returns an explicit error instead of
+      # killing the container, which is the entire point.
+      #
+      # Do not tighten this to a few hundred thousand: 150k would reject the
+      # p99 panel at the dashboard's own default one-hour window (~259k).
+      # The timeout is not the memory control and should not be raced to the
+      # bottom either — today every panel answers in under a second, but on
+      # fifteen hours of data, and two vCPUs have to serve nine panels every
+      # ten seconds once the retention window actually fills.
+      - --query.max-samples=2000000
+      - --query.timeout=15s
+      - --query.max-concurrency=2
+    # The CPU ceiling is the other half of that story and the one the sample cap
+    # cannot provide. max-concurrency=2 bounds Prometheus to two simultaneous
+    # queries, but this host has two vCPUs, so "two queries" and "the whole
+    # machine" are the same sentence: a bot looping cheap-but-not-free queries
+    # through the public Grafana would starve the product without ever tripping
+    # a memory or sample limit. Scraping 288 series every ten seconds costs
+    # almost nothing, so half a core is generous for the real workload.
+    deploy:
+      resources:
+        limits: { memory: 384M, cpus: "0.5" }
 
   grafana:
     ports: !reset [ ]
     restart: unless-stopped
     environment:
-      # Public and read-only: anonymous Viewer, no sign-up, and Explore off —
-      # with Explore an anonymous visitor runs arbitrary PromQL against the
-      # unexposed Prometheus. The admin password stays required (base file).
+      # Public and read-only: anonymous Viewer, no sign-up, Explore off. The
+      # admin password stays required (base file).
+      #
+      # Explore off hides the query UI and nothing more — verified against this
+      # deployment: an anonymous caller still gets a 200 from both
+      # /api/datasources/proxy/uid/prometheus/... and /api/ds/query, and can run
+      # any PromQL through either. The second one is how the panels themselves
+      # fetch data, so it cannot be blocked at the proxy without blanking the
+      # dashboard. Arbitrary reads are therefore inherent to anonymous Viewer,
+      # and the toggle below must not be mistaken for a control.
+      #
+      # What actually makes that acceptable here: the metrics are deliberately
+      # low-cardinality and carry no user identifiers, so there is nothing
+      # private to read. What it does NOT make acceptable is an unbounded query
+      # engine, which is why the prometheus service above caps samples, time and
+      # concurrency. Restricting reads as well would mean dropping anonymous
+      # auth for a shared-dashboard link — considered and declined in ticket 09:
+      # the link would live in Grafana's volume rather than in this repository.
       GF_SERVER_ROOT_URL: https://grafana.vorobev.dev
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
       GF_EXPLORE_ENABLED: "false"
       GF_USERS_ALLOW_SIGN_UP: "false"
-    deploy: { resources: { limits: { memory: 256M } } }
+    # OOM-killed at 256M seventeen minutes after the first production start,
+    # while building its in-memory search index. The kernel counted 244 MiB of
+    # anonymous memory plus 101 MiB of page cache: under cgroup v2 the file
+    # cache counts towards the limit too, so a limit sized against the RSS you
+    # see in `docker stats` is a limit sized too small.
+    #
+    # Capped on CPU as well: this is the front door to the query engine, and it
+    # answers anonymously. See the note on the prometheus service above.
+    deploy:
+      resources:
+        limits: { memory: 384M, cpus: "0.5" }
 
   jaeger:
     ports: !reset [ ]
     restart: unless-stopped
     environment:
-      MEMORY_MAX_TRACES: "10000"   # half the local ring buffer: 4 GB host
-    deploy: { resources: { limits: { memory: 384M } } }
+      # Measured, not guessed: 10000 traces of this shape cost ~370 MiB, and the
+      # kernel killed this container at 367 MiB against a 384M limit after
+      # fifteen hours. Ticks are sampled at 1.0 and arrive several a second, so
+      # the buffer is the dominant consumer and it fills in about half an hour.
+      #
+      # An earlier note here advised raising this number rather than lowering
+      # the ingestor's sample ratio if the trace window felt short. That advice
+      # was wrong in production: raising it is what runs out of memory. The
+      # honest fix for trace volume is tail-based sampling through an OTel
+      # Collector — keep whole chains, drop the boring ones — which is a stage
+      # decision, not a knob. Until then this is a demo-sized window of roughly
+      # fifteen minutes, which is enough to click through a live trace.
+      MEMORY_MAX_TRACES: "5000"
+    # Ingest is roughly forty spans a second; the ceiling exists so that a burst
+    # of tracing cannot compete with the product for two vCPUs.
+    deploy:
+      resources:
+        limits: { memory: 512M, cpus: "0.3" }
 
   # The only service that publishes anything, and the only one that exists in
   # production alone. Deliberately without depends_on: if the API is broken the
