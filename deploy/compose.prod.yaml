@@ -92,11 +92,29 @@ services:
       # opt-out. With a subnet it walks right to left and returns the first
       # address outside it — the real client as Caddy saw it.
       APP_CONFIG__RUN__TRUSTED_PROXIES: '["172.16.0.0/12"]'
-    # Raised as a stopgap, not as a fix. Measured in production: 170 MiB at
-    # start, 321 MiB fifteen hours later, against a 384M limit — the only
-    # service in the stack whose footprint moves at all, and on that trend the
-    # next OOM kill was hours away. This buys observation time; the growth
-    # itself is still unexplained and is tracked as its own piece of work.
+    # This one is sized against a number that looks alarming and is not. In
+    # production `docker stats` climbs from 170 MiB to 320 MiB over fifteen
+    # hours here while every other service stays flat — which read like a leak
+    # until it was taken apart:
+    #   process_resident_memory_bytes   ~145 MiB, slope -0.3 MiB/h  (flat)
+    #   cgroup anon                     ~165 MiB
+    #   cgroup slab_reclaimable          ~67 MiB   <- the growth
+    #   cgroup slab_unreclaimable       ~0.7 MiB
+    # The growing part is the kernel's dentry/inode cache, 99% reclaimable, and
+    # it grows because this is the only service whose healthcheck starts a whole
+    # Python interpreter every ten seconds — 8640 interpreter starts a day, each
+    # opening hundreds of files on import. It is freed under pressure long
+    # before the OOM killer is involved, and the healthcheck is left alone: fast
+    # detection is worth more than cache the kernel reclaims for free.
+    #
+    # The limit is 512M rather than 384M anyway, for a reason that survives the
+    # correction: cgroup accounting charges that reclaimable cache against the
+    # limit, so a ceiling set just above the *anonymous* footprint would leave
+    # the container reclaiming at its boundary continuously. Headroom above the
+    # reported figure buys quiet, not safety.
+    #
+    # The lesson generalises to every limit in this file: `docker stats` reports
+    # anon + cache + slab. Size against `memory.stat`, not against that total.
     deploy: { resources: { limits: { memory: 512M } } }
 
   evaluator:
