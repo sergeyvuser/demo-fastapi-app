@@ -16,7 +16,10 @@ class AlertNotFoundError(NotFoundError):
 
 class AlertLimitExceededError(ConflictError):
     def __init__(self):
-        super().__init__(f"Alerts limit of {MAX_ALERTS_PER_USER} reached")
+        super().__init__(
+            f"Alerts limit of {MAX_ALERTS_PER_USER} reached. "
+            f"Delete one before creating another."
+        )
 
 
 class AlertService:
