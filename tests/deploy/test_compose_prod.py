@@ -198,8 +198,25 @@ def test_application_services_wait_for_migrations(
         assert migrate.get("condition") == "service_completed_successfully", name
 
 
-def test_migrations_run_once(rendered_services: dict[str, Any]) -> None:
-    assert "restart" not in rendered_services["migrate"]
+# Jobs that run to completion and exit. A restart policy on either is a bug
+# with teeth: a migration that restarts deadlocks the stack behind its own
+# `service_completed_successfully`, and a seeder that restarts loops forever.
+ONE_SHOT_SERVICES = {"migrate", "seed-demo"}
+
+
+def test_one_shot_jobs_do_not_restart(rendered_services: dict[str, Any]) -> None:
+    for name in ONE_SHOT_SERVICES:
+        assert "restart" not in rendered_services[name], name
+
+
+def test_nothing_waits_for_the_demo_seeder(rendered_services: dict[str, Any]) -> None:
+    """A failing seeder must not be able to hold the product down.
+
+    Worth pinning rather than assuming: the two one-shot jobs look alike in the
+    file, and `migrate` is the opposite case — everything waits for that one.
+    """
+    for name, service in rendered_services.items():
+        assert "seed-demo" not in service.get("depends_on", {}), name
 
 
 def test_services_restart_and_are_memory_capped(
@@ -208,7 +225,7 @@ def test_services_restart_and_are_memory_capped(
     for name, service in sorted(rendered_services.items()):
         limits = service.get("deploy", {}).get("resources", {}).get("limits", {})
         assert limits.get("memory"), name
-        if name != "migrate":
+        if name not in ONE_SHOT_SERVICES:
             assert service.get("restart") == "unless-stopped", name
 
 

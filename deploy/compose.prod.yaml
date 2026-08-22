@@ -33,6 +33,13 @@ x-prod-env: &prod-env
   APP_CONFIG__SMTP__USERNAME: resend        # a literal, not the account name
   APP_CONFIG__SMTP__SENDER: "Crypto Alerts <alerts@vorobev.dev>"
   APP_CONFIG__RUN__PUBLIC_URL: https://alerts.vorobev.dev
+  # The demo account, quoted verbatim in the README. In the shared block on
+  # purpose: the seeder creates it, the scheduler and the worker run its nightly
+  # reset, and a value pinned in one service cannot drift from another.
+  APP_CONFIG__DEMO__ENABLED: "1"
+  APP_CONFIG__DEMO__USERNAME: demo
+  APP_CONFIG__DEMO__EMAIL: demo@vorobev.dev
+  APP_CONFIG__DEMO__PASSWORD: demo-alerts-2026
 
 services:
   db:
@@ -64,6 +71,25 @@ services:
         required: false
       - path: .env.secrets
         required: false
+    deploy: { resources: { limits: { memory: 320M } } }
+
+  # One-shot, like `migrate`, and deliberately nothing depends on it finishing:
+  # the demo account is a courtesy, and a seeder that fails must not be able to
+  # hold the product down. Production only — a laptop has no use for a shared
+  # account, and its absence keeps development databases clean.
+  seed-demo:
+    image: *backend-image
+    command: [ "python", "-m", "backend.seed_demo" ]
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.secrets
+        required: false
+    environment:
+      <<: *prod-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     deploy: { resources: { limits: { memory: 320M } } }
 
   api:
