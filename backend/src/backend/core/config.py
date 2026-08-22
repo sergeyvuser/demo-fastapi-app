@@ -102,12 +102,32 @@ class AuthConfig(BaseModel):
     register_rate_window_seconds: int = 300
 
 
+class DemoConfig(BaseModel):
+    """The published, shared demo account.
+
+    Plain `str` rather than `SecretStr`, and pinned in the compose overlay
+    rather than the secrets file: these credentials are printed in the README.
+    Filing a published password as a secret would misdescribe it and drag it
+    into `gen-secrets.sh`, which produces random values — the opposite of what
+    a password quoted in documentation needs.
+
+    Disabled by default so that no development or test database grows a demo
+    user merely because the settings were imported.
+    """
+
+    enabled: bool = False
+    username: str = "demo"
+    email: str = "demo@example.com"
+    password: str = "demo-password"
+
+
 class Settings(BaseServiceSettings):
     run: RunConfig = RunConfig()
     api: APIPrefixConfig = APIPrefixConfig()
     db: DBConfig
     auth: AuthConfig
     smtp: SMTPConfig = SMTPConfig()
+    demo: DemoConfig = DemoConfig()
 
 
 settings = Settings()
