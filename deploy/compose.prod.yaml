@@ -118,6 +118,18 @@ services:
       # opt-out. With a subnet it walks right to left and returns the first
       # address outside it — the real client as Caddy saw it.
       APP_CONFIG__RUN__TRUSTED_PROXIES: '["172.16.0.0/12"]'
+    # Only the interval is overridden; the rest of the healthcheck is inherited.
+    #
+    # Every probe starts a fresh Python interpreter, and each start opens
+    # hundreds of files, so the kernel's dentry cache for this cgroup grows with
+    # the number of probes: 67 MiB after a day, 377 MiB after three, at which
+    # point the container sits against its ceiling and the kernel reclaims to
+    # make room — 160 times in two days, measured through memory.events. None of
+    # it is fatal, all of it is reclaimable, and none of it is useful either.
+    # Thirty seconds cuts the churn to a third and costs a slower notice that
+    # the API has died — which nothing acts on automatically anyway.
+    healthcheck:
+      interval: 30s
     # This one is sized against a number that looks alarming and is not. In
     # production `docker stats` climbs from 170 MiB to 320 MiB over fifteen
     # hours here while every other service stays flat — which read like a leak
@@ -304,17 +316,33 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
       GF_EXPLORE_ENABLED: "false"
       GF_USERS_ALLOW_SIGN_UP: "false"
-    # OOM-killed at 256M seventeen minutes after the first production start,
-    # while building its in-memory search index. The kernel counted 244 MiB of
-    # anonymous memory plus 101 MiB of page cache: under cgroup v2 the file
-    # cache counts towards the limit too, so a limit sized against the RSS you
-    # see in `docker stats` is a limit sized too small.
+      # A public read-only instance has no business phoning home every ten
+      # minutes. Not a memory measure — it is simply not our traffic to send.
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+    # Sized against a kill, twice over, and this is the third number.
+    #   256M -> killed after 17 minutes at 244 MiB anon + 101 MiB file
+    #   384M -> killed twice in one minute at 369 MiB anon + 112 MiB file
+    # Steady state is ~247 MiB, which is exactly why the first two numbers were
+    # wrong: this process spikes, and a limit sized against the calm reading
+    # gets you a container that dies at 02:22 on a Saturday. 640M is the ~480
+    # MiB it actually wanted plus room to be wrong again by a third.
+    #
+    # Under cgroup v2 the page cache counts towards the limit as well, so the
+    # figure to compare against is anon + file, not the RSS in `docker stats`.
+    #
+    # If it dies a third time, stop raising the ceiling and take work away
+    # instead: this instance runs the whole alerting subsystem for zero alert
+    # rules, and `unified_alerting.enabled=false` is the lever. It is not pulled
+    # here because the saving is unmeasured and Grafana 13 has been known to
+    # start awkwardly without it — a guess is what produced the last two limits.
     #
     # Capped on CPU as well: this is the front door to the query engine, and it
     # answers anonymously. See the note on the prometheus service above.
     deploy:
       resources:
-        limits: { memory: 384M, cpus: "0.5" }
+        limits: { memory: 640M, cpus: "0.5" }
 
   jaeger:
     ports: !reset [ ]
