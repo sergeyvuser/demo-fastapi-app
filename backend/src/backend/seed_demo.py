@@ -25,6 +25,7 @@ from backend.repositories.alert import AlertRepository
 from backend.repositories.user import UserRepository
 from backend.schemas.alert import AlertCreate, AlertCreateInternal
 from backend.schemas.user import UserCreateInternal
+from shared.logging import configure_logging
 
 # Thresholds sit far from the market on purpose. The tempting alternative — one
 # example close enough to fire, so a visitor sees the whole pipeline work — cannot
@@ -114,6 +115,7 @@ async def reset_demo(session: AsyncSession) -> int:
 
 
 async def main() -> None:
+    configure_logging(settings.log)
     if not settings.demo.enabled:
         logger.info("demo account disabled, nothing to seed")
         return

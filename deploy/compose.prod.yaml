@@ -87,6 +87,12 @@ services:
         required: false
     environment:
       <<: *prod-env
+      # Restated, not inherited: this service exists only in the overlay, and a
+      # YAML anchor does not cross files — the base x-app-env block is out of
+      # reach here. `migrate` carries the same line for the same reason.
+      # Rendering succeeds without it; Settings fails at runtime instead.
+      APP_CONFIG__DB__HOST: db
+      APP_CONFIG__LOG__JSON_FORMAT: "1"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -139,11 +145,16 @@ services:
     #   cgroup slab_reclaimable          ~67 MiB   <- the growth
     #   cgroup slab_unreclaimable       ~0.7 MiB
     # The growing part is the kernel's dentry/inode cache, 99% reclaimable, and
-    # it grows because this is the only service whose healthcheck starts a whole
-    # Python interpreter every ten seconds — 8640 interpreter starts a day, each
-    # opening hundreds of files on import. It is freed under pressure long
-    # before the OOM killer is involved, and the healthcheck is left alone: fast
-    # detection is worth more than cache the kernel reclaims for free.
+    # it grows because this service's healthcheck starts a whole Python
+    # interpreter on every probe, each opening hundreds of files on import.
+    #
+    # "Reclaimable" first read as "free", and it is not quite: by the third day
+    # the slab reached 377 MiB, the container sat at 96.7% of this limit, and
+    # memory.events counted 160 forced reclaims at the ceiling in two days —
+    # with zero OOM kills, so nothing was ever in danger, but the number in
+    # `docker stats` stopped carrying information. Hence the interval override
+    # above; the figure to re-measure against is 67 MiB of slab after the first
+    # day at a ten-second interval.
     #
     # The limit is 512M rather than 384M anyway, for a reason that survives the
     # correction: cgroup accounting charges that reclaimable cache against the

@@ -293,3 +293,18 @@ def test_telemetry_cannot_starve_the_product_of_cpu(
     for name in ("prometheus", "grafana", "jaeger"):
         limits = rendered_services[name]["deploy"]["resources"]["limits"]
         assert float(limits["cpus"]) > 0, name
+
+
+def test_every_backend_service_knows_where_the_database_is(
+    rendered_services: dict[str, Any],
+) -> None:
+    """A service declared only in the overlay inherits nothing from the base.
+
+    YAML anchors do not cross files, so `x-app-env` from compose.yaml is out of
+    reach here and its contents have to be restated. Rendering succeeds either
+    way — the omission only surfaces when Settings validates inside a running
+    container, which is a slow and expensive place to find it.
+    """
+    for name in ("migrate", "seed-demo", "api", "evaluator", "worker", "scheduler"):
+        env = rendered_services[name]["environment"]
+        assert env.get("APP_CONFIG__DB__HOST"), name
