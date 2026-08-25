@@ -36,7 +36,7 @@ CONFIG_PATHS=(
 )
 
 log() { printf '%s  %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*"; }
-die() { printf 'deploy: %s\n' "$1" >&2; exit 1; }
+die() { printf 'deploy: %s\n' "$*" >&2; exit 1; }
 
 # Both env files, always: --env-file feeds ${...} substitution inside the YAML,
 # and .env alone would leave every infrastructure password undefined. Note what

@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 #
-# Installed on the server as /opt/alerts/deploy.sh and nowhere else. Ticket 12
+# Installed on the server as /opt/alerts/bootstrap.sh and nowhere else. Ticket 12
 # forces it as the delivery key's only command, which makes it a permanent
 # resident — so it is deliberately the smallest thing that can still be one:
 # validate the argument, fetch the commit, hand over to the deploy script that
 # travels inside it.
 #
-#     /opt/alerts/deploy.sh <40-hex commit sha>
+#     /opt/alerts/bootstrap.sh <40-hex commit sha>
 #
+# Two files, two names, kept apart on purpose: this one is the bootstrap
+# everywhere, and deploy/deploy.sh — the script it hands over to — is the deploy
+# everywhere. Everything printed here is prefixed "bootstrap:" for the same
+# reason: a log line should name the file it came from.
+
 # Everything that decides *how* production is brought up lives in
 # deploy/deploy.sh of the commit being deployed, so it is versioned together
 # with the images it starts. This file is not: editing it in the repository
@@ -19,7 +24,7 @@ set -euo pipefail
 REPO="sergeyvuser/demo-fastapi-app"
 ALERTS_DIR="${ALERTS_DIR:-/opt/alerts}"
 
-die() { printf 'deploy: %s\n' "$1" >&2; exit 2; }
+die() { printf 'bootstrap: %s\n' "$*" >&2; exit 2; }
 
 # The SHA arrives as an argument by hand, and as SSH_ORIGINAL_COMMAND from CI:
 # a forced command replaces whatever the client asked to run, and the original
@@ -32,7 +37,7 @@ sha="${1:-${SSH_ORIGINAL_COMMAND:-}}"
 # characters and nothing else. It is never eval'd, never word-split, and only
 # ever quoted. The echo back is truncated because the rejected value is printed
 # into a CI log.
-[[ -n "$sha" ]] || die "usage: deploy.sh <40-hex commit sha>"
+[[ -n "$sha" ]] || die "usage: bootstrap.sh <40-hex commit sha>"
 [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || die "not a full commit sha: '${sha:0:64}'"
 
 # One deploy at a time. Continuous delivery on push and a manual dispatch for a
@@ -46,7 +51,7 @@ flock -n 9 || die "another deploy is already running"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-printf 'deploy: fetching %s at %s\n' "$REPO" "$sha"
+printf 'bootstrap: fetching %s at %s\n' "$REPO" "$sha"
 
 # The repository is public, so no credentials are involved anywhere in the
 # delivery path — that was the whole reason to make it public. The archive root
