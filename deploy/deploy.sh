@@ -222,7 +222,7 @@ log "phase 5/5  recording the result"
 # the last known-good tag is the one already written here, and it stays.
 # An absent status is read as good: the file predating this script was written
 # by hand after a successful manual deploy.
-if [[ "$last_status" != "failed" && -n "$running_tag" ]]; then
+if [[ "$last_status" != "failed" && -n "$running_tag" && "$running_tag" != "$tag" ]]; then
   previous_tag="$running_tag"
 fi
 write_env "$tag" "$previous_tag" ok
