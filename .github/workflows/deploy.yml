@@ -1,0 +1,93 @@
+name: Deploy
+
+# Two entry points, one body.
+#
+#   workflow_call     — CI calls this once the images for the commit exist.
+#   workflow_dispatch — a human types a SHA. That IS the rollback mechanism:
+#                       the images are already in the registry, so nothing is
+#                       rebuilt and nothing is retested. A rollback that had to
+#                       pass CI first would be slow exactly when it must not be,
+#                       and could fail on an old commit that no longer builds.
+on:
+  workflow_call:
+    inputs:
+      sha:
+        description: Full 40-character commit SHA to deploy
+        required: true
+        type: string
+    secrets:
+      ALERTS_SSH_DEPLOY_KEY:
+        required: true
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full 40-character commit SHA (an earlier one = rollback)
+        required: true
+        type: string
+
+# Nothing here reads the repository over the API; the server fetches its own
+# tarball anonymously.
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    # Recorded under Deployments on the repository page, with a link to the
+    # running site. Also, the place where a required reviewer would be added if
+    # this ever needed one.
+    environment:
+      name: production
+      url: https://alerts.vorobev.dev
+
+    # Deploys queue, they do not race. The server would refuse a second one
+    # anyway — bootstrap.sh holds a flock — but refusing is a failed job and
+    # waiting is not. cancel-in-progress stays false deliberately: a deploy
+    # killed halfway leaves containers half-recreated.
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+
+    steps:
+      - name: Deploy over ssh
+        env:
+          # Values reach the script through the environment, never through the
+          # script body. `${{ }}` is substituted as TEXT before bash ever sees
+          # the line, so an input containing a quote or a semicolon would stop
+          # being data and become code — the classic Actions script injection.
+          SHA: ${{ inputs.sha }}
+          DEPLOY_KEY: ${{ secrets.ALERTS_SSH_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+
+          # The pin. This is the server's ed25519 host key, read out of the
+          # machine itself over an authenticated session in ticket 12, not
+          # collected from the network with ssh-keyscan. Its fingerprint:
+          #   SHA256:/tawBRlZ70iDuREGVgQFIVh6wQ7M4SAz85HmNV7sMxY
+          # It lives in this file rather than in a repository variable so that
+          # changing it is a commit: a pin editable from a settings page, with
+          # no review and no history, is not much of a pin.
+          printf '%s\n' \
+            'alerts.vorobev.dev ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEDfr19m16y1fKDz1k5JhGCznxI/7VRJOXXxsMHoFyRz' \
+            > "$HOME/.ssh/known_hosts"
+
+          # The whole job: one connection carrying one SHA. The forced command
+          # in authorized_keys turns it into a deploy, so nothing here knows how
+          # a deploy works — that knowledge lives on the server side and in the
+          # commit being deployed.
+          #
+          # StrictHostKeyChecking=yes refuses an unknown host outright; without
+          # it the runner would accept whatever answers on the first connection,
+          # which is what pinning exists to prevent. IdentitiesOnly keeps ssh
+          # from offering any other key it might find.
+          ssh -i "$HOME/.ssh/deploy_key" \
+              -o IdentitiesOnly=yes \
+              -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+              -o StrictHostKeyChecking=yes \
+              -o ConnectTimeout=15 \
+              sergeyv@alerts.vorobev.dev "$SHA"

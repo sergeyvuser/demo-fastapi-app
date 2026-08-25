@@ -6,9 +6,11 @@ on:
   pull_request:
 
 concurrency:
-  # a new push cancels the previous run on the same branch
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A new push cancels the previous run on the same branch — except on main,
+  # where the run ends in a deploy. Cancelling that halfway leaves the stack
+  # half-recreated and .env recording a failure that nobody chose.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   lint:
@@ -93,3 +95,18 @@ jobs:
           provenance: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    needs: [ build ]
+    # Pull requests never reach here: `on: push` is already limited to main, and
+    # build only pushes images on a push event. So "a red check cannot deploy"
+    # is enforced by the graph — needs: build, and build needs the four checks —
+    # rather than by a condition someone could get wrong.
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      sha: ${{ github.sha }}
+    # Named explicitly instead of `secrets: inherit`: the called workflow gets
+    # the one secret it needs, and the line documents what it can reach.
+    secrets:
+      ALERTS_SSH_DEPLOY_KEY: ${{ secrets.ALERTS_SSH_DEPLOY_KEY }}
