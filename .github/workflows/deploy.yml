@@ -1,4 +1,10 @@
 name: Deploy
+# The Deployments panel attributes a deploy to the run's own commit, because the
+# record is created from the run context and our SHA is merely an input. A
+# rollback therefore shows up under the tip of main. Naming the run after what
+# it actually deploys puts the truth one click away, in the list and on the page
+# the deployment links to.
+run-name: Deploy ${{ inputs.sha }}
 
 # Two entry points, one body.
 #
