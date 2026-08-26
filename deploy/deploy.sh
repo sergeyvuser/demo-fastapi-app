@@ -245,12 +245,16 @@ dc up -d --wait --wait-timeout "$wait_timeout"
 
 phase "5/5  recording the result"
 
-# PREVIOUS_IMAGE_TAG is a rollback target, so it may only ever name a tag that
-# was healthy on this machine. It becomes the tag that was running until a
-# minute ago — but only if that deploy reported success; after a failed deploy
-# the last known-good tag is the one already written here, and it stays.
-# An absent status is read as good: the file predating this script was written
-# by hand after a successful manual deploy.
+# The rollback target is the version that was serving traffic when this deploy
+# started, and only when it differs from what is being deployed: redeploying the
+# same commit must not make the field point at itself.
+#
+# What this field does NOT promise is that the tag it names is the newest
+# healthy release. It is one step of undo. Deploy an old commit by hand — a
+# rollback drill, a bisect, an experiment — and the next deploy will record that
+# old commit as the way back: correct, and unhelpful. The list of versions that
+# actually ran in production is the repository's Deployments panel and the GHCR
+# tags; consult it before rolling back to whatever this file happens to say.
 if [[ -n "$running_tag" && "$running_tag" != "$tag" ]]; then
   previous_tag="$running_tag"
 fi
