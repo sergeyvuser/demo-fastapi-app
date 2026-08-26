@@ -157,7 +157,7 @@ trap diagnose ERR
 # --- 1. configuration --------------------------------------------------------
 
 log "deploying $sha as $tag"
-phase "phase 1/5  configuration"
+phase "1/5  configuration"
 
 caddy_before="$(hash_path "$target" deploy/Caddyfile)"
 obs_before="$(hash_path "$target" observability)"
@@ -178,14 +178,30 @@ obs_after="$(hash_path "$target" observability)"
 
 # --- 2. image tag ------------------------------------------------------------
 
-phase "phase 2/5  image tag $tag"
+phase "2/5  image tag $tag"
 
 # Read, never source. Sourcing a file to get three values out of it grants that
 # file the right to run code, and this one is written by a machine.
 env_value() { sed -n "s/^$1=//p" .env | tail -n 1; }
-running_tag="$(env_value IMAGE_TAG)"
+# What is actually running, asked of the running system instead of a file
+# this script wrote itself. The api container is the witness: every application
+# service shares IMAGE_TAG, and api is the one the site depends on.
+#
+# The file cannot answer this honestly, by design. A failed deploy leaves its
+# attempted tag in .env — that is what writing it pessimistically means — so
+# after a failure .env names a version that never ran, and the next deploy would
+# take that for the rollback target. Measured rather than reasoned: the failed
+# manual run of sha-5889ecb cost PREVIOUS_IMAGE_TAG one generation before this
+# function existed.
+running_image_tag() {
+  local cid image
+  cid="$(dc ps -q api)" || return 0
+  [[ -n "$cid" ]] || return 0
+  image="$(docker inspect --format '{{.Config.Image}}' "$cid")" || return 0
+  printf '%s' "${image##*:}"
+}
+running_tag="$(running_image_tag)"
 previous_tag="$(env_value PREVIOUS_IMAGE_TAG)"
-last_status="$(env_value LAST_DEPLOY_STATUS)"
 
 # Pessimistic on purpose: from here until the stack is healthy, this deploy is a
 # failure. A timeout, a dropped connection or a kill therefore leaves
@@ -195,12 +211,12 @@ write_env "$tag" "$previous_tag" failed
 
 # --- 3. pull -----------------------------------------------------------------
 
-phase "phase 3/5  pull"
+phase "3/5  pull"
 dc pull
 
 # --- 4. up -------------------------------------------------------------------
 
-phase "phase 4/5  up"
+phase "4/5  up"
 
 # The two services whose configuration can change without their image changing.
 # Recreated before the main `up` rather than after, so the single wait below
@@ -227,7 +243,7 @@ dc up -d --wait --wait-timeout "$wait_timeout"
 
 # --- 5. record ---------------------------------------------------------------
 
-phase "phase 5/5  recording the result"
+phase "5/5  recording the result"
 
 # PREVIOUS_IMAGE_TAG is a rollback target, so it may only ever name a tag that
 # was healthy on this machine. It becomes the tag that was running until a
@@ -235,7 +251,7 @@ phase "phase 5/5  recording the result"
 # the last known-good tag is the one already written here, and it stays.
 # An absent status is read as good: the file predating this script was written
 # by hand after a successful manual deploy.
-if [[ "$last_status" != "failed" && -n "$running_tag" && "$running_tag" != "$tag" ]]; then
+if [[ -n "$running_tag" && "$running_tag" != "$tag" ]]; then
   previous_tag="$running_tag"
 fi
 write_env "$tag" "$previous_tag" ok
