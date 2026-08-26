@@ -25,6 +25,12 @@ target="${ALERTS_DIR:-/opt/alerts}"
 tag="sha-${sha:0:7}"
 wait_timeout="${DEPLOY_WAIT_TIMEOUT:-180}"
 
+# Where the narrative got to. The ERR trap reads it, so a failure report starts
+# with the phase that produced it instead of leaving the reader to infer it.
+current_phase="0/5  preflight"
+
+phase() { current_phase="$*"; log "phase $*"; }
+
 # Exactly the files that travel to the server. Everything else stays in the
 # tarball: the server runs the stack, it does not build it, and it keeps no
 # secrets generator next to the secrets.
@@ -119,7 +125,7 @@ container_is_ok() {
 # a second SSH session.
 diagnose() {
   printf '\n'
-  log "DEPLOY FAILED — stack state follows"
+  log "DEPLOY FAILED in phase $current_phase — stack state follows"
   dc ps --all || true
 
   local states name state health code restarts oom failed=0
@@ -137,14 +143,21 @@ diagnose() {
   done <<< "$states"
 
   printf '\n'
-  log "$failed service(s) not healthy"
+  if (( failed == 0 )); then
+    # The honest reading of a failure with nothing unhealthy: the deploy died
+    # before it touched the stack — a bad tag, an unreachable registry, a
+    # missing file. What is running above is the previous version, still fine.
+    log "no service is unhealthy — the stack was never changed; the cause is above this report"
+  else
+    log "$failed service(s) not healthy"
+  fi
 }
 trap diagnose ERR
 
 # --- 1. configuration --------------------------------------------------------
 
 log "deploying $sha as $tag"
-log "phase 1/5  configuration"
+phase "phase 1/5  configuration"
 
 caddy_before="$(hash_path "$target" deploy/Caddyfile)"
 obs_before="$(hash_path "$target" observability)"
@@ -165,7 +178,7 @@ obs_after="$(hash_path "$target" observability)"
 
 # --- 2. image tag ------------------------------------------------------------
 
-log "phase 2/5  image tag $tag"
+phase "phase 2/5  image tag $tag"
 
 # Read, never source. Sourcing a file to get three values out of it grants that
 # file the right to run code, and this one is written by a machine.
@@ -182,12 +195,12 @@ write_env "$tag" "$previous_tag" failed
 
 # --- 3. pull -----------------------------------------------------------------
 
-log "phase 3/5  pull"
+phase "phase 3/5  pull"
 dc pull
 
 # --- 4. up -------------------------------------------------------------------
 
-log "phase 4/5  up"
+phase "phase 4/5  up"
 
 # The two services whose configuration can change without their image changing.
 # Recreated before the main `up` rather than after, so the single wait below
@@ -214,7 +227,7 @@ dc up -d --wait --wait-timeout "$wait_timeout"
 
 # --- 5. record ---------------------------------------------------------------
 
-log "phase 5/5  recording the result"
+phase "phase 5/5  recording the result"
 
 # PREVIOUS_IMAGE_TAG is a rollback target, so it may only ever name a tag that
 # was healthy on this machine. It becomes the tag that was running until a
