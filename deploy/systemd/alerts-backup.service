@@ -1,0 +1,20 @@
+[Unit]
+Description=Nightly database dump for crypto-alerts
+# The dump talks to a container, so the daemon must be up first. Wants= rather
+# than Requires=: if docker is missing this run fails loudly on its own terms
+# instead of being cancelled by a dependency error nobody reads.
+Wants=docker.service
+After=docker.service
+
+[Service]
+# oneshot = a task that runs to completion, not a daemon to keep alive. systemd
+# records its exit status, which is what makes "did last night's backup work?"
+# a question with an answer.
+Type=oneshot
+User=sergeyv
+Group=sergeyv
+# Invoked through bash on purpose: the script arrives here inside a deploy, and
+# relying on an executable bit surviving git, GitHub's tarball and cp is one
+# dependency more than this needs. The other two scripts in deploy/ are started
+# the same way.
+ExecStart=/bin/bash /opt/alerts/deploy/backup.sh

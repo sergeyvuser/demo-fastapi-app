@@ -1,0 +1,17 @@
+[Unit]
+Description=Nightly database dump for crypto-alerts
+
+[Timer]
+# 03:30 UTC — half an hour before the demo account reset at 04:00, so a dump is
+# never taken in the middle of it.
+OnCalendar=*-*-* 03:30:00 UTC
+# Runs a missed job after a reboot or a shutdown window instead of skipping the
+# day in silence. Without this, "the machine was down at 03:30" means no backup
+# and no trace of the fact.
+Persistent=true
+# Nothing else runs at 03:30 today. A fixed minute is how two jobs eventually
+# collide on a two-vCPU box.
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

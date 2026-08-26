@@ -38,6 +38,7 @@ CONFIG_PATHS=(
   compose.yaml
   deploy/compose.prod.yaml
   deploy/Caddyfile
+  deploy/backup.sh
   observability
 )
 
