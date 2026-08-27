@@ -40,6 +40,7 @@ CONFIG_PATHS=(
   deploy/Caddyfile
   deploy/backup.sh
   deploy/backup-offsite.sh
+  deploy/restore-check.sh
   observability
 )
 
