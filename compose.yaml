@@ -122,6 +122,111 @@ services:
       - "127.0.0.1:16686:16686"   # UI
       - "127.0.0.1:4317:4317"     # OTLP gRPC receiver
 
+  # Per-container metrics: memory split into anonymous and cache, CPU, and the
+  # moment each container last started. This is the answer to "why did that
+  # container restart", which until now lived only in the kernel log behind sudo.
+  #
+  # It publishes no ports: Prometheus reaches it by service name inside the
+  # compose network, exactly like every other target in observability/prometheus.yml.
+  #
+  # The mounts are the upstream recipe and they are not decoration:
+  #   /rootfs, /sys      — the cgroup and sysfs trees where the kernel keeps the
+  #                        per-container accounting this whole service exists to read
+  #   /var/run           — the Docker socket. Without it cAdvisor still reads
+  #                        cgroups but cannot map them to container names, which
+  #                        makes every metric anonymous and useless to us
+  #   /var/lib/docker    — image and layer sizes
+  #   /dev/disk          — block device names for disk I/O
+  # Read-only throughout, but read access to the Docker socket is still a real
+  # privilege: it can enumerate and inspect every container on the host.
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.60.5
+    command:
+      # A keep-list, not a drop-list, and deliberately so: --disable_metrics
+      # ships with a non-empty default (advtcp, sched, tcp, udp, process and
+      # six more), and passing our own value would REPLACE that default rather
+      # than extend it — quietly switching ten families on while we thought we
+      # were switching families off. --enable_metrics overrides it outright.
+      #
+      #   cpu       — rate of CPU seconds per container
+      #   memory    — the point of this ticket: anonymous vs cache, and the limit
+      #   oom_event — container_oom_events_total, i.e. the kill that ticket 09
+      #               could only find in the kernel log behind sudo
+      #   pressure  — PSI: how long this container's processes spent stalled
+      #               waiting for memory, CPU or IO. Cheap, and it answers
+      #               "was it struggling" without inferring it from percentages.
+      #
+      # Left out on purpose: disk and diskIO were 45% of everything scraped here
+      # (seventeen container_fs_* names, ~2200 series) and node-exporter owns
+      # the disk story; network is not plotted anywhere; cpuLoad is another 312
+      # series of load averages nobody reads.
+      - --enable_metrics=cpu,memory,oom_event,pressure
+      # Report containers, not every cgroup on the machine. Measured: 52 cgroups
+      # were being reported where this project has fifteen containers.
+      - --docker_only=true
+      # The root cgroup is the whole machine, and the whole machine is
+      # node-exporter's job. Two sources for one number is a drift generator.
+      - --disable_root_cgroup_stats=true
+      # Default is true, whatever the website says. Left on, every metric carries
+      # ~25 container_label_* pairs, three of which — config_hash, image digest
+      # and the container id — change on every deploy. Since a time series is
+      # identified by its full label set, that does not update the series, it
+      # creates a new one: every release would multiply the cAdvisor series
+      # count. It also published the absolute path of the compose file, which a
+      # public anonymous Grafana has no business showing.
+      - --store_container_labels=false
+      # Default is 1s against a 30s scrape: twenty-nine of every thirty
+      # collections were thrown away. Matched to the scrape interval instead.
+      - --housekeeping_interval=30s
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    # The kernel ring buffer, which is where an OOM kill is announced. This is
+    # the same log ticket 09 had to read by hand over ssh.
+    devices:
+      - /dev/kmsg:/dev/kmsg
+
+  # Host metrics: memory, swap activity, disk space, CPU, load average.
+  #
+  # Deliberately NOT the upstream compose recipe, which asks for
+  # `network_mode: host` and `pid: host`. Host networking would put this on the
+  # machine's own interfaces — a published port in all but name — and take it
+  # off the compose network, where Prometheus finds targets by name.
+  #
+  # What that costs is the network collectors: netdev, netstat and sockstat then
+  # describe this container's network namespace rather than the machine's.
+  # Everything this ticket actually asks for — meminfo, vmstat, loadavg,
+  # /proc/stat, filesystems — is not namespaced per container and stays true.
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:v1.12.1
+    command:
+      - --path.rootfs=/host
+      # Forty-nine collectors run by default. Rather than name the forty-two we
+      # do not want — a list that goes stale with every release — switch them
+      # all off and name the seven we plot.
+      - --collector.disable-defaults
+      - --collector.meminfo      # host memory: total, available, swap totals
+      - --collector.vmstat       # swap in/out, and node_vmstat_oom_kill, which
+      # is the kernel's own count of OOM kills
+      - --collector.pressure     # host-wide PSI, the counterpart to cAdvisor's
+      - --collector.filesystem   # disk space; 60 GB and thirteen containers
+      - --collector.cpu
+      - --no-collector.cpu.guest # virtualisation guest time: 24 series, and
+      # this host runs no guests
+      - --collector.loadavg
+      - --collector.stat         # boot time, context switches, runnable procs
+    # Mount propagation is added by the production overlay, not set here.
+    # Docker Desktop rejects it outright — the WSL2 VM's root is a private
+    # mount, and the daemon answers "path / is mounted on / but it is not a
+    # shared or slave mount". On the server systemd makes / rshared at boot.
+    # A laptop can live with a snapshot of the mount table; see the overlay
+    # for why a machine that deploys cannot.
+    volumes:
+      - /:/host:ro
+
   api:
     build:
       context: .

@@ -11,3 +11,72 @@ scrape_configs:
     static_configs: [ { targets: [ "evaluator:9101" ] } ]
   - job_name: notifier
     static_configs: [ { targets: [ "notifier:9102" ] } ]
+
+  # Not our processes but the ground they stand on. Ports are the images'
+  # defaults, not ours, so the note above does not apply to these two.
+  #
+  # node-exporter listens on 9100, the same number the ingestor uses. That is
+  # not a collision: each container has its own address on the compose network,
+  # and neither publishes the port to the host. Only published ports can clash.
+  # Infrastructure moves slower than the product and costs far more per scrape,
+  # so it is sampled at a third of the rate. Consequence to remember when
+  # writing panels: a rate() window must span at least four scrapes, so [5m] is
+  # the floor here, not [1m].
+  # A keep-list by name. Two things make it the right shape here rather than a
+  # drop-list. First, relabel rules are applied in sequence and `keep` is a
+  # filter, so two keep rules would intersect, not union — the list has to be
+  # one regex either way. Second, an exporter that gains a metric family in an
+  # upgrade should cost us nothing until we decide to plot it.
+  #
+  # The regex is fully anchored by Prometheus (^(?:...)$), so no ^ or $ here.
+  # It must stay on ONE line: a YAML folded scalar (>-) would join the lines
+  # with spaces and silently produce a regex that matches nothing — a keep-list
+  # that matches nothing empties the job without any error anywhere.
+  - job_name: cadvisor
+    scrape_interval: 30s
+    static_configs: [ { targets: [ "cadvisor:8080" ] } ]
+    metric_relabel_configs:
+      # memory_*        — rss is anonymous, cache is page cache, kernel_usage is
+      #                   slab. Ticket 09 spent an afternoon on a leak that was
+      #                   the third of those, because `docker stats` adds them up.
+      # events_max_total— cgroup v2 memory.events "max": how many times the
+      #                   kernel had to reclaim because this container hit its
+      #                   ceiling. The api container showed 160 in two days with
+      #                   zero OOM kills; that is the difference between "fine"
+      #                   and "fine so far", and it was invisible until now.
+      # oom_events_total— the kill itself, per container.
+      # start_time      — a restart is a step change in this. There is no restart
+      #                   counter in plain Docker; changes() over this is it.
+      # health_state    — what the container's own healthcheck currently thinks.
+      # pressure_*      — PSI. "waiting" is some tasks stalled, "stalled" is all
+      #                   of them; for memory the second one is the alarming one.
+      - source_labels: [ __name__ ]
+        action: keep
+        regex: container_memory_(rss|cache|kernel_usage|swap|usage_bytes|working_set_bytes|events_max_total)|container_spec_(memory_limit_bytes|cpu_quota|cpu_period)|container_(cpu_usage_seconds_total|oom_events_total|start_time_seconds|last_seen|health_state)|container_pressure_(memory_(waiting|stalled)|cpu_waiting)_seconds_total
+      # The second half of the churn fix. --store_container_labels=false removed
+      # twenty-odd labels; these two remain and both change on every deploy:
+      # `id` is the container id, `image` carries the sha-<short> tag. A time
+      # series is identified by its full label set, so leaving either in means
+      # every release abandons the old series and starts new ones — the graph
+      # breaks at each deploy and the head block grows forever. `name`
+      # (crypto-alerts-api-1) is stable and is what the panels group by.
+      #
+      # The one way this can bite: if a recreated container overlapped its
+      # predecessor within a single scrape, both would now carry identical
+      # labels and Prometheus would reject that scrape as a duplicate sample.
+      # Compose stops before it starts, so the window does not exist in practice.
+      - regex: (id|image)
+        action: labeldrop
+
+
+  - job_name: node
+    scrape_interval: 30s
+    static_configs: [ { targets: [ "node-exporter:9100" ] } ]
+    metric_relabel_configs:
+      # node_filesystem_* is per mount point and the machine has many; only the
+      # two that answer "how much room is left" are kept. vmstat is trimmed to
+      # swap traffic, major faults, and the kernel's own OOM-kill counter — the
+      # second, independent witness to what cAdvisor reports per container.
+      - source_labels: [ __name__ ]
+        action: keep
+        regex: node_memory_(MemTotal|MemAvailable|MemFree|Cached|Buffers|AnonPages|Slab|SReclaimable|SwapTotal|SwapFree)_bytes|node_vmstat_(pswpin|pswpout|oom_kill|pgmajfault)|node_filesystem_(avail|size)_bytes|node_cpu_seconds_total|node_load(1|5|15)|node_pressure_(memory_(waiting|stalled)|cpu_waiting|io_waiting)_seconds_total|node_boot_time_seconds|node_procs_(running|blocked)
