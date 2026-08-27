@@ -12,6 +12,26 @@ realtime dashboard frontend.
 > Learning project: built stage by stage to practice a modern async Python
 > stack. See [Roadmap](#roadmap) for what is real today vs planned.
 
+## Live demo
+
+- Application — https://alerts.vorobev.dev
+- API documentation (Swagger) — https://alerts.vorobev.dev/docs
+- Dashboards, read-only — https://grafana.vorobev.dev
+
+Sign in with **`demo@vorobev.dev`** / **`demo-alerts-2026`**, or register with your own address.
+
+Three things are worth knowing before you click:
+
+- **The demo account is shared.** Alerts other visitors created are visible on it, the account is
+  reset to its seeded state every night at 04:00 UTC, and the per-account limit is 20 Alerts — so
+  treat anything you create there as temporary.
+- **Registering with a real address really sends mail**, and the message may land in spam: the
+  sending domain is young, and reputation takes time even with SPF, DKIM and DMARC all passing.
+  Creating an Alert requires the address to be verified.
+- **Telegram delivery needs a linked chat**, which is set server-side today and which the demo
+  account does not have. On that account a Trigger shows up in the live WebSocket feed and in the
+  daily digest rather than in a chat.
+
 ## Stack
 
 | Layer         | Choice                                                                                                    |
@@ -124,6 +144,8 @@ Conventions:
 - Schema changes go through Alembic only; `make migrate-check` must stay green.
 - Code comments and docstrings in English.
 - Nothing merges red: ruff, mypy and the whole test suite run on every push.
+- Domain vocabulary is settled in [CONTEXT.md](CONTEXT.md) — use those words, including in issues
+  and test names. Decisions that would be expensive to reverse live in [docs/adr/](docs/adr/).
 
 ## Auth model (implemented)
 
@@ -216,6 +238,46 @@ image builds for all three services. There is no separate "migrations are up
 to date" job — a test asserts that models and migrations agree against a live
 database.
 
+## Deployment (implemented)
+
+Production is a single 4 GB VPS running this same `compose.yaml` plus `deploy/compose.prod.yaml`,
+behind Caddy with automatic TLS. Why one host rather than a PaaS or Kubernetes, and what that costs:
+[ADR-0001](docs/adr/0001-one-vps-with-docker-compose.md).
+
+**A deploy is one commit.** CI publishes images tagged `sha-<short>` only after lint, types, tests
+and the secret scan pass, then opens a single ssh connection carrying the commit SHA. The server
+fetches the repository tarball for that same commit, refreshes the compose, proxy and observability
+files, pulls, starts the stack — migrations and demo seeding are one-shot services inside that step,
+not commands anyone can forget — and waits for health. The reasoning, and the rejected alternative of
+copying files from CI: [ADR-0002](docs/adr/0002-deployments-are-addressed-by-commit-sha.md).
+
+**Rolling back** is the same path: run the `Deploy` workflow by hand with an earlier 40-character
+SHA. There is no separate rollback mechanism and no automatic one — rolling images back over an
+applied migration is worse than the outage it would be fixing. Pick the target from the repository's
+Deployments panel or the published image tags rather than from `PREVIOUS_IMAGE_TAG` on the server:
+that field is one step of undo, so after a manual deploy of an old commit it names that old commit.
+
+**Backups.** The database is dumped nightly on the host (custom format, seven-day rotation, in
+`/var/backups/alerts`) and the newest dump is copied to private object storage every Sunday. Both are
+systemd timers, so their last run has a recorded outcome:
+
+```bash
+systemctl list-timers 'alerts-backup*'
+journalctl -u alerts-backup.service -n 30
+```
+
+**Restoring is rehearsed rather than assumed.** `deploy/restore-check.sh` starts a throwaway
+PostgreSQL of the production major version, loads a dump into it, prints the Alembic revision and the
+row counts that distinguish real data from an empty schema, and removes itself afterwards:
+
+```bash
+bash /opt/alerts/deploy/restore-check.sh                     # the newest local dump
+bash /opt/alerts/deploy/restore-check.sh /path/to/one.dump   # a specific one, e.g. fetched from the bucket
+```
+
+The off-site copy holds dumps and **no credentials**, deliberately: rebuilding a machine starts by
+generating fresh secrets, and since the token signing key is not among them, everyone signs in again.
+
 ## Roadmap
 
 - [x] 0–1. Skeleton fixes, async SQLAlchemy, first migrations
@@ -228,3 +290,8 @@ database.
 - [x] 8. WebSocket realtime feed (frontend entry point)
 - [x] 9. Observability: Prometheus/Grafana, OpenTelemetry, structured logs
 - [x] 10. Tests (pytest-asyncio, testcontainers) + mypy + GitHub Actions
+- [x] 11. Hardening for public access: one service bootstrap, proxy headers, SMTP auth
+- [x] 12. Deployment: GHCR images, production overlay, Caddy + TLS, delivery by commit SHA,
+      backups with a verified restore
+- [ ] 13. React + Vite UI: alerts, live ticker, Telegram linking, trigger history
+- [ ] 14. In-app AI agent: reads your data, drafts actions, you confirm them
