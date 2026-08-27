@@ -1,6 +1,6 @@
 # Crypto Alerts
 
-[![CI](https://github.com/sergeyvuser/demo-fastapi-app/actions/workflows/ci.yml/badge.svg)](https://github.com/sergeyvuser/demo-fastapi-app/actions/workflows/ci.yml)
+[![CI](https://github.com/sergeyvuser/demo-fastapi-app/actions/workflows/ci.yml/badge.svg)](https://github.com/sergeyvuser/demo-fastapi-app/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Async price-alert service for crypto markets. Users register, create alerts
 ("BTCUSDT above 120k"), an ingestor streams Bybit tickers into RabbitMQ, an
@@ -278,20 +278,37 @@ bash /opt/alerts/deploy/restore-check.sh /path/to/one.dump   # a specific one, e
 The off-site copy holds dumps and **no credentials**, deliberately: rebuilding a machine starts by
 generating fresh secrets, and since the token signing key is not among them, everyone signs in again.
 
+## License
+
+MIT — see [LICENSE](LICENSE).
+
 ## Roadmap
 
 - [x] 0–1. Skeleton fixes, async SQLAlchemy, first migrations
-- [x] 2. Auth: JWT + rotating refresh, service layer owning transactions
-- [x] 3. Alerts domain: CRUD, ownership, pagination, RFC 9457 errors
-- [x] 4. Docker: multi-stage uv image, full compose with one-shot migrate
-- [x] 5. Redis: price cache, login rate limiting
-- [x] 6. RabbitMQ + FastStream: ingestor / evaluator / notifier
-- [x] 7. Taskiq: background & scheduled jobs (email verify, digest, cleanup)
-- [x] 8. WebSocket realtime feed (frontend entry point)
-- [x] 9. Observability: Prometheus/Grafana, OpenTelemetry, structured logs
-- [x] 10. Tests (pytest-asyncio, testcontainers) + mypy + GitHub Actions
-- [x] 11. Hardening for public access: one service bootstrap, proxy headers, SMTP auth
-- [x] 12. Deployment: GHCR images, production overlay, Caddy + TLS, delivery by commit SHA,
-      backups with a verified restore
-- [ ] 13. React + Vite UI: alerts, live ticker, Telegram linking, trigger history
-- [ ] 14. In-app AI agent: reads your data, drafts actions, you confirm them
+- [x] 
+    2. Auth: JWT + rotating refresh, service layer owning transactions
+- [x] 
+    3. Alerts domain: CRUD, ownership, pagination, RFC 9457 errors
+- [x] 
+    4. Docker: multi-stage uv image, full compose with one-shot migrate
+- [x] 
+    5. Redis: price cache, login rate limiting
+- [x] 
+    6. RabbitMQ + FastStream: ingestor / evaluator / notifier
+- [x] 
+    7. Taskiq: background & scheduled jobs (email verify, digest, cleanup)
+- [x] 
+    8. WebSocket realtime feed (frontend entry point)
+- [x] 
+    9. Observability: Prometheus/Grafana, OpenTelemetry, structured logs
+- [x] 
+    10. Tests (pytest-asyncio, testcontainers) + mypy + GitHub Actions
+- [x] 
+    11. Hardening for public access: one service bootstrap, proxy headers, SMTP auth
+- [x] 
+    12. Deployment: GHCR images, production overlay, Caddy + TLS, delivery by commit SHA,
+        backups with a verified restore
+- [ ] 
+    13. React + Vite UI: alerts, live ticker, Telegram linking, trigger history
+- [ ] 
+    14. In-app AI agent: reads your data, drafts actions, you confirm them
