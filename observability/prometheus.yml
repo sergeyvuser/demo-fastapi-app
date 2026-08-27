@@ -80,3 +80,51 @@ scrape_configs:
       - source_labels: [ __name__ ]
         action: keep
         regex: node_memory_(MemTotal|MemAvailable|MemFree|Cached|Buffers|AnonPages|Slab|SReclaimable|SwapTotal|SwapFree)_bytes|node_vmstat_(pswpin|pswpout|oom_kill|pgmajfault)|node_filesystem_(avail|size)_bytes|node_cpu_seconds_total|node_load(1|5|15)|node_pressure_(memory_(waiting|stalled)|cpu_waiting|io_waiting)_seconds_total|node_boot_time_seconds|node_procs_(running|blocked)
+
+  # RabbitMQ has served Prometheus metrics on 15692 since 3.8, and the
+  # management image enables the plugin itself — verified rather than assumed:
+  # `rabbitmq-plugins list -e` lists rabbitmq_prometheus as [E*].
+  #
+  # DECISION, recorded because the ticket asks for it: this scrape needs no
+  # credentials. The plugin's listener answers anonymously by design, confirmed
+  # with an HTTP 200 from a throwaway container on this network. That is worth
+  # more than convenience here — ticket 09 established that the public
+  # anonymous Grafana can read this entire file back through
+  # /api/v1/status/config, so a password on this job would be a published
+  # password.
+  - job_name: rabbitmq
+    scrape_interval: 30s
+    static_configs: [ { targets: [ "rabbitmq:15692" ] } ]
+    metric_relabel_configs:
+      # 2225 series arrive and 1920 of them are Erlang VM internals:
+      # erlang_vm_allocators alone is 1328 series describing memory arenas
+      # inside the BEAM, a question this project will never ask.
+      #
+      # The two alarms are the most valuable and least obvious of what is kept.
+      # When RabbitMQ crosses its memory or free-disk watermark it stops
+      # accepting publishes, and from the application side that looks like the
+      # API hanging — a symptom with no visible connection to the broker.
+      #
+      # Message throughput is deliberately absent. The four application services
+      # already count their own messages, and a second source for one number is
+      # a drift generator rather than a cross-check.
+      - source_labels: [ __name__ ]
+        action: keep
+        regex: rabbitmq_alarms_(memory_used_watermark|free_disk_space_watermark)|rabbitmq_process_(open_fds|max_fds|resident_memory_bytes)|rabbitmq_(resident_memory_limit_bytes|disk_space_available_bytes|disk_space_available_limit_bytes|connections|channels|consumers)
+
+  # Depth per queue, which the endpoint above does not carry: there
+  # `rabbitmq_queue_messages_ready` is a single number for the whole node. The
+  # breakdown lives on /metrics/detailed behind an explicit family parameter,
+  # and its metric names gain a `rabbitmq_detailed_` prefix.
+  #
+  # One family, on purpose: the same endpoint will return per-connection and
+  # per-channel families, and those carry a label per reconnect.
+  #
+  # No keep-list needed — the family parameter is the filter, and it yields
+  # three metrics across seven queues.
+  - job_name: rabbitmq-queues
+    scrape_interval: 30s
+    metrics_path: /metrics/detailed
+    params:
+      family: [ queue_coarse_metrics ]
+    static_configs: [ { targets: [ "rabbitmq:15692" ] } ]
