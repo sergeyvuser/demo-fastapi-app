@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly off-site copy of the crypto-alerts database dump
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=sergeyv
+Group=sergeyv
+ExecStart=/bin/bash /opt/alerts/deploy/backup-offsite.sh

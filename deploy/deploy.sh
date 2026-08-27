@@ -39,6 +39,7 @@ CONFIG_PATHS=(
   deploy/compose.prod.yaml
   deploy/Caddyfile
   deploy/backup.sh
+  deploy/backup-offsite.sh
   observability
 )
 

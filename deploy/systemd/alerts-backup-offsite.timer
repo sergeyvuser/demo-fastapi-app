@@ -1,0 +1,12 @@
+[Unit]
+Description=Weekly off-site copy of the crypto-alerts database dump
+
+[Timer]
+# Sunday 04:15 UTC — three quarters of an hour after that night's dump, so what
+# leaves the machine is the freshest copy rather than Saturday's.
+OnCalendar=Sun *-*-* 04:15:00 UTC
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target
