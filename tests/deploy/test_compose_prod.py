@@ -20,9 +20,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY = REPO_ROOT / "deploy"
+OBSERVABILITY = REPO_ROOT / "observability"
 REGISTRY = "ghcr.io/sergeyvuser/demo-fastapi-app"
 IMAGE_TAG = "sha-0000000"  # must match deploy/.env.example
 
@@ -32,6 +34,8 @@ APP_SERVICES = frozenset(
 )
 # `migrate` is one-shot — it must not restart and cannot depend on itself
 LONG_RUNNING = APP_SERVICES - {"migrate"}
+# infrastructure exporters: they run nobody's code but read everything
+EXPORTERS = ("cadvisor", "node-exporter")
 
 ENV_MARKER = "MARKER_FROM_ENV"
 SECRETS_MARKER = "MARKER_FROM_SECRETS"
@@ -290,7 +294,7 @@ def test_telemetry_cannot_starve_the_product_of_cpu(
     host are the whole host — a limit on memory alone leaves the product to be
     starved by something cheap.
     """
-    for name in ("prometheus", "grafana", "jaeger"):
+    for name in ("prometheus", "grafana", "jaeger", *EXPORTERS):
         limits = rendered_services[name]["deploy"]["resources"]["limits"]
         assert float(limits["cpus"]) > 0, name
 
@@ -308,3 +312,68 @@ def test_every_backend_service_knows_where_the_database_is(
     for name in ("migrate", "seed-demo", "api", "evaluator", "worker", "scheduler"):
         env = rendered_services[name]["environment"]
         assert env.get("APP_CONFIG__DB__HOST"), name
+
+
+def test_the_exporters_only_read_the_host(
+    rendered_services: dict[str, Any],
+) -> None:
+    """Everything these two are handed, they are handed read-only.
+
+    cAdvisor is given /sys, /var/lib/docker and the directory holding the
+    Docker socket — most of what it would take to own this machine. The `ro`
+    is the whole of what keeps that a window rather than a door, and it is two
+    characters in a compose file: precisely the kind of thing a later edit
+    drops without anyone noticing.
+    """
+    for name in EXPORTERS:
+        for mount in rendered_services[name]["volumes"]:
+            assert mount["read_only"] is True, f"{name} {mount['target']}"
+
+    for device in rendered_services["cadvisor"]["devices"]:
+        # Docker's default for a device is "rwm"; the kernel ring buffer is
+        # read for OOM announcements and never written
+        assert device["permissions"] == "r", device["target"]
+
+
+def test_the_host_exporter_follows_the_host_mount_table(
+    rendered_services: dict[str, Any],
+) -> None:
+    """The host root is mounted with propagation, not as a snapshot.
+
+    Without it this container's mount namespace is frozen at start: it never
+    learns of a filesystem mounted since, and it goes on holding the ones the
+    host has already unmounted — pinning deleted files on the very disk whose
+    free space it exists to report. Every deploy creates and destroys
+    container filesystems, so it accumulates rather than settling.
+
+    Asserted here because it cannot be exercised anywhere else: Docker Desktop
+    refuses propagation outright, so this line only ever runs in production
+    and would otherwise be verified for the first time by a deploy.
+    """
+    host_root = next(
+        mount
+        for mount in rendered_services["node-exporter"]["volumes"]
+        if mount["target"] == "/host"
+    )
+    assert host_root["bind"]["propagation"] == "rslave"
+
+
+def test_every_scrape_target_is_a_service_in_this_stack(
+    rendered_services: dict[str, Any],
+) -> None:
+    """Prometheus addresses its targets by compose service name.
+
+    Nothing in either file connects them, so a service renamed in compose
+    leaves a scrape config aimed at a name that resolves to nothing — and a
+    target that has never once come up is indistinguishable from a panel
+    nobody has written yet. Ticket 09 lost the API's metrics for a
+    neighbouring reason and found it by noticing an empty graph.
+    """
+    config = yaml.safe_load((OBSERVABILITY / "prometheus.yml").read_text("utf-8"))
+    hosts = {
+        target.split(":")[0]
+        for job in config["scrape_configs"]
+        for static in job["static_configs"]
+        for target in static["targets"]
+    }
+    assert hosts <= set(rendered_services), sorted(hosts - set(rendered_services))
