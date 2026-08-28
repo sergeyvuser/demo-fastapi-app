@@ -332,6 +332,22 @@ services:
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      # Go does not read cgroup limits. With GOGC=100 and no GOMEMLIMIT the
+      # collector aims to run when the heap reaches twice its live size —
+      # measured live heap here is 449 MB, so the target was around 900 MB
+      # against a 640 MiB ceiling. The garbage collector was never going to
+      # run before the kernel did.
+      #
+      # This is what killed this container twice, and it is why raising the
+      # ceiling did not help either time: the collector's target rises with
+      # it. Measured at 99.4% of the limit with 597 forced reclaims and no
+      # kill yet — a container living on the boundary, not a healthy one.
+      #
+      # A soft limit: exceeding it makes Go collect continuously instead of
+      # failing, so setting it too low costs a slow dashboard rather than a
+      # dead one. Below the cgroup figure because the cgroup also charges
+      # page cache (134 MiB here) and Go's non-heap memory.
+      GOMEMLIMIT: 480MiB
     # Sized against a kill, twice over, and this is the third number.
     #   256M -> killed after 17 minutes at 244 MiB anon + 101 MiB file
     #   384M -> killed twice in one minute at 369 MiB anon + 112 MiB file
@@ -389,9 +405,14 @@ services:
   # numbers move again only if `memory.stat` in production says so.
   cadvisor:
     restart: unless-stopped
+    # Measured in production at 14 MiB anonymous and 24 MiB total while
+    # watching fourteen containers, with zero forced reclaims. 256M was five
+    # times the laptop figure and turned out to be seventeen times the real
+    # one; 128M keeps an order of magnitude of headroom and stops the number
+    # being fiction.
     deploy:
       resources:
-        limits: { memory: 256M, cpus: "0.3" }
+        limits: { memory: 128M, cpus: "0.3" }
 
   # cAdvisor walks every cgroup on the machine once per housekeeping interval,
   # and node-exporter re-reads /proc on every scrape. Neither is expensive at
