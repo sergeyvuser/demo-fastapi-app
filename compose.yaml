@@ -187,7 +187,10 @@ services:
     # The kernel ring buffer, which is where an OOM kill is announced. This is
     # the same log ticket 09 had to read by hand over ssh.
     devices:
-      - /dev/kmsg:/dev/kmsg
+      # Read-only: the third field is the permission set, and Docker's default
+      # is "rwm". This is the kernel ring buffer — cAdvisor reads OOM
+      # announcements out of it and has no business writing into it.
+      - /dev/kmsg:/dev/kmsg:r
 
   # Host metrics: memory, swap activity, disk space, CPU, load average.
   #
