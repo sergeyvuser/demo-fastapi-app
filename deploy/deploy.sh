@@ -24,6 +24,9 @@ target="${ALERTS_DIR:-/opt/alerts}"
 # short means seven. If that ever changes, this line is the other half of it.
 tag="sha-${sha:0:7}"
 wait_timeout="${DEPLOY_WAIT_TIMEOUT:-180}"
+# Our own images. Everything else in the stack is a pinned third-party tag,
+# and the distinction matters in the pull phase below.
+registry="ghcr.io/sergeyvuser/demo-fastapi-app"
 
 # Where the narrative got to. The ERR trap reads it, so a failure report starts
 # with the phase that produced it instead of leaving the reader to infer it.
@@ -215,7 +218,29 @@ write_env "$tag" "$previous_tag" failed
 # --- 3. pull -----------------------------------------------------------------
 
 phase "3/5  pull"
-dc pull
+
+# Deliberately not `dc pull`, which asks the registries about all fifteen
+# images. Seven of those come from Docker Hub, which since 2025 refuses more
+# than ten anonymous manifest requests per hour per IP — so two deploys inside
+# an hour is enough to be turned away with a 429 halfway through a release.
+# That happened on 2026-08-28, and every image it was refused for was pinned
+# to an exact tag and already sitting on this disk.
+#
+# Narrowing it loses nothing. These three change on every deploy and are the
+# whole reason this phase is separate from `up`; the pinned ones change a few
+# times a year, and `up` below fetches any image genuinely missing. The cost
+# is that on a brand-new server the third-party images arrive during `up`
+# instead, which blurs "did not download" into "did not start" exactly once,
+# on a machine where someone is watching anyway.
+app_images="$(dc config --images | grep "^$registry/" | sort -u || true)"
+[[ -n "$app_images" ]] || die "no $registry images in the rendered configuration"
+
+# A here-string, not a pipe: a pipeline runs the loop body in a subshell, and
+# a failure there would not stop this script.
+while read -r image; do
+  log "  $image"
+  docker pull -q "$image"
+done <<< "$app_images"
 
 # --- 4. up -------------------------------------------------------------------
 
