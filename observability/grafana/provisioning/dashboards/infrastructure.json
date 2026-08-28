@@ -254,8 +254,8 @@
     {
       "id": 3,
       "type": "timeseries",
-      "title": "Restarts and kills",
-      "description": "Plain Docker has no restart counter, so a restart is read as a step change in the container's start time — `changes()` over a ten-minute window counts them. Beside it, two independent witnesses to an OOM kill: cAdvisor's per-container event, and the kernel's own global counter through node-exporter. Before this panel existed, both were only visible in `journalctl -k` behind sudo.",
+      "title": "Uptime",
+      "description": "Seconds since each container last started, on a logarithmic axis so a container up for four minutes and one up for nine days are both readable. A restart is a fall to the bottom, and it stays visible wherever it happened rather than ageing out of a window. This is the automation of what ticket 09 did by hand: comparing start times in `docker inspect` to work out which container had quietly died.",
       "gridPos": {
         "h": 8,
         "w": 6,
@@ -268,7 +268,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "s",
           "min": 0,
           "color": {
             "mode": "palette-classic"
@@ -278,7 +278,11 @@
             "lineWidth": 2,
             "fillOpacity": 10,
             "showPoints": "never",
-            "spanNulls": false
+            "spanNulls": false,
+            "scaleDistribution": {
+              "type": "log",
+              "log": 10
+            }
           }
         },
         "overrides": []
@@ -304,30 +308,8 @@
           },
           "editorMode": "code",
           "range": true,
-          "expr": "changes(container_start_time_seconds{name=~\"crypto-alerts-.*\"}[10m])",
-          "legendFormat": "{{name}} restarts"
-        },
-        {
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "range": true,
-          "expr": "increase(container_oom_events_total{name=~\"crypto-alerts-.*\"}[10m]) > 0",
-          "legendFormat": "{{name}} OOM"
-        },
-        {
-          "refId": "C",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "range": true,
-          "expr": "increase(node_vmstat_oom_kill[10m])",
-          "legendFormat": "host OOM kills"
+          "expr": "time() - container_start_time_seconds{name=~\"crypto-alerts-.*\"}",
+          "legendFormat": "{{name}}"
         }
       ]
     },
@@ -418,7 +400,7 @@
       "description": "Cores consumed per container, and where a ceiling exists, the ceiling. The host has two vCPUs, so the sum of these against 2 is the honest measure of how much room is left. Only the telemetry services are capped; the application services are deliberately uncapped.",
       "gridPos": {
         "h": 8,
-        "w": 8,
+        "w": 6,
         "x": 0,
         "y": 9
       },
@@ -489,8 +471,8 @@
       "description": "cgroup v2's memory.events \"max\" counter: how many times the kernel had to reclaim because a container hit its limit. Nothing dies, so this is invisible in restarts and in `docker inspect` — and it is exactly what the API container was doing 160 times in two days while its `docker stats` figure sat at 96.7% of the limit. A container that is quietly reclaiming at its boundary is fine right up until the moment it is not.",
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 8,
+        "w": 6,
+        "x": 6,
         "y": 9
       },
       "datasource": {
@@ -547,8 +529,8 @@
       "description": "The fraction of wall-clock time in which every task in the container was stalled waiting for memory. This is the kernel's own verdict on whether a container is struggling, and it does not require inferring anything from percentages: zero means comfortable, anything sustained above it means the container is spending its life waiting for pages.",
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 16,
+        "w": 6,
+        "x": 12,
         "y": 9
       },
       "datasource": {
@@ -595,6 +577,75 @@
           "range": true,
           "expr": "rate(container_pressure_memory_stalled_seconds_total{name=~\"crypto-alerts-.*\"}[5m]) > 0",
           "legendFormat": "{{name}}"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "OOM kills",
+      "description": "Two independent witnesses, plotted as raw counters rather than as increase() over a window. A kill is rare, and a counter that steps from zero to one goes on saying so forever, while a rate over a window says it for ten minutes and then forgets — the wrong memory for the one event you look up after the fact. cAdvisor names the container; the kernel's own counter, by way of node-exporter, says it happened at all. Both were previously readable only through journalctl -k behind sudo.",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "range": true,
+          "expr": "container_oom_events_total{name=~\"crypto-alerts-.*\"}",
+          "legendFormat": "{{name}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "range": true,
+          "expr": "node_vmstat_oom_kill",
+          "legendFormat": "host, since boot"
         }
       ]
     },
