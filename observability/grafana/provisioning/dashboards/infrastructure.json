@@ -57,8 +57,8 @@
     {
       "id": 1,
       "type": "bargauge",
-      "title": "Memory against its limit",
-      "description": "How full each container's cgroup is. Under cgroup v2 anonymous memory, page cache and slab are all charged against the same ceiling, so this is the number the kernel acts on — not the process RSS. Containers with no limit report a limit of 0 and are filtered out rather than drawn as infinity, which is why this panel is empty on a laptop and populated in production.",
+      "title": "Peak memory against its limit",
+      "description": "The highest anonymous memory each container reached in the last hour, against its ceiling. Three deliberate choices. Anonymous rather than total, because page cache is reclaimed on demand and a healthy container reads 99% of its limit by total usage. Peak rather than current, because a Go service saws between collections — Grafana swings from 132 MiB to 450 MiB inside a 640 MiB limit, so a single reading is a number picked at random from that range while the peak is what the OOM killer sees. And an instant query, which makes the hour-long window cost about 1700 samples instead of the 1.7M a range query would.",
       "gridPos": {
         "h": 8,
         "w": 6,
@@ -116,7 +116,7 @@
           "editorMode": "code",
           "instant": true,
           "range": false,
-          "expr": "100 * container_memory_usage_bytes{name=~\"crypto-alerts-.*\"} / (container_spec_memory_limit_bytes{name=~\"crypto-alerts-.*\"} > 0)",
+          "expr": "100 * max_over_time(container_memory_rss{name=~\"crypto-alerts-.*\"}[1h]) / (container_spec_memory_limit_bytes{name=~\"crypto-alerts-.*\"} > 0)",
           "legendFormat": "{{name}}"
         }
       ]
