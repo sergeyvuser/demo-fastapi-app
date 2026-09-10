@@ -1,0 +1,38 @@
+/* Prototype-only animations. Variant A flashes the number; B flashes nothing; C moves a marker. */
+
+@keyframes tick-up {
+  from {
+    color: var(--mantine-color-teal-6);
+  }
+  to {
+    color: inherit;
+  }
+}
+
+@keyframes tick-down {
+  from {
+    color: var(--mantine-color-red-6);
+  }
+  to {
+    color: inherit;
+  }
+}
+
+.tick-up {
+  animation: tick-up 600ms ease-out;
+}
+
+.tick-down {
+  animation: tick-down 600ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tick-up,
+  .tick-down {
+    animation: none;
+  }
+}
+
+.price-marker {
+  transition: left 250ms linear;
+}
