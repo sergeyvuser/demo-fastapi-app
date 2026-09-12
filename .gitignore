@@ -223,3 +223,6 @@ __marimo__/
 
 # Agent scratch space (local issue tracker: specs and tickets)
 .scratch/
+
+# Node (frontend and the throwaway prototype beside it)
+node_modules/
