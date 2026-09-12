@@ -8,7 +8,7 @@ from backend.services.prices import PriceCache
 router = APIRouter(prefix=settings.api.v1.prices, tags=["Prices"])
 
 
-@router.get("/prices/{symbol}")
+@router.get("/{symbol}")
 async def get_price(symbol: str, redis: RedisDep) -> dict[str, str]:
     price = await PriceCache(redis).get(symbol.upper())
     if price is None:
