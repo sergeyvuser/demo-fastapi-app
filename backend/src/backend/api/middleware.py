@@ -1,3 +1,4 @@
+import re
 import time
 import uuid
 
@@ -7,6 +8,23 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from shared.logging import correlation_id
 
 _SKIP_PATHS = {"/metrics", "/healthz", "/readyz"}
+
+# What we are willing to reuse as a correlation id. A bytes pattern, because a
+# header value is bytes and may not be text at all — the shape is checked
+# before anything is decoded. `fullmatch` rather than `^...$`: in `re`, `$`
+# also matches in front of a trailing newline, so "abcdefgh\n" would pass.
+_REQUEST_ID_SHAPE = re.compile(rb"[A-Za-z0-9._-]{8,64}")
+
+
+def _accept_or_mint(incoming: bytes | None) -> str:
+    """Reuse the caller's correlation id only when it has the pinned shape.
+
+    Our own ids are `uuid4().hex` — 32 characters inside this alphabet — so a
+    downstream service applying the same rule accepts what we send it.
+    """
+    if incoming is not None and _REQUEST_ID_SHAPE.fullmatch(incoming):
+        return incoming.decode("ascii")
+    return uuid.uuid4().hex
 
 
 class CorrelationIdMiddleware:
@@ -22,7 +40,7 @@ class CorrelationIdMiddleware:
 
         headers = dict(scope["headers"])
         incoming = headers.get(b"x-request-id")
-        rid = incoming.decode() if incoming else uuid.uuid4().hex
+        rid = _accept_or_mint(incoming)
         token = correlation_id.set(rid)
 
         start = time.perf_counter()

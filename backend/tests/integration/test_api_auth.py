@@ -1,3 +1,4 @@
+import pytest
 from httpx import AsyncClient
 from redis.asyncio import Redis
 
@@ -136,3 +137,19 @@ async def test_correlation_id_is_echoed(api_client: AsyncClient) -> None:
 
 async def test_correlation_id_is_minted_when_absent(api_client: AsyncClient) -> None:
     assert (await api_client.get("/healthz")).headers["x-request-id"]
+
+
+@pytest.mark.parametrize(
+    "malformed",
+    [b"short", b"has spaces", b"a" * 65, b"\xff\xfe-not-text"],
+    ids=["too-short", "outside-the-alphabet", "too-long", "not-decodable"],
+)
+async def test_a_malformed_correlation_id_is_replaced(
+    api_client: AsyncClient, malformed: bytes
+) -> None:
+    # bytes on purpose: a header IS bytes, and the last case is not text at all
+    response = await api_client.get("/healthz", headers={b"X-Request-ID": malformed})
+
+    used = response.headers["x-request-id"]
+    assert used.encode() != malformed
+    assert len(used) == 32  # uuid4().hex — minted, not propagated
