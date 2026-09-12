@@ -11,7 +11,7 @@ sends.
 
 **Alert**:
 A standing rule owned by one User: watch a Symbol, and tell me when its price crosses a Threshold.
-An Alert is not consumed by going off — the same Alert can trigger many times.
+How often it goes off — and whether it survives going off at all — is its Repeat policy.
 _Avoid_: notification, rule, watch
 
 **Condition**:
@@ -22,21 +22,47 @@ _Avoid_: trigger, criterion, predicate
 The price an Alert's Condition compares against.
 _Avoid_: target, limit, level
 
+**Repeat policy**:
+An Alert's answer to "and then what?" — chosen when the Alert is created, one of three. `once` goes
+off a single time and is Finished. `while_true` goes off for as long as the Condition holds, spaced
+out by the Cooldown — the historical behaviour, and the default. `on_cross` goes off only when a Tick
+satisfies a Condition the Tick before it did not, so standing past the Threshold is silent and only
+the moment of crossing speaks.
+_Avoid_: mode, trigger mode, recurrence, frequency
+
 **Cooldown**:
-The minimum time between two Triggers of one Alert. It is what makes an Alert recurring rather than
-one-shot, and the only reason a price sitting just past its Threshold does not trigger on every Tick.
+The minimum time between two Triggers of one Alert. What it protects against depends on the Repeat
+policy: under `while_true` it is what keeps a price sitting past its Threshold from triggering on
+every Tick; under `on_cross` it is an optional guard against a price flickering across the Threshold;
+under `once` it means nothing, because there is no second Trigger to delay.
 _Avoid_: throttle, debounce, quiet period
 
+**Expiry**:
+An optional deadline after which an Alert stops watching, whether or not it ever went off. An Alert
+without one watches indefinitely.
+_Avoid_: ttl, lifetime, deadline, end date
+
 **Paused**:
-An Alert its owner switched off without deleting. A Paused Alert makes no Triggers and keeps
-everything else about itself.
-_Avoid_: disabled, inactive, archived
+An Alert its owner switched off without deleting, and can switch back on. A Paused Alert makes no
+Triggers and keeps everything else about itself. Unlike a Finished Alert, being Paused is a person's
+choice and is always reversible.
+_Avoid_: disabled, inactive, archived, finished
+
+**Finished**:
+An Alert the system itself took out of service, for one of exactly two reasons: it Completed — a
+`once` Alert that has gone off — or it Expired — its Expiry passed. A Finished Alert makes no further
+Triggers and cannot be returned to service; the way to watch that price again is to copy it into a
+new Alert. It is the counterpart of Paused, and the boundary is who decided: a person Pauses an Alert
+and can unpause it, while the system Finishes one and nobody unfinishes it.
+_Avoid_: closed, done, dead, cancelled, archived
 
 ### The market
 
 **Tick**:
-A single price observation for one Symbol, as reported by the exchange.
-_Avoid_: quote, price update, candle
+A single price observation for one Symbol, as reported by the exchange. A **Candle** — the exchange's
+summary of one period — is a different thing and keeps its own name: it is fetched only to draw a
+chart, never stored, and never what a Condition compares against.
+_Avoid_: quote, price update, candle (as another word for a Tick)
 
 **Symbol**:
 The market an Alert or a Tick refers to, spelled as the exchange spells it (`BTCUSDT`).
@@ -46,6 +72,11 @@ _Avoid_: pair, ticker, instrument
 The set of Symbols the system streams from the exchange. It is one system-wide choice rather than
 something a User owns, so an Alert can only name a Symbol the system already streams.
 _Avoid_: watchlist, feed, market list
+
+The WebSocket's `watch` / `unwatch` actions are the one sanctioned use of that root, and they are
+verbs: they name what a single connection asks for, always a subset of the Subscription. The set they
+produce is connection state belonging to one transport, not a domain concept — it has no name here
+and must never acquire one. "Watchlist" stays forbidden as a noun.
 
 ### The person
 
@@ -65,10 +96,19 @@ Alerts and still causes Triggers; those Triggers simply have nowhere to be deliv
 _Avoid_: chat id, telegram account, channel
 
 **Digest**:
-The daily e-mail summarising a User's Triggers from the previous twenty-four hours.
-_Avoid_: report, summary mail, newsletter
+The daily e-mail telling a User what happened to their Alerts in the previous twenty-four hours: the
+Triggers they made, and the ones that became Finished. A User receives it only by asking for it, and
+nothing is sent before they do.
+_Avoid_: report, summary mail, newsletter, morning digest
 
 **Verification**:
 The proof that a User controls the e-mail address they registered with. An unverified User can sign
 in and read, but cannot create an Alert.
 _Avoid_: confirmation, activation, validation
+
+**Demo account**:
+The one published User that anyone may sign in as, whose credentials the README prints. It is an
+account and not a mode: it owns Alerts exactly as any other User does, so everyone signed in as it is
+looking at — and editing — the same ones. The system knows the account; it never knows which person
+is using it.
+_Avoid_: demo mode, sandbox, guest, trial, demo session, visitor
