@@ -85,6 +85,35 @@ async def test_repeated_failures_hit_the_rate_limiter(
     assert int(response.headers["retry-after"]) > 0
 
 
+async def test_repeated_registrations_hit_the_rate_limiter(
+    api_client: AsyncClient, enqueued_emails: list[dict]
+) -> None:
+    # the register limiter keys on the client ip ALONE: distinct emails share
+    # one bucket, and that sharing is the property under test
+    for i in range(settings.auth.register_rate_limit):
+        response = await api_client.post(
+            REGISTER,
+            json={
+                "username": f"user-{i}",
+                "email": f"user-{i}@example.com",
+                "password": "s3cret-password",
+            },
+        )
+        assert response.status_code == 201
+
+    refused = await api_client.post(
+        REGISTER,
+        json={
+            "username": "one-too-many",
+            "email": "one-too-many@example.com",
+            "password": "s3cret-password",
+        },
+    )
+
+    assert refused.status_code == 429
+    assert int(refused.headers["retry-after"]) > 0
+
+
 async def test_replaying_a_rotated_refresh_token_kills_the_family(
     api_client: AsyncClient, user_with_password: User, password: str
 ) -> None:
