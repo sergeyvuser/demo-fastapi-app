@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from loguru import logger
@@ -13,6 +13,10 @@ from backend.tasks.broker import broker
 RETENTION = timedelta(days=30)
 
 
+def retention_cutoff() -> datetime:
+    return datetime.now(UTC) - RETENTION
+
+
 @broker.task(schedule=[{"cron": "0 3 * * *"}])
 async def cleanup_refresh_tokens() -> int:
     """Purge tokens that expired/were revoked more than RETENTION ago.
@@ -21,7 +25,7 @@ async def cleanup_refresh_tokens() -> int:
     out when`); older rows are dead weight.
     """
 
-    cutoff = datetime.now() - RETENTION
+    cutoff = retention_cutoff()
     async with AsyncSessionLocal() as session:
         # DML execute returns a CursorResult at runtime; the signature says Result
         result = cast(
