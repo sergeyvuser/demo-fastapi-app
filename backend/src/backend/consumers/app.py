@@ -4,11 +4,7 @@ Separate process from the API (run via `faststream run`), same codebase —
 it reuses models, repositories and services directly.
 """
 
-import logging
-
 from faststream import FastStream
-from faststream.rabbit import RabbitBroker
-from faststream.rabbit.opentelemetry import RabbitTelemetryMiddleware
 from loguru import logger
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
@@ -24,21 +20,15 @@ from shared.broker import (
     TICKS_EVALUATOR_QUEUE,
     TICKS_EXCHANGE,
     declare_alerts_topology,
+    make_broker,
 )
 from shared.events import TickEvent
 from shared.metrics import EVALUATOR_METRICS_PORT, alerts_fired, ticks_processed
-from shared.middlewares import CorrelationMiddleware
 from shared.service import configure_service
 
 configure_service(name="evaluator", settings=settings)
 
-# noinspection PyTypeChecker
-broker = RabbitBroker(
-    url=settings.rabbitmq.url,
-    log_level=logging.DEBUG,
-    # class, not instance: FastStream calls it per message as a builder
-    middlewares=[CorrelationMiddleware, RabbitTelemetryMiddleware()],
-)
+broker = make_broker(settings.rabbitmq)
 app = FastStream(broker)
 
 SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)

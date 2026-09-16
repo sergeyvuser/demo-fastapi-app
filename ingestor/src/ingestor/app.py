@@ -1,31 +1,21 @@
 import asyncio
-import logging
 import uuid
 from contextlib import suppress
 
 from faststream import FastStream
-from faststream.rabbit import RabbitBroker
-from faststream.rabbit.opentelemetry import RabbitTelemetryMiddleware
 from loguru import logger
 from prometheus_client import start_http_server
 
 from ingestor.bybit_ws import stream_ticks
 from ingestor.config import settings
-from shared.broker import TICKS_EXCHANGE
+from shared.broker import TICKS_EXCHANGE, make_broker
 from shared.logging import correlation_id
 from shared.metrics import INGESTOR_METRICS_PORT, ticks_published
-from shared.middlewares import CorrelationMiddleware
 from shared.service import configure_service
 
 configure_service(name="ingestor", settings=settings)
 
-# noinspection PyTypeChecker
-broker = RabbitBroker(
-    url=settings.rabbitmq.url,
-    log_level=logging.DEBUG,
-    # class, not instance: FastStream calls it per message as a builder
-    middlewares=[CorrelationMiddleware, RabbitTelemetryMiddleware()],
-)
+broker = make_broker(settings.rabbitmq)
 app = FastStream(broker)
 
 _pump_task: asyncio.Task[None] | None = None

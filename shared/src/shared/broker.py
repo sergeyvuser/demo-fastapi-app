@@ -1,5 +1,11 @@
+import logging
+
 from faststream.rabbit import ExchangeType, RabbitBroker, RabbitExchange, RabbitQueue
+from faststream.rabbit.opentelemetry import RabbitTelemetryMiddleware
 from faststream.rabbit.schemas.queue import ClassicQueueArgs
+
+from shared.config import RabbitMQConfig
+from shared.middlewares import CorrelationMiddleware
 
 # Producers publish here. Topic exchange: routing key = symbol,
 # so future consumers can subscribe to a single symbol if they want.
@@ -36,6 +42,28 @@ ALERTS_TRIGGERED_QUEUE = RabbitQueue(
     durable=True,
     arguments=_ALERTS_QUEUE_ARGS,
 )
+
+
+def make_broker(cfg: RabbitMQConfig) -> RabbitBroker:
+    """The broker client every FastStream service runs on.
+
+    One per process — a connection cannot cross a process boundary — but built
+    in one place, so the publishing side and the consuming side cannot end up
+    with different middleware. A correlation id or a trace that one side writes
+    and the other never reads fails silently: no error, just logs and traces
+    that stop joining up.
+
+    Not for the API, which runs FastStream's FastAPI integration (`RabbitRouter`
+    in api/ws/stream.py) rather than a bare broker.
+    """
+    # noinspection PyTypeChecker
+    return RabbitBroker(
+        url=cfg.url,
+        # per-message logs at DEBUG, so the INFO sink in production drops them
+        log_level=logging.DEBUG,
+        # class, not instance: FastStream calls it per message as a builder
+        middlewares=[CorrelationMiddleware, RabbitTelemetryMiddleware()],
+    )
 
 
 async def declare_alerts_topology(broker: RabbitBroker) -> None:

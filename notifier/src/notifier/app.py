@@ -1,9 +1,5 @@
-import logging
-
 from faststream import FastStream
 from faststream.exceptions import RejectMessage
-from faststream.rabbit import RabbitBroker
-from faststream.rabbit.opentelemetry import RabbitTelemetryMiddleware
 from loguru import logger
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
@@ -17,6 +13,7 @@ from shared.broker import (
     ALERTS_EXCHANGE,
     ALERTS_TRIGGERED_QUEUE,
     declare_alerts_topology,
+    make_broker,
 )
 from shared.events import AlertTriggeredEvent
 from shared.metrics import (
@@ -24,18 +21,11 @@ from shared.metrics import (
     notifications_failed,
     notifications_sent,
 )
-from shared.middlewares import CorrelationMiddleware
 from shared.service import configure_service
 
 configure_service(name="notifier", settings=settings)
 
-# noinspection PyTypeChecker
-broker = RabbitBroker(
-    url=settings.rabbitmq.url,
-    log_level=logging.DEBUG,
-    # class, not instance: FastStream calls it per message as a builder
-    middlewares=[CorrelationMiddleware, RabbitTelemetryMiddleware()],
-)
+broker = make_broker(settings.rabbitmq)
 app = FastStream(broker)
 
 
