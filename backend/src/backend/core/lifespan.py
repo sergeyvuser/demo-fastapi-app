@@ -36,6 +36,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     if not taskiq_broker.is_worker_process:
         await taskiq_broker.startup()
 
+    # The ws bridge's broker starts here, nested inside everything above, and
+    # stops before any of it is torn down. `app.include_router(stream_router)`
+    # would behave identically: FastAPI (>= 0.112.2) merges an included
+    # router's lifespan into the app's, with ours as the outer one. The explicit
+    # form is kept so the order reads in this function instead of being implied
+    # by that merge. Never both: the broker's lifespan would run twice, and
+    # FastStream skips the second start with a RuntimeWarning.
     async with stream_router.lifespan_context(app):
         yield
 
