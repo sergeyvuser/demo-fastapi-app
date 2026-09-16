@@ -32,7 +32,7 @@ async def _pump() -> None:
         try:
             async for tick in stream_ticks(
                 settings.stream.ws_url,
-                settings.stream.symbols,
+                settings.subscription.names,
                 settings.stream.reconnect_delay_seconds,
             ):
                 correlation_id.set(uuid.uuid4().hex)  # new chain starts here

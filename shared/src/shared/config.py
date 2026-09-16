@@ -65,6 +65,39 @@ class OtelConfig(BaseModel):
     sample_ratio: float = 1.0
 
 
+class SymbolConfig(BaseModel):
+    """One Symbol the system streams, and how its price is written."""
+
+    name: str
+    # Decimal places of the exchange's tickSize for this Symbol — spot BTCUSDT
+    # quotes in steps of 0.1 (1), ETHUSDT in 0.01 (2). Required on purpose: the
+    # two markets already disagree, so any default is wrong for one of them.
+    precision: int
+
+
+class SubscriptionConfig(BaseModel):
+    """The set of Symbols the system streams.
+
+    One system-wide choice, not something a User owns. It lives here rather
+    than in the ingestor because two services need the same answer: the
+    ingestor opens the sockets, and the API says which Symbols exist. Two
+    settings would agree by accident and drift on the first change.
+    """
+
+    symbols: list[SymbolConfig] = [
+        SymbolConfig(name="BTCUSDT", precision=1),
+        SymbolConfig(name="ETHUSDT", precision=2),
+    ]
+
+    @property
+    def names(self) -> list[str]:
+        return [symbol.name for symbol in self.symbols]
+
+    def __contains__(self, symbol: str) -> bool:
+        """Membership, so a caller writes `symbol in settings.subscription`."""
+        return any(symbol == candidate.name for candidate in self.symbols)
+
+
 class BaseServiceSettings(BaseSettings):
     """Common settings every service shares (env prefix, infra, observability)."""
 
@@ -82,3 +115,4 @@ class BaseServiceSettings(BaseSettings):
     log: LogConfig = LogConfig()
     otel: OtelConfig = OtelConfig()
     testing: bool = False
+    subscription: SubscriptionConfig = SubscriptionConfig()
