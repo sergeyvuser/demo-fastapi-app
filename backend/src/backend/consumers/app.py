@@ -17,6 +17,7 @@ from backend.services.alert_evaluation import AlertEvaluationService
 from backend.services.prices import PriceCache
 from shared.broker import (
     ALERTS_EXCHANGE,
+    TICKS_CACHE_QUEUE,
     TICKS_EVALUATOR_QUEUE,
     TICKS_EXCHANGE,
     declare_alerts_topology,
@@ -61,11 +62,20 @@ async def declare_topology() -> None:
     await declare_alerts_topology(broker=broker)
 
 
+@broker.subscriber(TICKS_CACHE_QUEUE, TICKS_EXCHANGE)
+async def cache_price(tick: TickEvent) -> None:
+    """Keep the price cache current. That is the whole job.
+
+    Its own queue, so a failed evaluation cannot redeliver a Tick whose price
+    was already written — and a Redis outage cannot reject a Tick whose Alert
+    has already fired.
+    """
+    assert _price_cache is not None  # set in startup hook
+    await _price_cache.set(tick.symbol, tick.price, tick.reference_price)
+
+
 @broker.subscriber(TICKS_EVALUATOR_QUEUE, TICKS_EXCHANGE)
 async def on_ticks(tick: TickEvent) -> None:
-    assert _price_cache is not None  # set in startup hook
-    await _price_cache.set(tick.symbol, tick.price)
-
     async with AsyncSessionLocal() as session:
         events = await AlertEvaluationService(session=session).process_tick(tick=tick)
 

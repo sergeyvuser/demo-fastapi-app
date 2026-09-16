@@ -24,6 +24,19 @@ TICKS_EVALUATOR_QUEUE = RabbitQueue(
     durable=True,
     arguments=_TICKS_QUEUE_ARGS,
 )
+# The cache's own queue, bound beside the evaluator's. A topic exchange puts
+# a copy of every Tick into every bound queue, so these two consumers do not
+# compete: one keeps the price cache current, the other evaluates Alerts, and
+# each one acknowledges — and fails — on its own.
+#
+# Same 60s TTL, and it matters more here: a cache that replayed an hour of
+# backlog after downtime would publish an hour-old price as the current one.
+TICKS_CACHE_QUEUE = RabbitQueue(
+    "ticks.cache",
+    routing_key="#",
+    durable=True,
+    arguments=_TICKS_QUEUE_ARGS,
+)
 
 # Dead-lettering: messages rejected by the notifier (requeue=False) are
 # routed by the broker itself into the DLX and land in the dead queue

@@ -55,6 +55,8 @@ async def test_tick_fires_an_alert_and_routes_it_to_the_notifier(
     # and keeps the price cache in a global filled by a startup hook. Neither
     # can be injected, so both are patched — a design seam worth noticing.
     monkeypatch.setattr(evaluator, "AsyncSessionLocal", lambda: _lend(session))
+    # one publish reaches BOTH subscribers — the cache one would trip over a
+    # None cache and fail the publish, even though this test is about alerts
     monkeypatch.setattr(evaluator, "_price_cache", PriceCache(clean_redis))
 
     tick = TickEvent(symbol="BTCUSDT", price=Decimal("101"), ts=datetime.now(UTC))
@@ -71,9 +73,6 @@ async def test_tick_fires_an_alert_and_routes_it_to_the_notifier(
         assert delivered[0]["price"] == "101"  # Decimal crosses as a string
         assert delivered[0]["telegram_chat_id"] == user.telegram_chat_id
 
-    # caching the price is part of the same handler's job
-    assert await clean_redis.get("price:BTCUSDT") == "101"
-
 
 async def test_tick_that_matches_nothing_publishes_nothing(
     session, clean_redis, user, alert_factory, monkeypatch
@@ -85,6 +84,8 @@ async def test_tick_that_matches_nothing_publishes_nothing(
         ),
     )
     monkeypatch.setattr(evaluator, "AsyncSessionLocal", lambda: _lend(session))
+    # one publish reaches BOTH subscribers — the cache one would trip over a
+    # None cache and fail the publish, even though this test is about alerts
     monkeypatch.setattr(evaluator, "_price_cache", PriceCache(clean_redis))
 
     tick = TickEvent(symbol="BTCUSDT", price=Decimal("99"), ts=datetime.now(UTC))
@@ -96,3 +97,29 @@ async def test_tick_that_matches_nothing_publishes_nothing(
         )
 
         assert delivered == []
+
+
+async def test_a_tick_is_cached_by_its_own_subscriber(
+    session, clean_redis, monkeypatch
+) -> None:
+    """The cache subscriber needs no database and no Alert: publishing a Tick
+    is the whole precondition."""
+    monkeypatch.setattr(evaluator, "AsyncSessionLocal", lambda: _lend(session))
+    monkeypatch.setattr(evaluator, "_price_cache", PriceCache(clean_redis))
+
+    tick = TickEvent(
+        symbol="BTCUSDT",
+        price=Decimal("101"),
+        reference_price=Decimal("99"),
+        ts=datetime.now(UTC),
+    )
+    async with TestRabbitBroker(evaluator.broker) as br:
+        await br.publish(
+            tick.model_dump(mode="json"),
+            exchange=TICKS_EXCHANGE,
+            routing_key=tick.symbol,  # exactly how the ingestor publishes
+        )
+
+    # the stored format stays two bare decimal strings, one key each
+    assert await clean_redis.get("price:BTCUSDT") == "101"
+    assert await clean_redis.get("price24h:BTCUSDT") == "99"
