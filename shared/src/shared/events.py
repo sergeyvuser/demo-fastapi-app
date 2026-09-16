@@ -11,6 +11,11 @@ class TickEvent(BaseModel):
     symbol: str
     price: Decimal
     ts: datetime  # exchange-side timestamp, UTC
+    # The price 24 hours ago, which the exchange reports beside the last price
+    # and the UI colours against. Optional on purpose: a Tick published by an
+    # older ingestor during a rolling deploy must stay a valid Tick, and the
+    # colouring is not worth a poisoned queue.
+    reference_price: Decimal | None = None
 
 
 class AlertTriggeredEvent(BaseModel):

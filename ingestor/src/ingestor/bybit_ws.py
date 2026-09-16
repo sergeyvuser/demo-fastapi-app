@@ -38,9 +38,14 @@ async def stream_ticks(
                     last_price = data.get("lastPrice")
                     if not last_price:
                         continue
+                    reference = data.get("prevPrice24h")
                     yield TickEvent(
                         symbol=data["symbol"],
                         price=Decimal(last_price),
+                        # Spot tickers are snapshot-only, so this is present on
+                        # every message (measured: 40 of 40) — but a field the
+                        # colouring wants must never be able to stop the feed.
+                        reference_price=Decimal(reference) if reference else None,
                         ts=datetime.fromtimestamp(payload["ts"] / 1000, tz=UTC),
                     )
         except aiohttp.ClientError as exc:
