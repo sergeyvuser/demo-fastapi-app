@@ -377,3 +377,24 @@ def test_every_scrape_target_is_a_service_in_this_stack(
         for target in static["targets"]
     }
     assert hosts <= set(rendered_services), sorted(hosts - set(rendered_services))
+
+
+def test_the_subscription_is_one_list_both_services_read(
+    rendered_services: dict[str, Any],
+) -> None:
+    """The ingestor opens the sockets, the API answers questions about them.
+
+    Two settings would agree until the first change; the anchor is what makes
+    them the same value structurally rather than by inspection.
+    """
+    pinned = {
+        name: rendered_services[name]["environment"][
+            "APP_CONFIG__SUBSCRIPTION__SYMBOLS"
+        ]
+        for name in ("api", "ingestor")
+    }
+
+    assert len(set(pinned.values())) == 1, pinned
+    symbols = json.loads(pinned["api"])
+    assert [s["name"] for s in symbols] == ["BTCUSDT", "ETHUSDT"]
+    assert all(isinstance(s["precision"], int) for s in symbols)

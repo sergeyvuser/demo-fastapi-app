@@ -40,6 +40,10 @@ x-prod-env: &prod-env
   APP_CONFIG__DEMO__USERNAME: demo
   APP_CONFIG__DEMO__EMAIL: demo@vorobev.dev
   APP_CONFIG__DEMO__PASSWORD: demo-alerts-2026
+  # The Subscription: the one place the streamed Symbols are named. In the
+  # shared block because the ingestor opens the sockets and the API answers
+  # /api/v1/symbols from the same list — pinned once, they cannot disagree.
+  APP_CONFIG__SUBSCRIPTION__SYMBOLS: '[{"name":"BTCUSDT","precision":1},{"name":"ETHUSDT","precision":2}]'
 
 services:
   db:
