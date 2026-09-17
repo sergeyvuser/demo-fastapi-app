@@ -14,7 +14,7 @@ router = APIRouter(
 @router.get("", response_model=SymbolList)
 async def list_symbols(redis: RedisDep) -> SymbolList:
     """Every Symbol the system streams, with its prices and precision.
-
+    \f
     Public, like the price endpoint beside it: a signed-out landing page
     shows real prices, and an anonymous visitor gets the list and no socket,
     which is the correct degradation.
