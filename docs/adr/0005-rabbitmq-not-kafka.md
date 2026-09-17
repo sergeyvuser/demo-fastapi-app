@@ -29,7 +29,8 @@ socket. What does not map is what the topology in `shared/broker.py` depends on:
   512M.
 
 What Kafka would buy is replaying history and throughput across partitions and machines. Neither is
-needed: two Symbols produce tens of messages a second, and nothing reprocesses past events.
+needed: two Symbols produce under three messages a second (measured in production), and nothing
+reprocesses past events.
 
 **The existing Redis cache as the channel** — the ingestor writes the latest price, consumers read it —
 was never a way to move events, and is recorded because it looks like one. A key holds the latest value
