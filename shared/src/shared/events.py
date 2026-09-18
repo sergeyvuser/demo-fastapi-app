@@ -1,3 +1,10 @@
+"""The wire contract: schemas of every message that crosses the broker.
+
+Both sides of a queue import these same classes, which is why they live in
+shared. A field added here is a change between services, not inside one —
+see AlertTriggeredEvent.trigger_id for what that costs during a deploy.
+"""
+
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -25,6 +32,10 @@ class AlertTriggeredEvent(BaseModel):
     so the notifier never has to query the database.
     """
 
+    # The stored Trigger row. Required: an event from an evaluator older than
+    # this field is refused and dead-lettered, which was accepted over an
+    # expand/contract step. The socket and the browser dedupe on it.
+    trigger_id: uuid.UUID  # the stored row; the socket and the browser dedupe on it
     alert_id: uuid.UUID
     user_id: uuid.UUID
     telegram_chat_id: int | None

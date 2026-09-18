@@ -9,10 +9,12 @@ __all__ = [
     "Alert",
     "Base",
     "RefreshToken",
+    "Trigger",
     "User",
 ]
 
 from .alert import Alert
 from .base import Base
 from .refresh_token import RefreshToken
+from .trigger import Trigger
 from .user import User

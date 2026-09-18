@@ -1,4 +1,5 @@
 import contextlib
+import uuid
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -72,6 +73,8 @@ async def test_tick_fires_an_alert_and_routes_it_to_the_notifier(
         assert delivered[0]["symbol"] == "BTCUSDT"
         assert delivered[0]["price"] == "101"  # Decimal crosses as a string
         assert delivered[0]["telegram_chat_id"] == user.telegram_chat_id
+        # the row's id crosses the broker as a string
+        assert uuid.UUID(delivered[0]["trigger_id"])
 
 
 async def test_tick_that_matches_nothing_publishes_nothing(

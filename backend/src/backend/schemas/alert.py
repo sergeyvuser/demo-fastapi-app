@@ -38,6 +38,7 @@ class AlertRead(AlertBase):
     id: uuid.UUID
     status: AlertStatus
     last_triggered_at: datetime | None
+    trigger_count: int
     created_at: datetime
 
 

@@ -40,6 +40,7 @@ def test_json_dump_keeps_the_price_exact() -> None:
 def test_alert_event_survives_a_broker_roundtrip() -> None:
     # what the evaluator publishes must rebuild exactly on the notifier side
     event = AlertTriggeredEvent(
+        trigger_id=uuid.uuid7(),
         alert_id=uuid.uuid4(),
         user_id=uuid.uuid4(),
         telegram_chat_id=42,

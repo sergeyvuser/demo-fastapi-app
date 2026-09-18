@@ -28,6 +28,7 @@ async def test_alert_lifecycle(
 
     created = await api_client.post(ALERTS, json=PAYLOAD, headers=headers)
     assert created.status_code == 201
+    assert created.json()["trigger_count"] == 0
     alert_id = created.json()["id"]
 
     listed = await api_client.get(ALERTS, headers=headers)

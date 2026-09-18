@@ -53,5 +53,8 @@ class Alert(IdUuidPkMixin, TimestampsMixin, Base):
     )
     cooldown_seconds: Mapped[int] = mapped_column(default=3600, server_default="3600")
     last_triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Since the Alert was created. Not COUNT(*) over triggers: retention deletes
+    # rows after 30 days, and a count that shrinks on its own would lie.
+    trigger_count: Mapped[int] = mapped_column(default=0, server_default="0")
 
     __table_args__ = (Index("ix_alerts_symbol_status", "symbol", "status"),)

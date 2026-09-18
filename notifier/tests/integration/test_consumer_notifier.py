@@ -14,6 +14,7 @@ from shared.events import AlertTriggeredEvent
 
 def make_event(**overrides) -> AlertTriggeredEvent:
     return AlertTriggeredEvent(
+        trigger_id=uuid.uuid7(),
         alert_id=uuid.uuid7(),
         user_id=uuid.uuid7(),
         telegram_chat_id=overrides.pop("telegram_chat_id", 4242),

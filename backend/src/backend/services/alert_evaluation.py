@@ -1,10 +1,13 @@
+import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import Alert
+from backend.models import Alert, Trigger
 from backend.models.alert import AlertCondition
+from backend.models.trigger import TriggerDelivery
 from backend.repositories.alert import AlertRepository
+from backend.repositories.trigger import TriggerRepository
 from shared.events import AlertTriggeredEvent, TickEvent
 
 
@@ -19,6 +22,7 @@ class AlertEvaluationService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.alerts = AlertRepository(session)
+        self.triggers = TriggerRepository(session)
 
     async def process_tick(self, tick: TickEvent) -> list[AlertTriggeredEvent]:
         events: list[AlertTriggeredEvent] = []
@@ -29,17 +33,46 @@ class AlertEvaluationService:
                 continue
             if self._in_cooldown(alert, now):
                 continue
+
+            # read once, so the stored delivery and the event cannot disagree
+            chat_id = alert.user.telegram_chat_id
+            trigger = Trigger(
+                # the mixin's default runs at flush; the event needs the id now
+                id=uuid.uuid7(),
+                alert_id=alert.id,
+                user_id=alert.user_id,
+                symbol=alert.symbol,
+                condition=alert.condition,
+                threshold=alert.threshold,
+                price=tick.price,
+                triggered_at=now,
+                delivery=(
+                    TriggerDelivery.QUEUED
+                    if chat_id is not None
+                    else TriggerDelivery.NO_CHAT
+                ),
+            )
+            self.triggers.add(trigger)
+
             alert.last_triggered_at = now
+            # In SQL, not in Python: Ticks are consumed concurrently, and
+            # `+= 1` on two stale copies would lose an increment. The attribute
+            # is expired after flush — refresh before reading it.
+            alert.trigger_count = Alert.trigger_count + 1
+
+            # the event publishes the row: built from it, so the Notification
+            # and the history cannot tell two different stories
             events.append(
                 AlertTriggeredEvent(
-                    alert_id=alert.id,
-                    user_id=alert.user_id,
-                    telegram_chat_id=alert.user.telegram_chat_id,
-                    symbol=alert.symbol,
-                    condition=alert.condition.value,
-                    threshold=alert.threshold,
-                    price=tick.price,
-                    triggered_at=now,
+                    trigger_id=trigger.id,
+                    alert_id=trigger.alert_id,
+                    user_id=trigger.user_id,
+                    telegram_chat_id=chat_id,
+                    symbol=trigger.symbol,
+                    condition=trigger.condition.value,
+                    threshold=trigger.threshold,
+                    price=trigger.price,
+                    triggered_at=trigger.triggered_at,
                 )
             )
 
