@@ -1,8 +1,9 @@
 import uuid
 from collections.abc import Sequence
 from datetime import datetime
+from typing import Any, cast
 
-from sqlalchemy import literal, select, tuple_
+from sqlalchemy import CursorResult, delete, literal, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Trigger
@@ -67,3 +68,16 @@ class TriggerRepository:
             .limit(limit + 1)
         )
         return (await self.session.scalars(stmt)).all()
+
+    async def delete_older_than(self, cutoff: datetime) -> int:
+        """Bulk delete, returning how many rows went. The caller commits."""
+        # DML execute returns a CursorResult at runtime; the signature says Result
+        result = cast(
+            CursorResult[Any],
+            await self.session.execute(
+                delete(Trigger).where(Trigger.triggered_at < cutoff)
+            ),
+        )
+        # rowcount is a SQLAlchemy memoized_property; PyCharm reads the raw function
+        # noinspection PyTypeChecker
+        return result.rowcount

@@ -7,14 +7,20 @@ from sqlalchemy import CursorResult, delete, or_
 from backend.core.config import settings
 from backend.core.db import AsyncSessionLocal
 from backend.models import RefreshToken
+from backend.repositories.trigger import TriggerRepository
 from backend.seed_demo import reset_demo
 from backend.tasks.broker import broker
 
-RETENTION = timedelta(days=30)
+RETENTION_TOKENS = timedelta(days=30)
+# Deliberately the same number as the Finished Alert retention (stage 13
+# ticket 06): Alerts are deleted 30 days after finishing, and their Triggers
+# cascade away with them. If either number changes, change both, or the
+# cascade starts eating history that is still inside its own window.
+RETENTION_TRIGGERS = timedelta(days=30)
 
 
-def retention_cutoff() -> datetime:
-    return datetime.now(UTC) - RETENTION
+def retention_cutoff(window: timedelta) -> datetime:
+    return datetime.now(UTC) - window
 
 
 @broker.task(schedule=[{"cron": "0 3 * * *"}])
@@ -25,7 +31,7 @@ async def cleanup_refresh_tokens() -> int:
     out when`); older rows are dead weight.
     """
 
-    cutoff = retention_cutoff()
+    cutoff = retention_cutoff(RETENTION_TOKENS)
     async with AsyncSessionLocal() as session:
         # DML execute returns a CursorResult at runtime; the signature says Result
         result = cast(
@@ -62,3 +68,24 @@ async def reset_demo_account() -> int:
         return 0
     async with AsyncSessionLocal() as session:
         return await reset_demo(session)
+
+
+@broker.task(schedule=[{"cron": "30 3 * * *"}])
+async def purge_old_triggers() -> int:
+    """Delete Triggers older than RETENTION_TRIGGERS.
+
+    This is the only table the hot path writes to without bound: every firing
+    of every Alert of every user leaves a row. Retention is therefore a
+    decision, not a default.
+
+    Half an hour after the token cleanup and half an hour before the demo
+    reset: stacking jobs on the same minute across two vCPUs is a
+    self-inflicted spike. The demo account needs nothing here — resetting it
+    deletes its Alerts, and the cascade takes their Triggers along.
+    """
+    cutoff = retention_cutoff(RETENTION_TRIGGERS)
+    async with AsyncSessionLocal() as session:
+        purged = await TriggerRepository(session).delete_older_than(cutoff)
+        await session.commit()
+    logger.bind(purged=purged).info("trigger retention finished")
+    return purged

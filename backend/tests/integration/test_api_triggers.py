@@ -3,11 +3,14 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Alert, Trigger, User
 from backend.models.alert import AlertCondition, AlertStatus
 from backend.models.trigger import TriggerDelivery
+from backend.repositories.trigger import TriggerRepository
+from backend.tasks.maintenance import RETENTION_TRIGGERS, retention_cutoff
 
 TRIGGERS = "/api/v1/triggers"
 
@@ -171,3 +174,18 @@ async def test_a_broken_cursor_and_a_naive_instant_are_refused(
     assert broken.status_code == 400
     assert broken.headers["content-type"].startswith("application/problem+json")
     assert naive.status_code == 422  # FastAPI's own parameter validation
+
+
+async def test_retention_deletes_only_what_is_past_the_window(session, user) -> None:
+    alert = await make_alert(session, user)
+    now = datetime.now(UTC)
+    fresh = await fire(session, alert, now - timedelta(days=29))
+    await fire(session, alert, now - timedelta(days=31))
+
+    purged = await TriggerRepository(session).delete_older_than(
+        retention_cutoff(RETENTION_TRIGGERS)
+    )
+
+    remaining = list(await session.scalars(select(Trigger)))
+    assert purged == 1
+    assert [row.id for row in remaining] == [fresh.id]
