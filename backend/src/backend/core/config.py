@@ -83,6 +83,7 @@ class APIV1PrefixConfig(BaseModel):
     alerts: str = "/alerts"
     prices: str = "/prices"
     symbols: str = "/symbols"
+    triggers: str = "/triggers"
 
 
 class APIPrefixConfig(BaseModel):
