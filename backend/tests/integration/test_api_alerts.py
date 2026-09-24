@@ -1,4 +1,9 @@
+import uuid
+
 from httpx import AsyncClient
+
+from backend.models import Alert
+from backend.models.alert import AlertStatus
 
 ALERTS = "/api/v1/alerts"
 PAYLOAD = {
@@ -102,3 +107,46 @@ async def test_a_new_alert_reports_its_policy_and_is_not_finished(
     # the default, and exactly today's behaviour — no existing row needed an UPDATE
     assert body["repeat_policy"] == "while_true"
     assert body["finished_at"] is None
+
+
+async def test_a_finished_alert_cannot_be_returned_to_service(
+    api_client: AsyncClient, session, verified_user, auth_headers
+) -> None:
+    headers = auth_headers(verified_user)
+    alert_id = (await api_client.post(ALERTS, json=PAYLOAD, headers=headers)).json()[
+        "id"
+    ]
+    alert = await session.get(Alert, uuid.UUID(alert_id))
+    alert.status = AlertStatus.COMPLETED
+    await session.flush()
+
+    response = await api_client.patch(
+        f"{ALERTS}/{alert_id}", json={"status": "active"}, headers=headers
+    )
+
+    assert response.status_code == 409
+    assert response.headers["content-type"].startswith("application/problem+json")
+    # ADR 0003: closing the obvious route obliges us to name the paved one
+    assert "clone" in response.json()["detail"].lower()
+
+
+async def test_a_terminal_status_cannot_be_asked_for(
+    api_client: AsyncClient, verified_user, auth_headers
+) -> None:
+    """Two refusals, two answers.
+
+    Setting `completed` is asking for something the API does not offer — the
+    system assigns terminal statuses, so it is a malformed request (422).
+    Reactivating a Finished Alert is a well-formed request refused on the
+    Alert's state (409). A client that explains itself needs both.
+    """
+    headers = auth_headers(verified_user)
+    alert_id = (await api_client.post(ALERTS, json=PAYLOAD, headers=headers)).json()[
+        "id"
+    ]
+
+    response = await api_client.patch(
+        f"{ALERTS}/{alert_id}", json={"status": "completed"}, headers=headers
+    )
+
+    assert response.status_code == 422

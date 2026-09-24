@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.core.config import settings
 from backend.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from backend.models import Alert
-from backend.models.alert import AlertRepeatPolicy, condition_holds
+from backend.models.alert import FINISHED_STATUSES, AlertRepeatPolicy, condition_holds
 from backend.repositories.alert import AlertRepository
 from backend.schemas.alert import AlertCreate, AlertCreateInternal, AlertUpdate
 from backend.services.prices import PriceCache
@@ -23,6 +23,19 @@ class AlertLimitExceededError(ConflictError):
             f"Alerts limit of {MAX_ALERTS_PER_USER} reached. "
             f"Delete one before creating another."
         )
+
+
+# What a Finished Alert may not be given. One list, consulted by one rule:
+# ticket 06 adds "expires_in_seconds" here, and extending the Expiry of a
+# Finished Alert is refused by the same code that refuses reactivating one.
+REARMING_FIELDS = frozenset({"status"})
+
+
+class AlertIsFinishedError(ConflictError):
+    default_detail = (
+        "This alert has finished and cannot be returned to service. "
+        "Clone it to watch this price again."
+    )
 
 
 class SymbolNotStreamedError(BadRequestError):
@@ -98,9 +111,25 @@ class AlertService:
         self, alert_id: uuid.UUID, user_id: uuid.UUID, data: AlertUpdate
     ) -> Alert:
         alert = await self.get(alert_id=alert_id, user_id=user_id)
+        self._refuse_to_rearm(alert, data)
         alert = await self.alerts.update(db_obj=alert, schema=data)
         await self.session.commit()
         return alert
+
+    @staticmethod
+    def _refuse_to_rearm(alert: Alert, data: AlertUpdate) -> None:
+        """Nothing returns a Finished Alert to service (ADR 0003).
+
+        Narrow on purpose: the Alert stays editable, it just cannot be put
+        back to work. A re-armed `once` Alert would be a `once` that happened
+        twice, and the paved way back is the clone action of ticket 26 —
+        which the message above names, because closing the obvious route
+        without naming the intended one strands the user.
+        """
+        if alert.status not in FINISHED_STATUSES:
+            return
+        if any(getattr(data, field) is not None for field in REARMING_FIELDS):
+            raise AlertIsFinishedError
 
     async def delete(self, alert_id: uuid.UUID, user_id: uuid.UUID) -> None:
         alert = await self.get(alert_id=alert_id, user_id=user_id)

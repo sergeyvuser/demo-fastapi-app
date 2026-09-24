@@ -57,6 +57,14 @@ class AlertStatus(StrEnum):
     COMPLETED = "completed"
 
 
+# The statuses that occupy one of a user's slots: running, or held by the
+# person who made it. Both are that person's choice and reversible.
+OCCUPYING_STATUSES = frozenset({AlertStatus.ACTIVE, AlertStatus.PAUSED})
+# The ones the system assigned, taking the Alert out of service for good.
+# Ticket 06 adds EXPIRED here, and to nothing else.
+FINISHED_STATUSES = frozenset({AlertStatus.COMPLETED})
+
+
 class Alert(IdUuidPkMixin, TimestampsMixin, Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),

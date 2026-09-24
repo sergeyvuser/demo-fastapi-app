@@ -7,7 +7,7 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Alert
-from backend.models.alert import AlertStatus
+from backend.models.alert import OCCUPYING_STATUSES, AlertStatus
 from backend.repositories.base import BaseRepository
 from backend.schemas.alert import AlertCreateInternal, AlertUpdate
 
@@ -60,7 +60,7 @@ class AlertRepository(BaseRepository[Alert, AlertCreateInternal, AlertUpdate]):
             .select_from(Alert)
             .where(
                 Alert.user_id == user_id,
-                Alert.status.in_((AlertStatus.ACTIVE, AlertStatus.PAUSED)),
+                Alert.status.in_(OCCUPYING_STATUSES),
             )
         )
         return await self.session.scalar(stmt) or 0

@@ -3,11 +3,12 @@ from decimal import Decimal
 import pytest
 
 from backend.models.alert import AlertCondition, AlertRepeatPolicy, AlertStatus
+from backend.schemas.alert import AlertUpdate
 from backend.services.alert import (
     MAX_ALERTS_PER_USER,
+    AlertIsFinishedError,
     AlertLimitExceededError,
     AlertNotFoundError,
-    AlertService,
     SymbolNotStreamedError,
 )
 from backend.services.prices import PriceCache
@@ -153,3 +154,40 @@ async def test_while_true_never_gets_crossing_state(
 
     # only on_cross has crossing state; the cache is not even consulted
     assert alert.condition_was_met is False
+
+
+async def test_a_finished_alert_refuses_to_come_back(
+    session, alert_service, user, alert_factory
+) -> None:
+    """ADR 0003: there is no exit from a terminal state."""
+    alert = await alert_service.create(user_id=user.id, data=alert_factory.build())
+    alert.status = AlertStatus.COMPLETED
+    await session.flush()
+
+    with pytest.raises(AlertIsFinishedError):
+        await alert_service.update(
+            alert_id=alert.id,
+            user_id=user.id,
+            data=AlertUpdate(status=AlertStatus.ACTIVE),
+        )
+
+
+async def test_a_finished_alert_can_still_be_edited(
+    session, alert_service, user, alert_factory
+) -> None:
+    """The rule is narrow on purpose.
+
+    Nothing returns a Finished Alert to service; everything else is left
+    alone, because ticket 26 clones one, and the Triggers it already made
+    carry their own Threshold and cannot be rewritten from here.
+    """
+    alert = await alert_service.create(user_id=user.id, data=alert_factory.build())
+    alert.status = AlertStatus.COMPLETED
+    await session.flush()
+
+    updated = await alert_service.update(
+        alert_id=alert.id, user_id=user.id, data=AlertUpdate(threshold=Decimal("200"))
+    )
+
+    assert updated.threshold == Decimal("200")
+    assert updated.status is AlertStatus.COMPLETED

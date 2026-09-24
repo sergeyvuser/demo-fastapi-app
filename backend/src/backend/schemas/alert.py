@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
@@ -58,5 +58,8 @@ class AlertRead(AlertBase):
 
 class AlertUpdate(BaseModel):
     threshold: Threshold | None = None
-    status: AlertStatus | None = None
+    # Only the two statuses a person chooses. A terminal status is the
+    # system's to assign, so asking for one is a malformed request, not a
+    # refused one — and the two arrive as 422 and 409 accordingly.
+    status: Literal[AlertStatus.ACTIVE, AlertStatus.PAUSED] | None = None
     cooldown_seconds: int | None = Field(default=None, ge=60, le=86_400)
