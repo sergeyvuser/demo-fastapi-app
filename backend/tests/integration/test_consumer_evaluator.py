@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.consumers import app as evaluator
 from backend.models.alert import AlertCondition
-from backend.services.alert import AlertService
 from backend.services.prices import PriceCache
 from shared.broker import (
     ALERTS_EXCHANGE,
@@ -43,9 +42,9 @@ async def _lend(session: AsyncSession) -> AsyncGenerator[AsyncSession]:
 
 
 async def test_tick_fires_an_alert_and_routes_it_to_the_notifier(
-    session, clean_redis, user, alert_factory, monkeypatch
+    session, clean_redis, user, alert_factory, monkeypatch, alert_service
 ) -> None:
-    await AlertService(session).create(
+    await alert_service.create(
         user_id=user.id,
         data=alert_factory.build(
             condition=AlertCondition.PRICE_ABOVE, threshold=Decimal("100")
@@ -78,9 +77,9 @@ async def test_tick_fires_an_alert_and_routes_it_to_the_notifier(
 
 
 async def test_tick_that_matches_nothing_publishes_nothing(
-    session, clean_redis, user, alert_factory, monkeypatch
+    session, clean_redis, user, alert_factory, monkeypatch, alert_service
 ) -> None:
-    await AlertService(session).create(
+    await alert_service.create(
         user_id=user.id,
         data=alert_factory.build(
             condition=AlertCondition.PRICE_ABOVE, threshold=Decimal("100")

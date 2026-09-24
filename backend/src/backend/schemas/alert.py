@@ -1,9 +1,9 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Self
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from backend.models.alert import AlertCondition, AlertRepeatPolicy, AlertStatus
 
@@ -21,7 +21,19 @@ class AlertBase(BaseModel):
     symbol: Symbol
     condition: AlertCondition
     threshold: Threshold
-    cooldown_seconds: int = Field(default=3600, ge=60, le=86_400)
+    repeat_policy: AlertRepeatPolicy = AlertRepeatPolicy.WHILE_TRUE
+    # None means no debounce. The floor applies to a value that is present:
+    # under `once` a Cooldown means nothing, under `on_cross` it is optional.
+    cooldown_seconds: int | None = Field(default=3600, ge=60, le=86_400)
+
+    @model_validator(mode="after")
+    def _drop_a_cooldown_that_cannot_mean_anything(self) -> Self:
+        # A `once` Alert fires one time; there is no second firing to space
+        # out. Normalised rather than refused so that cloning an Alert and
+        # switching its policy does not make the client clean up after us.
+        if self.repeat_policy is AlertRepeatPolicy.ONCE:
+            self.cooldown_seconds = None
+        return self
 
 
 class AlertCreate(AlertBase):
@@ -30,6 +42,7 @@ class AlertCreate(AlertBase):
 
 class AlertCreateInternal(AlertBase):
     user_id: uuid.UUID
+    condition_was_met: bool = False
 
 
 class AlertRead(AlertBase):
@@ -37,7 +50,6 @@ class AlertRead(AlertBase):
 
     id: uuid.UUID
     status: AlertStatus
-    repeat_policy: AlertRepeatPolicy
     last_triggered_at: datetime | None
     finished_at: datetime | None
     trigger_count: int

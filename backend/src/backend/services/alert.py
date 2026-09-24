@@ -5,8 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.core.config import settings
 from backend.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from backend.models import Alert
+from backend.models.alert import AlertRepeatPolicy, condition_holds
 from backend.repositories.alert import AlertRepository
 from backend.schemas.alert import AlertCreate, AlertCreateInternal, AlertUpdate
+from backend.services.prices import PriceCache
 
 MAX_ALERTS_PER_USER = 20
 
@@ -36,9 +38,10 @@ class SymbolNotStreamedError(BadRequestError):
 
 
 class AlertService:
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, prices: PriceCache):
         self.session = session
         self.alerts = AlertRepository(session)
+        self.prices = prices
 
     async def create(self, user_id: uuid.UUID, data: AlertCreate) -> Alert:
         # First, and before any query: this one is about the request itself,
@@ -53,10 +56,34 @@ class AlertService:
         ):
             raise AlertLimitExceededError
         alert = await self.alerts.create(
-            AlertCreateInternal(**data.model_dump(), user_id=user_id)
+            AlertCreateInternal(
+                **data.model_dump(),
+                user_id=user_id,
+                condition_was_met=await self._seed_crossing_state(data),
+            )
         )
         await self.session.commit()
         return alert
+
+    async def _seed_crossing_state(self, data: AlertCreate) -> bool:
+        """Whether a new Alert starts out already inside its zone.
+
+        Only `on_cross` has crossing state. One created while its Condition
+        already holds starts as met, so it stays quiet until the price leaves
+        and crosses back: the policy was chosen for the event "it crossed",
+        not for the state "it is past the Threshold", and firing at once would
+        make it indistinguishable from `while_true` in precisely the case
+        where the user asked for something else.
+
+        With no cached price — a cold cache, a Symbol that stopped streaming —
+        it starts unmet: a false Trigger beats false silence.
+        """
+        if data.repeat_policy is not AlertRepeatPolicy.ON_CROSS:
+            return False
+        price = await self.prices.get(data.symbol)
+        if price is None:
+            return False
+        return condition_holds(data.condition, data.threshold, price)
 
     async def get(self, alert_id: uuid.UUID, user_id: uuid.UUID) -> Alert:
         alert = await self.alerts.get_for_user(alert_id=alert_id, user_id=user_id)

@@ -19,6 +19,21 @@ class AlertCondition(StrEnum):
     PRICE_BELOW = "price_below"
 
 
+def condition_holds(
+    condition: AlertCondition, threshold: Decimal, price: Decimal
+) -> bool:
+    """Whether a price satisfies a Condition against its Threshold.
+
+    One function, two callers: the evaluator asks it of a Tick, and the create
+    endpoint asks it of the cached price when seeding an `on_cross` Alert. Two
+    copies would agree right up until somebody moved a boundary — and both
+    comparisons are inclusive on purpose.
+    """
+    if condition is AlertCondition.PRICE_ABOVE:
+        return price >= threshold
+    return price <= threshold
+
+
 class AlertRepeatPolicy(StrEnum):
     """What an Alert does after it has gone off.
 

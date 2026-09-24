@@ -1,6 +1,8 @@
+from decimal import Decimal
+
 import pytest
 
-from backend.models.alert import AlertStatus
+from backend.models.alert import AlertCondition, AlertRepeatPolicy, AlertStatus
 from backend.services.alert import (
     MAX_ALERTS_PER_USER,
     AlertLimitExceededError,
@@ -8,33 +10,34 @@ from backend.services.alert import (
     AlertService,
     SymbolNotStreamedError,
 )
+from backend.services.prices import PriceCache
 
 
-async def test_created_alert_is_readable_back(session, user, alert_factory) -> None:
-    alert = await AlertService(session).create(
-        user_id=user.id, data=alert_factory.build()
-    )
+async def test_created_alert_is_readable_back(
+    session, user, alert_factory, alert_service
+) -> None:
+    alert = await alert_service.create(user_id=user.id, data=alert_factory.build())
 
-    found = await AlertService(session).get(alert_id=alert.id, user_id=user.id)
+    found = await alert_service.get(alert_id=alert.id, user_id=user.id)
 
     assert found.id == alert.id
     assert found.symbol == "BTCUSDT"
 
 
 async def test_alert_of_another_user_is_reported_as_missing(
-    session, user, other_user, alert_factory
+    session, user, other_user, alert_factory, alert_service
 ) -> None:
     # not "forbidden": a 403 would confirm that this id exists
-    alert = await AlertService(session).create(
-        user_id=user.id, data=alert_factory.build()
-    )
+    alert = await alert_service.create(user_id=user.id, data=alert_factory.build())
 
     with pytest.raises(AlertNotFoundError):
-        await AlertService(session).get(alert_id=alert.id, user_id=other_user.id)
+        await alert_service.get(alert_id=alert.id, user_id=other_user.id)
 
 
-async def test_alert_limit_is_enforced(session, user, alert_factory) -> None:
-    service = AlertService(session)
+async def test_alert_limit_is_enforced(
+    session, user, alert_factory, alert_service
+) -> None:
+    service = alert_service
     for _ in range(MAX_ALERTS_PER_USER):
         await service.create(user_id=user.id, data=alert_factory.build())
 
@@ -42,8 +45,10 @@ async def test_alert_limit_is_enforced(session, user, alert_factory) -> None:
         await service.create(user_id=user.id, data=alert_factory.build())
 
 
-async def test_deleted_alert_is_gone(session, user, alert_factory) -> None:
-    service = AlertService(session)
+async def test_deleted_alert_is_gone(
+    session, user, alert_factory, alert_service
+) -> None:
+    service = alert_service
     alert = await service.create(user_id=user.id, data=alert_factory.build())
 
     await service.delete(alert_id=alert.id, user_id=user.id)
@@ -53,17 +58,17 @@ async def test_deleted_alert_is_gone(session, user, alert_factory) -> None:
 
 
 async def test_symbol_outside_the_subscription_is_refused(
-    session, user, alert_factory
+    session, user, alert_factory, alert_service
 ) -> None:
     # well-formed and plausible — and not a Symbol this system streams
     with pytest.raises(SymbolNotStreamedError):
-        await AlertService(session).create(
+        await alert_service.create(
             user_id=user.id, data=alert_factory.build(symbol="DOGEUSDT")
         )
 
 
 async def test_a_paused_alert_still_consumes_a_slot(
-    session, user, alert_factory
+    session, user, alert_factory, alert_service
 ) -> None:
     """Pausing is a person's choice and keeps the room it took.
 
@@ -71,7 +76,7 @@ async def test_a_paused_alert_still_consumes_a_slot(
     shared demo account becomes the one-way ratchet reset_demo_account exists
     to prevent.
     """
-    service = AlertService(session)
+    service = alert_service
     alerts = [
         await service.create(user_id=user.id, data=alert_factory.build())
         for _ in range(MAX_ALERTS_PER_USER)
@@ -84,8 +89,10 @@ async def test_a_paused_alert_still_consumes_a_slot(
         await service.create(user_id=user.id, data=alert_factory.build())
 
 
-async def test_a_finished_alert_frees_a_slot(session, user, alert_factory) -> None:
-    service = AlertService(session)
+async def test_a_finished_alert_frees_a_slot(
+    session, user, alert_factory, alert_service
+) -> None:
+    service = alert_service
     alerts = [
         await service.create(user_id=user.id, data=alert_factory.build())
         for _ in range(MAX_ALERTS_PER_USER)
@@ -98,3 +105,51 @@ async def test_a_finished_alert_frees_a_slot(session, user, alert_factory) -> No
 
     # no exception: the slot is back
     await service.create(user_id=user.id, data=alert_factory.build())
+
+
+async def test_on_cross_created_inside_its_zone_starts_met(
+    alert_service, user, alert_factory, clean_redis
+) -> None:
+    await PriceCache(clean_redis).set("BTCUSDT", Decimal("150"))
+
+    alert = await alert_service.create(
+        user_id=user.id,
+        data=alert_factory.build(
+            condition=AlertCondition.PRICE_ABOVE,
+            threshold=Decimal("100"),
+            repeat_policy=AlertRepeatPolicy.ON_CROSS,
+        ),
+    )
+
+    # already past the Threshold at creation: it waits for a real crossing
+    assert alert.condition_was_met is True
+
+
+async def test_on_cross_with_a_cold_cache_starts_unmet(
+    alert_service, user, alert_factory, clean_redis
+) -> None:
+    """A false Trigger beats false silence when we simply do not know."""
+    alert = await alert_service.create(
+        user_id=user.id,
+        data=alert_factory.build(
+            condition=AlertCondition.PRICE_ABOVE,
+            threshold=Decimal("100"),
+            repeat_policy=AlertRepeatPolicy.ON_CROSS,
+        ),
+    )
+
+    assert alert.condition_was_met is False
+
+
+async def test_while_true_never_gets_crossing_state(
+    alert_service, user, alert_factory, clean_redis
+) -> None:
+    await PriceCache(clean_redis).set("BTCUSDT", Decimal("150"))
+
+    alert = await alert_service.create(
+        user_id=user.id,
+        data=alert_factory.build(threshold=Decimal("100")),
+    )
+
+    # only on_cross has crossing state; the cache is not even consulted
+    assert alert.condition_was_met is False

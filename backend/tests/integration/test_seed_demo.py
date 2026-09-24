@@ -8,7 +8,6 @@ from backend.models import User
 from backend.repositories.alert import AlertRepository
 from backend.repositories.user import UserRepository
 from backend.seed_demo import EXAMPLE_ALERTS, reset_demo, seed_demo
-from backend.services.alert import AlertService
 
 
 async def demo_user(session: AsyncSession) -> User:
@@ -66,11 +65,13 @@ async def test_the_published_password_is_restored(session) -> None:
     )
 
 
-async def test_alerts_added_by_visitors_survive_seeding(session, alert_factory) -> None:
+async def test_alerts_added_by_visitors_survive_seeding(
+    session, alert_factory, alert_service
+) -> None:
     """The seeder must never delete. Deploys are not the reset mechanism."""
     await seed_demo(session)
     user = await demo_user(session)
-    await AlertService(session).create(user_id=user.id, data=alert_factory.build())
+    await alert_service.create(user_id=user.id, data=alert_factory.build())
 
     await seed_demo(session)
 
@@ -78,12 +79,12 @@ async def test_alerts_added_by_visitors_survive_seeding(session, alert_factory) 
 
 
 async def test_reset_returns_the_account_to_its_seeded_state(
-    session, alert_factory
+    session, alert_factory, alert_service
 ) -> None:
     """The nightly job is the reset mechanism, and it is the only one."""
     await seed_demo(session)
     user = await demo_user(session)
-    await AlertService(session).create(user_id=user.id, data=alert_factory.build())
+    await alert_service.create(user_id=user.id, data=alert_factory.build())
 
     removed = await reset_demo(session)
 

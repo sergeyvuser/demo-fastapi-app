@@ -29,6 +29,8 @@ from backend.core.db import AsyncSessionLocal, get_async_db_session, make_engine
 from backend.main import app as fastapi_app
 from backend.models import User
 from backend.schemas.alert import AlertCreate
+from backend.services.alert import AlertService
+from backend.services.prices import PriceCache
 from backend.tasks.broker import broker
 from backend.tasks.email import send_verification_email
 
@@ -232,3 +234,13 @@ def enqueued_emails(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
 
     monkeypatch.setattr(send_verification_email, "kiq", fake_kiq)
     return sent
+
+
+@pytest.fixture
+def alert_service(session: AsyncSession, clean_redis: Redis) -> AlertService:
+    """The service with both of its dependencies.
+
+    Creating an Alert consults the price cache to seed an `on_cross` Alert's
+    crossing state, so a session alone is no longer enough to build one.
+    """
+    return AlertService(session=session, prices=PriceCache(clean_redis))

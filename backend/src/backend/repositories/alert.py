@@ -1,6 +1,7 @@
 import uuid
 from collections.abc import Sequence
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -80,23 +81,35 @@ class AlertRepository(BaseRepository[Alert, AlertCreateInternal, AlertUpdate]):
         return result.all()
 
     async def claim_firing(
-        self, alert_id: uuid.UUID, *, cooldown_cutoff: datetime | None, now: datetime
+        self,
+        alert_id: uuid.UUID,
+        *,
+        now: datetime,
+        cooldown_cutoff: datetime | None,
+        crossing: bool = False,
+        finish: bool = False,
     ) -> bool:
         """Take the exclusive right to fire this Alert on this Tick.
 
-        The Cooldown is re-checked here, in the statement that acts on it,
-        rather than in the Python that read the row a moment ago: Ticks are
-        consumed concurrently, and a decision made on a value read without a
-        lock is a decision about the past.
+        The WHERE carries everything that makes this firing legal and the SET
+        makes the next one illegal, in one statement — so two concurrent Ticks
+        cannot both find it legal. Under READ COMMITTED the loser blocks on the
+        locked row and then re-applies this WHERE to the version the winner
+        committed, finding nothing to claim.
 
-        Under READ COMMITTED a second transaction blocks on the locked row,
-        then re-applies this WHERE to the version the winner committed — so
-        exactly one caller is told `True`, and the loser writes nothing.
-
-        A cutoff of None is an Alert with no Cooldown: no predicate, and the
-        claim turns on the status alone.
+        `crossing` is the `on_cross` claim: refuse unless the Condition was
+        unmet, and record that it is met now. `finish` is the `once` claim:
+        this firing is the Alert's last, and the status change lands in the
+        same transaction as its Trigger. A cutoff of None is an Alert with no
+        Cooldown — no predicate, nothing to wait for.
         """
         where = [Alert.id == alert_id, Alert.status == AlertStatus.ACTIVE]
+        values: dict[str, Any] = {
+            "last_triggered_at": now,
+            # in SQL, so the increment cannot be lost between two readers
+            "trigger_count": Alert.trigger_count + 1,
+        }
+
         if cooldown_cutoff is not None:
             where.append(
                 or_(
@@ -104,18 +117,37 @@ class AlertRepository(BaseRepository[Alert, AlertCreateInternal, AlertUpdate]):
                     Alert.last_triggered_at <= cooldown_cutoff,
                 )
             )
+        if crossing:
+            where.append(Alert.condition_was_met.is_(False))
+            values["condition_was_met"] = True
+        if finish:
+            values["status"] = AlertStatus.COMPLETED
+            values["finished_at"] = now
+
         stmt = (
             update(Alert)
             .where(*where)
-            .values(
-                last_triggered_at=now,
-                # in SQL, so the increment cannot be lost between two readers
-                trigger_count=Alert.trigger_count + 1,
-            )
+            .values(**values)
             .returning(Alert.id)
-            # The loaded Alert instance is deliberately NOT updated to match:
-            # assigning to it would mark it dirty and flush a second UPDATE.
-            # Nothing reads those two attributes after this call — tests refresh.
+            # The loaded instance is deliberately not synchronised: assigning
+            # to it would mark it dirty and flush a second UPDATE.
             .execution_options(synchronize_session=False)
         )
         return await self.session.scalar(stmt) is not None
+
+    async def mark_condition_unmet(self, alert_id: uuid.UUID) -> None:
+        """Record that the Condition stopped holding.
+
+        Only ever writes `false`; the other direction belongs to the claim
+        above, where it has to be atomic. Nothing races here — two Ticks
+        writing the same value write the same value — and the WHERE keeps the
+        statement a no-op when the row already says so, so "written only on
+        transitions" holds even against a stale read.
+        """
+        stmt = (
+            update(Alert)
+            .where(Alert.id == alert_id, Alert.condition_was_met.is_(True))
+            .values(condition_was_met=False)
+            .execution_options(synchronize_session=False)
+        )
+        await self.session.execute(stmt)
