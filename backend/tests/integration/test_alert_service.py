@@ -5,6 +5,7 @@ from backend.services.alert import (
     AlertLimitExceededError,
     AlertNotFoundError,
     AlertService,
+    SymbolNotStreamedError,
 )
 
 
@@ -48,3 +49,13 @@ async def test_deleted_alert_is_gone(session, user, alert_factory) -> None:
 
     with pytest.raises(AlertNotFoundError):
         await service.get(alert_id=alert.id, user_id=user.id)
+
+
+async def test_symbol_outside_the_subscription_is_refused(
+    session, user, alert_factory
+) -> None:
+    # well-formed and plausible — and not a Symbol this system streams
+    with pytest.raises(SymbolNotStreamedError):
+        await AlertService(session).create(
+            user_id=user.id, data=alert_factory.build(symbol="DOGEUSDT")
+        )

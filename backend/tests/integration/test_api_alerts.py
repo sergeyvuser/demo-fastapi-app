@@ -61,14 +61,30 @@ async def test_alert_of_another_user_is_invisible(
     assert response.status_code == 404
 
 
-async def test_malformed_symbol_is_rejected_before_the_service(
+async def test_the_two_symbol_failures_are_told_apart(
     api_client: AsyncClient, verified_user, auth_headers
 ) -> None:
-    response = await api_client.post(
-        ALERTS, json={**PAYLOAD, "symbol": "!!"}, headers=auth_headers(verified_user)
+    """A bad Symbol and an unavailable Symbol are different answers.
+
+    "!!" is not shaped like a Symbol and never reaches the service — 422 from
+    the schema. "DOGEUSDT" is a perfectly good Symbol that this system does
+    not stream — 400 from our own code, in RFC 9457 form. A UI that explains
+    the failure to a person cannot do it if both arrive as 422.
+    """
+    headers = auth_headers(verified_user)
+
+    malformed = await api_client.post(
+        ALERTS, json={**PAYLOAD, "symbol": "!!"}, headers=headers
+    )
+    not_streamed = await api_client.post(
+        ALERTS, json={**PAYLOAD, "symbol": "DOGEUSDT"}, headers=headers
     )
 
-    assert response.status_code == 422
+    assert malformed.status_code == 422
+    assert not_streamed.status_code == 400
+    assert not_streamed.headers["content-type"].startswith("application/problem+json")
+    # the message names the Symbol: the client echoes it, it does not guess
+    assert "DOGEUSDT" in not_streamed.json()["detail"]
 
 
 async def test_readyz_touches_the_database(api_client: AsyncClient) -> None:
