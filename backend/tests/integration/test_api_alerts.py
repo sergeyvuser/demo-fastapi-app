@@ -89,3 +89,16 @@ async def test_the_two_symbol_failures_are_told_apart(
 
 async def test_readyz_touches_the_database(api_client: AsyncClient) -> None:
     assert (await api_client.get("/readyz")).json() == {"status": "ok"}
+
+
+async def test_a_new_alert_reports_its_policy_and_is_not_finished(
+    api_client: AsyncClient, verified_user, auth_headers
+) -> None:
+    created = await api_client.post(
+        ALERTS, json=PAYLOAD, headers=auth_headers(verified_user)
+    )
+
+    body = created.json()
+    # the default, and exactly today's behaviour — no existing row needed an UPDATE
+    assert body["repeat_policy"] == "while_true"
+    assert body["finished_at"] is None

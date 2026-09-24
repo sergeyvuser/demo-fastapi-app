@@ -1,5 +1,6 @@
 import pytest
 
+from backend.models.alert import AlertStatus
 from backend.services.alert import (
     MAX_ALERTS_PER_USER,
     AlertLimitExceededError,
@@ -59,3 +60,41 @@ async def test_symbol_outside_the_subscription_is_refused(
         await AlertService(session).create(
             user_id=user.id, data=alert_factory.build(symbol="DOGEUSDT")
         )
+
+
+async def test_a_paused_alert_still_consumes_a_slot(
+    session, user, alert_factory
+) -> None:
+    """Pausing is a person's choice and keeps the room it took.
+
+    Otherwise 20 active plus any number of paused Alerts would pass, and the
+    shared demo account becomes the one-way ratchet reset_demo_account exists
+    to prevent.
+    """
+    service = AlertService(session)
+    alerts = [
+        await service.create(user_id=user.id, data=alert_factory.build())
+        for _ in range(MAX_ALERTS_PER_USER)
+    ]
+
+    alerts[0].status = AlertStatus.PAUSED
+    await session.flush()
+
+    with pytest.raises(AlertLimitExceededError):
+        await service.create(user_id=user.id, data=alert_factory.build())
+
+
+async def test_a_finished_alert_frees_a_slot(session, user, alert_factory) -> None:
+    service = AlertService(session)
+    alerts = [
+        await service.create(user_id=user.id, data=alert_factory.build())
+        for _ in range(MAX_ALERTS_PER_USER)
+    ]
+    with pytest.raises(AlertLimitExceededError):
+        await service.create(user_id=user.id, data=alert_factory.build())
+
+    alerts[0].status = AlertStatus.COMPLETED
+    await session.flush()
+
+    # no exception: the slot is back
+    await service.create(user_id=user.id, data=alert_factory.build())

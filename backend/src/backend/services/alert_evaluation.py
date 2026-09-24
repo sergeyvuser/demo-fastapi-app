@@ -91,14 +91,19 @@ class AlertEvaluationService:
         return tick.price <= alert.threshold
 
     @staticmethod
-    def _cooldown_cutoff(alert: Alert, now: datetime) -> datetime:
-        """The newest `last_triggered_at` that no longer bars a firing."""
+    def _cooldown_cutoff(alert: Alert, now: datetime) -> datetime | None:
+        """The newest `last_triggered_at` that no longer bars a firing.
+
+        None when the Alert has no Cooldown at all: there is nothing to
+        compare against, and therefore nothing to wait for.
+        """
+        if alert.cooldown_seconds is None:
+            return None
         return now - timedelta(seconds=alert.cooldown_seconds)
 
     @staticmethod
     def _in_cooldown(alert: Alert, now: datetime) -> bool:
-        if alert.last_triggered_at is None:
+        cutoff = AlertEvaluationService._cooldown_cutoff(alert, now)
+        if cutoff is None or alert.last_triggered_at is None:
             return False
-        return alert.last_triggered_at > AlertEvaluationService._cooldown_cutoff(
-            alert, now
-        )
+        return alert.last_triggered_at > cutoff

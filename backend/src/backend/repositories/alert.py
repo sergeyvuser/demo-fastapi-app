@@ -45,10 +45,22 @@ class AlertRepository(BaseRepository[Alert, AlertCreateInternal, AlertUpdate]):
         return result.all(), total or 0
 
     async def count_active_for_user(self, user_id: uuid.UUID) -> int:
+        """How many of the user's slots are occupied.
+
+        ACTIVE and PAUSED. Paused must count: it is a person's choice,
+        reversible at any moment, and it takes the same room in the list —
+        counting only ACTIVE would admit 20 active plus any number of paused
+        Alerts and destroy the protection reset_demo_account exists to give.
+        A Finished Alert is exempt, so finishing one frees a slot; maintenance
+        deletes it 30 days later (stage 13 ticket 06).
+        """
         stmt = (
             select(func.count())
             .select_from(Alert)
-            .where(Alert.user_id == user_id, Alert.status != AlertStatus.TRIGGERED)
+            .where(
+                Alert.user_id == user_id,
+                Alert.status.in_((AlertStatus.ACTIVE, AlertStatus.PAUSED)),
+            )
         )
         return await self.session.scalar(stmt) or 0
 
@@ -68,7 +80,7 @@ class AlertRepository(BaseRepository[Alert, AlertCreateInternal, AlertUpdate]):
         return result.all()
 
     async def claim_firing(
-        self, aler_id: uuid.UUID, *, cooldown_cutoff: datetime, now: datetime
+        self, alert_id: uuid.UUID, *, cooldown_cutoff: datetime | None, now: datetime
     ) -> bool:
         """Take the exclusive right to fire this Alert on this Tick.
 
@@ -80,19 +92,21 @@ class AlertRepository(BaseRepository[Alert, AlertCreateInternal, AlertUpdate]):
         Under READ COMMITTED a second transaction blocks on the locked row,
         then re-applies this WHERE to the version the winner committed — so
         exactly one caller is told `True`, and the loser writes nothing.
+
+        A cutoff of None is an Alert with no Cooldown: no predicate, and the
+        claim turns on the status alone.
         """
-        stmt = (
-            update(Alert)
-            .where(
-                Alert.id == aler_id,
-                # re-read under the lock: a PATCH may have paused the Alert
-                # between the SELECT above and this statement
-                Alert.status == AlertStatus.ACTIVE,
+        where = [Alert.id == alert_id, Alert.status == AlertStatus.ACTIVE]
+        if cooldown_cutoff is not None:
+            where.append(
                 or_(
                     Alert.last_triggered_at.is_(None),
                     Alert.last_triggered_at <= cooldown_cutoff,
-                ),
+                )
             )
+        stmt = (
+            update(Alert)
+            .where(*where)
             .values(
                 last_triggered_at=now,
                 # in SQL, so the increment cannot be lost between two readers

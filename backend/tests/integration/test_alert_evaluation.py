@@ -224,3 +224,27 @@ async def test_two_concurrent_ticks_fire_an_alert_once(
         alert = await check.get(Alert, committed_alert.id)
         assert alert is not None
         assert alert.trigger_count == 1
+
+
+async def test_an_alert_without_a_cooldown_fires_on_every_tick(session, user) -> None:
+    """A NULL Cooldown is no debounce: nothing to wait for between firings.
+
+    Built from the model, not through AlertService: the create schema still
+    requires a Cooldown, so until the Repeat policy opens that field this is
+    the only way a NULL gets into a row.
+    """
+    alert = Alert(
+        user_id=user.id,
+        symbol="BTCUSDT",
+        condition=AlertCondition.PRICE_ABOVE,
+        threshold=Decimal("100"),
+        cooldown_seconds=None,
+    )
+    session.add(alert)
+    await session.flush()
+
+    first = await AlertEvaluationService(session).process_tick(make_tick("101"))
+    second = await AlertEvaluationService(session).process_tick(make_tick("102"))
+
+    assert len(first) == 1
+    assert len(second) == 1

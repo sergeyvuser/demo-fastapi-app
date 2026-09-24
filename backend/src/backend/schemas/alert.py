@@ -5,7 +5,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-from backend.models.alert import AlertCondition, AlertStatus
+from backend.models.alert import AlertCondition, AlertRepeatPolicy, AlertStatus
 
 Symbol = Annotated[
     str,
@@ -37,7 +37,9 @@ class AlertRead(AlertBase):
 
     id: uuid.UUID
     status: AlertStatus
+    repeat_policy: AlertRepeatPolicy
     last_triggered_at: datetime | None
+    finished_at: datetime | None
     trigger_count: int
     created_at: datetime
 
