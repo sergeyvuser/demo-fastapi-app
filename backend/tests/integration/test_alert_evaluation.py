@@ -1,16 +1,20 @@
+import asyncio
+import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+import pytest
+from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from backend.models import Trigger
-from backend.models.alert import AlertCondition
+from backend.core.db import AsyncSessionLocal
+from backend.models import Trigger, User
+from backend.models.alert import Alert, AlertCondition
 from backend.models.trigger import TriggerDelivery
 from backend.schemas.alert import AlertUpdate
 from backend.services.alert import AlertService
 from backend.services.alert_evaluation import AlertEvaluationService
-from shared.events import TickEvent
+from shared.events import AlertTriggeredEvent, TickEvent
 
 
 def make_tick(price: str) -> TickEvent:
@@ -152,3 +156,71 @@ async def test_deleting_an_alert_deletes_its_triggers(
         select(func.count()).select_from(Trigger).where(Trigger.alert_id == alert.id)
     )
     assert remaining == 0
+
+
+@pytest.fixture
+async def committed_alert(db_engine: AsyncEngine):
+    """An Alert that is really on disk, visible from every connection.
+
+    The `session` fixture cannot serve a race test: it is one connection
+    inside one transaction, and a transaction is invisible to everyone but
+    itself — two "concurrent" sessions built on it would be the same session.
+    So this fixture commits for real and cleans up after itself; deleting the
+    User cascades to the Alert and to any Triggers the test produced.
+    """
+    suffix = uuid.uuid4().hex[:8]
+    async with AsyncSessionLocal(bind=db_engine) as setup:
+        user = User(
+            username=f"race-{suffix}",
+            email=f"race-{suffix}@example.com",
+            hashed_password="not-a-real-hash",
+            telegram_chat_id=424242,
+        )
+        setup.add(user)
+        await setup.flush()  # assigns the id the Alert needs
+        alert = Alert(
+            user_id=user.id,
+            symbol="RACEUSDT",  # its own Symbol: nothing else can match this Tick
+            condition=AlertCondition.PRICE_ABOVE,
+            threshold=Decimal("100"),
+            cooldown_seconds=3600,
+        )
+        setup.add(alert)
+        await setup.commit()
+
+    # expire_on_commit=False, so the attributes survive the commit above
+    yield alert
+
+    async with AsyncSessionLocal(bind=db_engine) as teardown:
+        await teardown.execute(delete(User).where(User.id == alert.user_id))
+        await teardown.commit()
+
+
+async def test_two_concurrent_ticks_fire_an_alert_once(
+    db_engine: AsyncEngine, committed_alert: Alert
+) -> None:
+    """The Cooldown must hold when two Ticks are evaluated at the same time.
+
+    This is the ordinary case, not an exotic one: FastStream consumes
+    messages concurrently. Before the conditional UPDATE both transactions
+    read `last_triggered_at = NULL`, both concluded the Cooldown had elapsed,
+    and the user got two Notifications from a rule that promised one.
+    """
+    tick = TickEvent(
+        symbol=committed_alert.symbol, price=Decimal("101"), ts=datetime.now(UTC)
+    )
+
+    async def evaluate() -> list[AlertTriggeredEvent]:
+        # a session of its own = a connection of its own = a transaction of its own
+        async with AsyncSessionLocal(bind=db_engine) as session:
+            return await AlertEvaluationService(session).process_tick(tick)
+
+    first, second = await asyncio.gather(evaluate(), evaluate())
+
+    assert len(first) + len(second) == 1
+
+    async with AsyncSessionLocal(bind=db_engine) as check:
+        assert len(await triggers_of(check, committed_alert.id)) == 1
+        alert = await check.get(Alert, committed_alert.id)
+        assert alert is not None
+        assert alert.trigger_count == 1

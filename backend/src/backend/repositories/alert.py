@@ -1,7 +1,8 @@
 import uuid
 from collections.abc import Sequence
+from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Alert
@@ -52,9 +53,55 @@ class AlertRepository(BaseRepository[Alert, AlertCreateInternal, AlertUpdate]):
         return await self.session.scalar(stmt) or 0
 
     async def get_active_for_symbol(self, symbol: str) -> Sequence[Alert]:
-        stmt = select(Alert).where(
-            Alert.symbol == symbol,
-            Alert.status == AlertStatus.ACTIVE,
+        stmt = (
+            select(Alert)
+            .where(
+                Alert.symbol == symbol,
+                Alert.status == AlertStatus.ACTIVE,
+            )
+            # Not cosmetic. Two concurrent Ticks lock the Alerts they fire, and
+            # two transactions taking the same locks in opposite orders is a
+            # deadlock. Without ORDER BY the order is the planner's to choose.
+            .order_by(Alert.id)
         )
         result = await self.session.scalars(stmt)
         return result.all()
+
+    async def claim_firing(
+        self, aler_id: uuid.UUID, *, cooldown_cutoff: datetime, now: datetime
+    ) -> bool:
+        """Take the exclusive right to fire this Alert on this Tick.
+
+        The Cooldown is re-checked here, in the statement that acts on it,
+        rather than in the Python that read the row a moment ago: Ticks are
+        consumed concurrently, and a decision made on a value read without a
+        lock is a decision about the past.
+
+        Under READ COMMITTED a second transaction blocks on the locked row,
+        then re-applies this WHERE to the version the winner committed — so
+        exactly one caller is told `True`, and the loser writes nothing.
+        """
+        stmt = (
+            update(Alert)
+            .where(
+                Alert.id == aler_id,
+                # re-read under the lock: a PATCH may have paused the Alert
+                # between the SELECT above and this statement
+                Alert.status == AlertStatus.ACTIVE,
+                or_(
+                    Alert.last_triggered_at.is_(None),
+                    Alert.last_triggered_at <= cooldown_cutoff,
+                ),
+            )
+            .values(
+                last_triggered_at=now,
+                # in SQL, so the increment cannot be lost between two readers
+                trigger_count=Alert.trigger_count + 1,
+            )
+            .returning(Alert.id)
+            # The loaded Alert instance is deliberately NOT updated to match:
+            # assigning to it would mark it dirty and flush a second UPDATE.
+            # Nothing reads those two attributes after this call — tests refresh.
+            .execution_options(synchronize_session=False)
+        )
+        return await self.session.scalar(stmt) is not None

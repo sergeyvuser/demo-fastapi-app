@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,7 +31,17 @@ class AlertEvaluationService:
         for alert in await self.alerts.get_active_for_symbol(tick.symbol):
             if not self._condition_met(alert, tick):
                 continue
+            # The Python check below and the WHERE inside claim_firing are the
+            # same rule read from the same cutoff: the first is a filter that
+            # spares a round trip, the second is the one that decides.
             if self._in_cooldown(alert, now):
+                continue
+            if not await self.alerts.claim_firing(
+                alert.id,
+                cooldown_cutoff=self._cooldown_cutoff(alert, now),
+                now=now,
+            ):
+                # another Tick of this Symbol got there first
                 continue
 
             # read once, so the stored delivery and the event cannot disagree
@@ -53,12 +63,6 @@ class AlertEvaluationService:
                 ),
             )
             self.triggers.add(trigger)
-
-            alert.last_triggered_at = now
-            # In SQL, not in Python: Ticks are consumed concurrently, and
-            # `+= 1` on two stale copies would lose an increment. The attribute
-            # is expired after flush — refresh before reading it.
-            alert.trigger_count = Alert.trigger_count + 1
 
             # the event publishes the row: built from it, so the Notification
             # and the history cannot tell two different stories
@@ -87,7 +91,14 @@ class AlertEvaluationService:
         return tick.price <= alert.threshold
 
     @staticmethod
+    def _cooldown_cutoff(alert: Alert, now: datetime) -> datetime:
+        """The newest `last_triggered_at` that no longer bars a firing."""
+        return now - timedelta(seconds=alert.cooldown_seconds)
+
+    @staticmethod
     def _in_cooldown(alert: Alert, now: datetime) -> bool:
         if alert.last_triggered_at is None:
             return False
-        return (now - alert.last_triggered_at).total_seconds() < alert.cooldown_seconds
+        return alert.last_triggered_at > AlertEvaluationService._cooldown_cutoff(
+            alert, now
+        )
