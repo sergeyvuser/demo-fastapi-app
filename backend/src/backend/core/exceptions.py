@@ -38,3 +38,8 @@ class UnauthorizedError(AppError):
 
     def __init__(self, detail: str | None = None):
         super().__init__(detail, headers={"WWW-Authenticate": "Bearer"})
+
+
+class GoneError(AppError):
+    status_code = 410
+    title = "Gone"
