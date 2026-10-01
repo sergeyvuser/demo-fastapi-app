@@ -3,6 +3,9 @@ import uuid
 import pytest
 from redis.asyncio import Redis
 
+from backend.core.config import settings
+from backend.core.verification import PendingVerification
+from backend.schemas.auth import VerificationRequest
 from backend.tasks.email import send_verification_email
 
 
@@ -28,6 +31,10 @@ async def test_verification_task_stores_a_one_time_token_and_mails_it(
 
     keys = [key async for key in clean_redis.scan_iter("verify:*")]
     assert len(keys) == 1
-    assert await clean_redis.get(keys[0]) == user_id
+    record = PendingVerification.model_validate_json(await clean_redis.get(keys[0]))
+    assert str(record.user_id) == user_id
     # the link in the letter must carry that very token, or verification 404s
-    assert keys[0].removeprefix("verify:") in letters[0].get_content()
+    token = keys[0].removeprefix("verify:")
+    assert token in letters[0].get_content()
+    assert f"{settings.run.public_url}/verify?token={token}" in letters[0].get_content()
+    assert VerificationRequest(verification_token=token).verification_token == token

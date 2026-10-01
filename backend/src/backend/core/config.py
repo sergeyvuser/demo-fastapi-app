@@ -102,6 +102,8 @@ class AuthConfig(BaseModel):
     login_rate_window_seconds: int = 60
     register_rate_limit: int = 3
     register_rate_window_seconds: int = 300
+    verification_rate_limit: int = 3
+    verification_rate_window_seconds: int = 300
 
 
 class DemoConfig(BaseModel):

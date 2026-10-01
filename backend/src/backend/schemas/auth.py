@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class TokenPair(BaseModel):
@@ -9,3 +9,12 @@ class TokenPair(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class VerificationRequest(BaseModel):
+    verification_token: str = Field(
+        min_length=43,  # Base64URL (32 b) verification token secrets.token_urlsafe(32)
+        max_length=43,
+        pattern=r"^[A-Za-z0-9\-_]+$",
+        description="the token from the link in the verification e-mail",
+    )

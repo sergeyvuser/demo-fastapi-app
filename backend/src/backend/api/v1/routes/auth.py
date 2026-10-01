@@ -3,11 +3,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from backend.api.deps import RedisDep
+from backend.api.deps import CurrentUserDep, RedisDep
 from backend.core.config import settings
 from backend.core.db import AsyncSessionDep
 from backend.core.rate_limit import FixedWindowRateLimiter
-from backend.schemas.auth import RefreshRequest, TokenPair
+from backend.schemas.auth import (
+    RefreshRequest,
+    TokenPair,
+    VerificationRequest,
+)
 from backend.schemas.user import UserCreate, UserRead
 from backend.services.auth import AuthService
 
@@ -32,14 +36,34 @@ async def register(
     return await AuthService(session).register(data)
 
 
-@router.get("/verify")
+@router.post("/verify")
 async def verify_email(
-    token: str,
+    data: VerificationRequest,
     session: AsyncSessionDep,
     redis: RedisDep,
 ):
-    await AuthService(session, redis).verify_email(token)
+    await AuthService(session, redis).verify_email(data.verification_token)
     return {"status": "verified"}
+
+
+@router.post("/resend-verification")
+async def resend_verification_email(
+    current_user: CurrentUserDep,
+    session: AsyncSessionDep,
+    redis: RedisDep,
+):
+    limiter = FixedWindowRateLimiter(
+        redis=redis,
+        prefix="verification-resend",
+        limit=settings.auth.verification_rate_limit,
+        window=settings.auth.verification_rate_window_seconds,
+    )
+    # keyed by address alone, unlike login: the abuse worth stopping here is
+    # mailing one person repeatedly, and an IP in the key would hand the same
+    # person a fresh allowance from every network they happen to be on
+    await limiter.hit(current_user.email)
+    await AuthService(session, redis).resend_verification_email(current_user)
+    return {"status": "verification_resent"}
 
 
 @router.post("/login", response_model=TokenPair)

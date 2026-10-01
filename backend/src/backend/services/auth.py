@@ -2,12 +2,20 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
+from loguru import logger
+from pydantic import ValidationError
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core import security
 from backend.core.config import settings
-from backend.core.exceptions import ConflictError, UnauthorizedError
+from backend.core.exceptions import ConflictError, GoneError, UnauthorizedError
+from backend.core.verification import (
+    RECORD_ADAPTER,
+    SPENT_RECORD_JSON,
+    SpentVerification,
+    verification_key,
+)
 from backend.models.user import User
 from backend.repositories.refresh_token import RefreshTokenRepository
 from backend.repositories.user import UserRepository
@@ -21,6 +29,10 @@ class EmailAlreadyRegisteredError(ConflictError):
     default_detail = "Email already registered"
 
 
+class EmailAlreadyVerifiedError(ConflictError):
+    default_detail = "Email already verified"
+
+
 class InvalidCredentialsError(UnauthorizedError):
     default_detail = "Incorrect email or password"
     metric_reason = "invalid_credentials"
@@ -31,8 +43,10 @@ class InvalidRefreshTokenError(UnauthorizedError):
     metric_reason = "invalid_refresh"
 
 
-class InvalidVerificationTokenError(UnauthorizedError):
-    default_detail = "Invalid verification token"
+class VerificationLinkGoneError(GoneError):
+    default_detail = "This verification link is no longer valid"
+    # the label the Grafana panel already groups by; an expired link is a
+    # failure of the authentication funnel, so it keeps being counted
     metric_reason = "invalid_verification"
 
 
@@ -65,14 +79,46 @@ class AuthService:
 
     async def verify_email(self, token: str) -> None:
         assert self.redis is not None
-        user_id = cast("str | None", await self.redis.getdel(f"verify:{token}"))
-        if user_id is None:
-            raise InvalidVerificationTokenError
-        user = await self.users.get_by_id(uuid.UUID(user_id))
+        key = verification_key(token=token)
+        raw = cast("str | None", await self.redis.get(key))
+        if raw is None:
+            raise VerificationLinkGoneError
+        try:
+            record = RECORD_ADAPTER.validate_json(raw)
+        except ValidationError:
+            # Written by a previous release: in-flight tokens outlive a deploy
+            # by up to the TTL. A 410 lets the User ask for another letter;
+            # a 500 would just page us for a shape that heals itself.
+            logger.bind(key=key).warning("unreadable verification record")
+            raise VerificationLinkGoneError from None
+        if isinstance(record, SpentVerification):
+            raise EmailAlreadyVerifiedError
+        user = await self.users.get_by_id(record.user_id)
         if user is None:
-            raise InvalidVerificationTokenError
+            # The record outlived the User it names: there is nobody to verify,
+            # and the token is left untouched to expire on its own.
+            raise VerificationLinkGoneError
+        if user.is_verified:
+            # Reachable through resend: a second letter adds a second live
+            # token, so an older link can still be pending after the newer one
+            # was used. Same answer as a spent link, because the next action is
+            # the same — sign in.
+            raise EmailAlreadyVerifiedError
         user.is_verified = True
         await self.session.commit()
+        # Spend the token only once the verification is durable. The reverse
+        # order burns a valid link whenever the commit fails, and a burnt link
+        # now costs a sign-in before it can be re-sent. A crash *here* instead
+        # leaves a pending record on a verified User — which the branch above
+        # already answers correctly.
+        await self.redis.set(key, SPENT_RECORD_JSON, xx=True, keepttl=True)
+
+    async def resend_verification_email(self, user: User) -> None:
+        if user.is_verified:
+            raise EmailAlreadyVerifiedError
+        await send_verification_email.kiq(
+            user_id=str(user.id), email=user.email, username=user.username
+        )
 
     async def login(
         self, email: str, password: str, user_agent: str | None = None
