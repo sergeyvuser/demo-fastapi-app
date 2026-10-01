@@ -27,6 +27,7 @@ class UserRead(UserBase):
 
     id: uuid.UUID
     is_active: bool
+    is_verified: bool
 
 
 class UserUpdate(BaseModel):
