@@ -154,9 +154,16 @@ Conventions:
   long-lived opaque refresh (sha256 stored server-side)
 - `POST /api/v1/auth/refresh` → rotation; reuse of a revoked token revokes
   the whole session family (theft detection)
-- `GET /api/v1/auth/verify?token=...` → confirm email (one-time token);
-  creating alerts requires a verified email
-- Protected routes via `Authorization: Bearer` (`GET /users/me`)
+- `POST /api/v1/auth/verify` → confirm email. The one-time token travels in
+  the request body and never in a URL, so it cannot be left behind in a
+  server span or a proxy access log. Three answers, which the UI words
+  differently: `200` verified, `409` the link was already used (next step:
+  sign in), `410` it expired or never existed (next step: ask for another)
+- `POST /api/v1/auth/resend-verification` → another verification mail for the
+  signed-in account, rate-limited by address; `409` if already verified
+- Creating alerts requires a verified email
+- Protected routes via `Authorization: Bearer` (`GET /users/me`, which reports
+  `is_verified`)
 
 ## Event flow (implemented)
 
