@@ -1,6 +1,7 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
+from enum import IntEnum
 from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
@@ -15,6 +16,23 @@ Threshold = Annotated[
     Decimal,
     Field(gt=0, max_digits=20, decimal_places=8),
 ]
+
+
+class ExpiryPreset(IntEnum):
+    """The only durations an Expiry can be asked for, in seconds.
+
+    A closed set rather than a bounded `int`: a duration outside it is not
+    refused, it cannot be written down. "No Expiry" is not a member — it is
+    the absence of a value.
+    """
+
+    HOURS_24 = 86_400
+    DAYS_7 = 7 * 86_400
+    DAYS_30 = 30 * 86_400
+
+    def expiry_from(self, now: datetime) -> datetime:
+        """The instant this duration ends, counted from `now`."""
+        return now + timedelta(seconds=self)
 
 
 class AlertBase(BaseModel):
@@ -37,12 +55,14 @@ class AlertBase(BaseModel):
 
 
 class AlertCreate(AlertBase):
-    pass
+    # A duration, not an instant: the server counts it from its own clock.
+    expires_in_seconds: ExpiryPreset | None = None
 
 
 class AlertCreateInternal(AlertBase):
     user_id: uuid.UUID
     condition_was_met: bool = False
+    expires_at: datetime | None = None
 
 
 class AlertRead(AlertBase):

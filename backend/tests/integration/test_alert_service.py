@@ -1,9 +1,10 @@
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 
 from backend.models.alert import AlertCondition, AlertRepeatPolicy, AlertStatus
-from backend.schemas.alert import AlertUpdate
+from backend.schemas.alert import AlertUpdate, ExpiryPreset
 from backend.services.alert import (
     MAX_ALERTS_PER_USER,
     AlertIsFinishedError,
@@ -195,3 +196,28 @@ async def test_a_finished_alert_can_still_be_edited(
 
     assert updated.threshold == Decimal("200")
     assert updated.status is AlertStatus.COMPLETED
+
+
+async def test_the_server_counts_the_expiry_from_its_own_clock(
+    alert_service, user, alert_factory
+) -> None:
+    before = datetime.now(UTC)
+
+    alert = await alert_service.create(
+        user_id=user.id,
+        data=alert_factory.build(expires_in_seconds=ExpiryPreset.HOURS_24),
+    )
+
+    after = datetime.now(UTC)
+    assert alert.expires_at is not None
+    assert (
+        before + timedelta(hours=24) <= alert.expires_at <= after + timedelta(hours=24)
+    )
+
+
+async def test_an_alert_created_without_an_expiry_has_none(
+    alert_service, user, alert_factory
+) -> None:
+    alert = await alert_service.create(user_id=user.id, data=alert_factory.build())
+
+    assert alert.expires_at is None

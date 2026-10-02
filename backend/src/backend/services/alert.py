@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,7 +8,12 @@ from backend.core.exceptions import BadRequestError, ConflictError, NotFoundErro
 from backend.models import Alert
 from backend.models.alert import FINISHED_STATUSES, AlertRepeatPolicy, condition_holds
 from backend.repositories.alert import AlertRepository
-from backend.schemas.alert import AlertCreate, AlertCreateInternal, AlertUpdate
+from backend.schemas.alert import (
+    AlertCreate,
+    AlertCreateInternal,
+    AlertUpdate,
+    ExpiryPreset,
+)
 from backend.services.prices import PriceCache
 
 MAX_ALERTS_PER_USER = 20
@@ -29,6 +35,13 @@ class AlertLimitExceededError(ConflictError):
 # ticket 06 adds "expires_in_seconds" here, and extending the Expiry of a
 # Finished Alert is refused by the same code that refuses reactivating one.
 REARMING_FIELDS = frozenset({"status"})
+
+
+def _expiry_from_now(preset: ExpiryPreset | None) -> datetime | None:
+    """The Expiry a requested duration means, on this server's clock."""
+    if preset is None:
+        return None
+    return preset.expiry_from(datetime.now(UTC))
 
 
 class AlertIsFinishedError(ConflictError):
@@ -70,9 +83,10 @@ class AlertService:
             raise AlertLimitExceededError
         alert = await self.alerts.create(
             AlertCreateInternal(
-                **data.model_dump(),
+                **data.model_dump(exclude={"expires_in_seconds"}),
                 user_id=user_id,
                 condition_was_met=await self._seed_crossing_state(data),
+                expires_at=_expiry_from_now(data.expires_in_seconds),
             )
         )
         await self.session.commit()

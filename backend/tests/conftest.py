@@ -170,6 +170,9 @@ class AlertCreateFactory(ModelFactory[AlertCreate]):
     symbol = "BTCUSDT"
     threshold = Decimal("64000.00000001")
     cooldown_seconds = 3600
+    # A random preset would make every test depend on a coin toss it never
+    # asked for; the Expiry tests set one explicitly.
+    expires_in_seconds = None
 
 
 @pytest.fixture

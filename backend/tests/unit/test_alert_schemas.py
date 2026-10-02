@@ -1,8 +1,10 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from pydantic import ValidationError
 
 from backend.models.alert import AlertCondition, AlertRepeatPolicy
-from backend.schemas.alert import AlertCreate
+from backend.schemas.alert import AlertCreate, ExpiryPreset
 
 PAYLOAD = {
     "symbol": "BTCUSDT",
@@ -35,3 +37,24 @@ def test_an_absent_cooldown_is_allowed_on_a_crossing_alert() -> None:
 
 def test_the_default_policy_is_todays_behaviour() -> None:
     assert AlertCreate(**PAYLOAD).repeat_policy is AlertRepeatPolicy.WHILE_TRUE
+
+
+def test_an_expiry_is_asked_for_as_a_preset_duration() -> None:
+    alert = AlertCreate(**PAYLOAD, expires_in_seconds=86_400)
+
+    assert alert.expires_in_seconds is ExpiryPreset.HOURS_24
+
+
+def test_a_duration_outside_the_presets_cannot_be_asked_for() -> None:
+    with pytest.raises(ValidationError):
+        AlertCreate(**PAYLOAD, expires_in_seconds=3600)
+
+
+def test_an_alert_is_created_without_an_expiry_by_default() -> None:
+    assert AlertCreate(**PAYLOAD).expires_in_seconds is None
+
+
+def test_a_preset_counts_its_expiry_from_the_given_instant() -> None:
+    now = datetime(2026, 10, 2, 12, 0, tzinfo=UTC)
+
+    assert ExpiryPreset.DAYS_7.expiry_from(now) == now + timedelta(days=7)
