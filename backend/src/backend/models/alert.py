@@ -55,14 +55,45 @@ class AlertStatus(StrEnum):
     # why the old `TRIGGERED` had to go. Nothing ever assigned it, so no row
     # carries the old value.
     COMPLETED = "completed"
+    # An Alert whose Expiry passed before it Completed. Written by the
+    # evaluator and by the nightly sweep, never by a request — and possibly
+    # later than it became true; see current_status().
+    EXPIRED = "expired"
 
 
 # The statuses that occupy one of a user's slots: running, or held by the
 # person who made it. Both are that person's choice and reversible.
 OCCUPYING_STATUSES = frozenset({AlertStatus.ACTIVE, AlertStatus.PAUSED})
 # The ones the system assigned, taking the Alert out of service for good.
-# Ticket 06 adds EXPIRED here, and to nothing else.
-FINISHED_STATUSES = frozenset({AlertStatus.COMPLETED})
+# Everything downstream reads this set, never a single member: once Finished,
+# the reason is a record, not a behaviour.
+FINISHED_STATUSES = frozenset({AlertStatus.COMPLETED, AlertStatus.EXPIRED})
+
+
+def expiry_has_passed(expires_at: datetime | None, now: datetime) -> bool:
+    """Whether an Alert's Expiry is behind it.
+
+    One comparison for the evaluator, the sweep and current_status(), so they
+    cannot disagree about the boundary: an Expiry equal to `now` has passed.
+    """
+    return expires_at is not None and expires_at <= now
+
+
+def current_status(
+    status: AlertStatus, expires_at: datetime | None, now: datetime
+) -> AlertStatus:
+    """The Status in force now, which the row may not have caught up with.
+
+    An Alert is Expired from the instant its Expiry passes (CONTEXT.md), but
+    the row says so only once something writes it: the evaluator on the next
+    Tick of the Symbol, the nightly sweep for everything the evaluator cannot
+    see — up to a day for a Paused Alert. Until then the row says `active` or
+    `paused` and this says `expired`. A Finished row is already the truth and
+    keeps its reason: a `once` that Completed does not turn Expired later.
+    """
+    if status in OCCUPYING_STATUSES and expiry_has_passed(expires_at, now):
+        return AlertStatus.EXPIRED
+    return status
 
 
 class Alert(IdUuidPkMixin, TimestampsMixin, Base):
@@ -119,6 +150,11 @@ class Alert(IdUuidPkMixin, TimestampsMixin, Base):
     # When the system took the Alert out of service. `updated_at` cannot serve:
     # any edit moves it.
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The Expiry, as an absolute instant. The client asks for a duration and
+    # the server does the arithmetic, so no browser clock takes part. NULL is
+    # "no Expiry". The stored `status` can lag behind it — current_status()
+    # is the reading that does not.
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Since the Alert was created. Not COUNT(*) over triggers: retention deletes
     # rows after 30 days, and a count that shrinks on its own would lie.
     trigger_count: Mapped[int] = mapped_column(default=0, server_default="0")
