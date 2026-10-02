@@ -1,6 +1,7 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from httpx import AsyncClient
 
 from backend.models import Alert
@@ -174,3 +175,20 @@ async def test_an_alert_past_its_expiry_reads_as_expired_before_the_row_says_so(
     assert body["status"] == "expired"
     await session.refresh(alert)
     assert alert.status is AlertStatus.PAUSED  # nothing has recorded it yet
+
+
+@pytest.mark.parametrize("field", ["threshold", "status"])
+async def test_null_for_what_cannot_be_removed_is_malformed(
+    api_client: AsyncClient, verified_user, auth_headers, field: str
+) -> None:
+    """It used to reach a NOT NULL column and answer 500."""
+    headers = auth_headers(verified_user)
+    alert_id = (await api_client.post(ALERTS, json=PAYLOAD, headers=headers)).json()[
+        "id"
+    ]
+
+    response = await api_client.patch(
+        f"{ALERTS}/{alert_id}", json={field: None}, headers=headers
+    )
+
+    assert response.status_code == 422

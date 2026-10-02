@@ -6,12 +6,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.core.config import settings
 from backend.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from backend.models import Alert
-from backend.models.alert import FINISHED_STATUSES, AlertRepeatPolicy, condition_holds
+from backend.models.alert import (
+    FINISHED_STATUSES,
+    AlertRepeatPolicy,
+    condition_holds,
+    current_status,
+)
 from backend.repositories.alert import AlertRepository
 from backend.schemas.alert import (
     AlertCreate,
     AlertCreateInternal,
     AlertUpdate,
+    AlertUpdateInternal,
     ExpiryPreset,
 )
 from backend.services.prices import PriceCache
@@ -32,9 +38,10 @@ class AlertLimitExceededError(ConflictError):
 
 
 # What a Finished Alert may not be given. One list, consulted by one rule:
-# ticket 06 adds "expires_in_seconds" here, and extending the Expiry of a
-# Finished Alert is refused by the same code that refuses reactivating one.
-REARMING_FIELDS = frozenset({"status"})
+# reactivating it, and touching its Expiry at all — extending it, and
+# removing it too, since an Alert Expired by its Expiry would come back
+# without one.
+REARMING_FIELDS = frozenset({"status", "expires_in_seconds"})
 
 
 def _expiry_from_now(preset: ExpiryPreset | None) -> datetime | None:
@@ -128,9 +135,24 @@ class AlertService:
     ) -> Alert:
         alert = await self.get(alert_id=alert_id, user_id=user_id)
         self._refuse_to_rearm(alert, data)
-        alert = await self.alerts.update(db_obj=alert, schema=data)
+        alert = await self.alerts.update(db_obj=alert, schema=self._to_internal(data))
         await self.session.commit()
         return alert
+
+    @staticmethod
+    def _to_internal(data: AlertUpdate) -> AlertUpdateInternal:
+        """The request, with its duration turned into the Expiry the row stores.
+
+        Built from the fields the client sent and nothing else, so the
+        repository's `exclude_unset` keeps working: an omitted
+        `expires_in_seconds` leaves `expires_at` unset — untouched — while
+        `null` sets it to None, and the repository writes the removal.
+        """
+        fields = data.model_dump(exclude_unset=True)
+        if "expires_in_seconds" in fields:
+            # counted from the edit, not from when the Alert was created
+            fields["expires_at"] = _expiry_from_now(fields.pop("expires_in_seconds"))
+        return AlertUpdateInternal(**fields)
 
     @staticmethod
     def _refuse_to_rearm(alert: Alert, data: AlertUpdate) -> None:
@@ -142,9 +164,15 @@ class AlertService:
         which the message above names, because closing the obvious route
         without naming the intended one strands the user.
         """
-        if alert.status not in FINISHED_STATUSES:
+        # The Status in force now, not the stored one: an Alert whose Expiry
+        # passed is Expired to the person looking at it, whatever the row
+        # says until something records it.
+        status = current_status(alert.status, alert.expires_at, datetime.now(UTC))
+        if status not in FINISHED_STATUSES:
             return
-        if any(getattr(data, field) is not None for field in REARMING_FIELDS):
+        # Present is enough. The schema refuses `null` for `status`, and for
+        # `expires_in_seconds` a `null` removes the Expiry — a revival too.
+        if REARMING_FIELDS & data.model_fields_set:
             raise AlertIsFinishedError
 
     async def delete(self, alert_id: uuid.UUID, user_id: uuid.UUID) -> None:

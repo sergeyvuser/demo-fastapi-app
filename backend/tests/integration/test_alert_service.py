@@ -262,3 +262,79 @@ async def test_the_status_filter_agrees_with_current_status(
         }
         assert {a.id for a in listed} == expected, status
         assert total == len(expected), status
+
+
+async def test_an_edit_that_omits_the_expiry_leaves_it(
+    alert_service, user, alert_factory
+) -> None:
+    alert = await alert_service.create(
+        user_id=user.id,
+        data=alert_factory.build(expires_in_seconds=ExpiryPreset.DAYS_7),
+    )
+    expiry = alert.expires_at
+
+    updated = await alert_service.update(
+        alert_id=alert.id, user_id=user.id, data=AlertUpdate(threshold=Decimal("200"))
+    )
+
+    assert updated.expires_at == expiry
+
+
+async def test_an_edit_that_sends_null_removes_the_expiry(
+    alert_service, user, alert_factory
+) -> None:
+    alert = await alert_service.create(
+        user_id=user.id,
+        data=alert_factory.build(expires_in_seconds=ExpiryPreset.DAYS_7),
+    )
+
+    updated = await alert_service.update(
+        alert_id=alert.id, user_id=user.id, data=AlertUpdate(expires_in_seconds=None)
+    )
+
+    assert updated.expires_at is None
+
+
+async def test_a_new_expiry_is_counted_from_the_edit(
+    alert_service, user, alert_factory
+) -> None:
+    alert = await alert_service.create(
+        user_id=user.id,
+        data=alert_factory.build(expires_in_seconds=ExpiryPreset.HOURS_24),
+    )
+    before = datetime.now(UTC)
+
+    updated = await alert_service.update(
+        alert_id=alert.id,
+        user_id=user.id,
+        data=AlertUpdate(expires_in_seconds=ExpiryPreset.DAYS_30),
+    )
+
+    after = datetime.now(UTC)
+    assert updated.expires_at is not None
+    assert (
+        before + timedelta(days=30) <= updated.expires_at <= after + timedelta(days=30)
+    )
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        AlertUpdate(status=AlertStatus.ACTIVE),
+        AlertUpdate(expires_in_seconds=ExpiryPreset.DAYS_30),
+        AlertUpdate(expires_in_seconds=None),
+    ],
+    ids=["unpause", "extend", "remove"],
+)
+async def test_an_alert_past_its_expiry_cannot_be_brought_back(
+    session, alert_service, user, alert_factory, data
+) -> None:
+    """Paused and forgotten: the row still says `paused`, nothing has
+    recorded the expiry yet, and it is Finished all the same."""
+    alert = await alert_service.create(user_id=user.id, data=alert_factory.build())
+    alert.status = AlertStatus.PAUSED
+    alert.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    await session.flush()
+
+    with pytest.raises(AlertIsFinishedError):
+        await alert_service.update(alert_id=alert.id, user_id=user.id, data=data)

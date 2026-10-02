@@ -9,10 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.models import Alert
 from backend.models.alert import OCCUPYING_STATUSES, AlertStatus, current_status_is
 from backend.repositories.base import BaseRepository
-from backend.schemas.alert import AlertCreateInternal, AlertUpdate
+from backend.schemas.alert import AlertCreateInternal, AlertUpdateInternal
 
 
-class AlertRepository(BaseRepository[Alert, AlertCreateInternal, AlertUpdate]):
+class AlertRepository(BaseRepository[Alert, AlertCreateInternal, AlertUpdateInternal]):
     def __init__(self, session: AsyncSession):
         super().__init__(model=Alert, session=session)
 
