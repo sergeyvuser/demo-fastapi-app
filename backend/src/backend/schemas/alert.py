@@ -4,7 +4,14 @@ from decimal import Decimal
 from enum import IntEnum
 from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from backend.models.alert import (
     AlertCondition,
@@ -96,10 +103,31 @@ class AlertRead(AlertBase):
         return self
 
 
-class AlertUpdate(BaseModel):
+class AlertUpdateBase(BaseModel):
     threshold: Threshold | None = None
     # Only the two statuses a person chooses. A terminal status is the
     # system's to assign, so asking for one is a malformed request, not a
     # refused one — and the two arrive as 422 and 409 accordingly.
     status: Literal[AlertStatus.ACTIVE, AlertStatus.PAUSED] | None = None
     cooldown_seconds: int | None = Field(default=None, ge=60, le=86_400)
+
+
+class AlertUpdate(AlertUpdateBase):
+    # Omitted leaves the Expiry alone; `null` removes it. The two are told
+    # apart by `model_fields_set`, so this field must never gain a validator
+    # or a default factory that fills it in.
+    expires_in_seconds: ExpiryPreset | None = None
+
+    @field_validator("threshold", "status")
+    @classmethod
+    def _refuse_null_for_what_cannot_be_removed(cls, value: object) -> object:
+        # Field validators run only on values the client sent, never on
+        # defaults: an omitted field passes, an explicit `null` is refused.
+        # Without this, `null` reaches a NOT NULL column and answers 500.
+        if value is None:
+            raise ValueError("cannot be null; omit the field to leave it as it is")
+        return value
+
+
+class AlertUpdateInternal(AlertUpdateBase):
+    expires_at: datetime | None = None
