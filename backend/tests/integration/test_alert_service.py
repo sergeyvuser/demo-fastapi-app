@@ -149,7 +149,11 @@ async def test_while_true_never_gets_crossing_state(
 
     alert = await alert_service.create(
         user_id=user.id,
-        data=alert_factory.build(threshold=Decimal("100")),
+        data=alert_factory.build(
+            threshold=Decimal("100"),
+            # the factory picks a policy at random; this test is about one
+            repeat_policy=AlertRepeatPolicy.WHILE_TRUE,
+        ),
     )
 
     # only on_cross has crossing state; the cache is not even consulted
