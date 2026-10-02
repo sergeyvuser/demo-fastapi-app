@@ -38,9 +38,15 @@ under `once` it means nothing, because there is no second Trigger to delay.
 _Avoid_: throttle, debounce, quiet period
 
 **Expiry**:
-An optional deadline after which an Alert stops watching, whether or not it ever went off. An Alert
-without one watches indefinitely.
-_Avoid_: ttl, lifetime, deadline, end date
+The instant after which an Alert stops watching, whether or not it ever went off. Optional — an
+Alert without one watches indefinitely. A person never types the instant: they pick a duration from
+a short fixed list (24 hours, 7 days, 30 days), and the system counts it from the moment of picking.
+_Avoid_: ttl, lifetime, deadline, end date, lapse
+
+**Active**:
+An Alert in service: compared against every Tick of its Symbol, able to Trigger. Where every Alert
+starts, and where an unpaused one returns.
+_Avoid_: enabled, running, live, armed
 
 **Paused**:
 An Alert its owner switched off without deleting, and can switch back on. A Paused Alert makes no
@@ -49,12 +55,19 @@ choice and is always reversible.
 _Avoid_: disabled, inactive, archived, finished
 
 **Finished**:
-An Alert the system itself took out of service, for one of exactly two reasons: it Completed — a
-`once` Alert that has gone off — or it Expired — its Expiry passed. A Finished Alert makes no further
+An Alert the system itself took out of service, for one of exactly two reasons, whichever comes
+first: it **Completed** — a `once` Alert that has gone off — or it **Expired** — its Expiry passed. A
+Finished Alert keeps the reason it got and never gains the other, and it stopped at the moment that
+reason occurred, not when the system got round to recording it. A Finished Alert makes no further
 Triggers and cannot be returned to service; the way to watch that price again is to copy it into a
 new Alert. It is the counterpart of Paused, and the boundary is who decided: a person Pauses an Alert
 and can unpause it, while the system Finishes one and nobody unfinishes it.
 _Avoid_: closed, done, dead, cancelled, archived
+
+**Status**:
+Which of Active, Paused, Completed or Expired an Alert is in — always the one in force now. An Alert
+whose Expiry has passed is Expired from that instant, even before the system has written it down.
+_Avoid_: state
 
 ### The market
 
