@@ -10,6 +10,7 @@ hold up the product: the demo account is a courtesy, not a precondition.
 """
 
 import asyncio
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
 
@@ -76,7 +77,9 @@ async def seed_demo(session: AsyncSession) -> None:
     user.is_verified = True
 
     alerts = AlertRepository(session=session)
-    _, existing = await alerts.list_for_user(user_id=user.id, limit=1)
+    _, existing = await alerts.list_for_user(
+        user_id=user.id, now=datetime.now(UTC), limit=1
+    )
     if existing == 0:
         for example in EXAMPLE_ALERTS:
             await alerts.create(

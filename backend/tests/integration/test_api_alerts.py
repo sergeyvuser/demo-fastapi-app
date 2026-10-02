@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from httpx import AsyncClient
 
@@ -107,6 +108,7 @@ async def test_a_new_alert_reports_its_policy_and_is_not_finished(
     # the default, and exactly today's behaviour — no existing row needed an UPDATE
     assert body["repeat_policy"] == "while_true"
     assert body["finished_at"] is None
+    assert body["expires_at"] is None
 
 
 async def test_a_finished_alert_cannot_be_returned_to_service(
@@ -150,3 +152,25 @@ async def test_a_terminal_status_cannot_be_asked_for(
     )
 
     assert response.status_code == 422
+
+
+async def test_an_alert_past_its_expiry_reads_as_expired_before_the_row_says_so(
+    api_client: AsyncClient, session, verified_user, auth_headers
+) -> None:
+    headers = auth_headers(verified_user)
+    created = await api_client.post(
+        ALERTS, json={**PAYLOAD, "expires_in_seconds": 86_400}, headers=headers
+    )
+    assert created.json()["expires_at"] is not None
+    alert_id = created.json()["id"]
+    # "paused and forgotten": the case the evaluator never sees
+    alert = await session.get(Alert, uuid.UUID(alert_id))
+    alert.status = AlertStatus.PAUSED
+    alert.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    await session.flush()
+
+    body = (await api_client.get(f"{ALERTS}/{alert_id}", headers=headers)).json()
+
+    assert body["status"] == "expired"
+    await session.refresh(alert)
+    assert alert.status is AlertStatus.PAUSED  # nothing has recorded it yet

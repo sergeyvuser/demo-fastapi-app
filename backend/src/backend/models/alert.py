@@ -4,7 +4,18 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Numeric, String, false
+from sqlalchemy import (
+    ColumnElement,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    and_,
+    false,
+    or_,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -160,3 +171,24 @@ class Alert(IdUuidPkMixin, TimestampsMixin, Base):
     trigger_count: Mapped[int] = mapped_column(default=0, server_default="0")
 
     __table_args__ = (Index("ix_alerts_symbol_status", "symbol", "status"),)
+
+
+def current_status_is(status: AlertStatus, now: datetime) -> ColumnElement[bool]:
+    """current_status() as a WHERE clause: the rows whose Status in force now
+    is `status`.
+
+    A second spelling of one rule, kept in this file so the two change
+    together, and pinned to agree by a test. The boundary is the same: an
+    Expiry equal to `now` has passed.
+    """
+    expired = and_(Alert.status.in_(OCCUPYING_STATUSES), Alert.expires_at <= now)
+    if status is AlertStatus.EXPIRED:
+        return or_(Alert.status == AlertStatus.EXPIRED, expired)
+    if status in OCCUPYING_STATUSES:
+        # Spelled positively, not as NOT(expired): with no Expiry the
+        # comparison is NULL, and NOT NULL would drop every such row.
+        return and_(
+            Alert.status == status,
+            or_(Alert.expires_at.is_(None), Alert.expires_at > now),
+        )
+    return Alert.status == status

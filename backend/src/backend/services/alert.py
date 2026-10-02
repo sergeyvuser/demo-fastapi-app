@@ -119,7 +119,9 @@ class AlertService:
         return alert
 
     async def list(self, user_id: uuid.UUID, **filters):
-        return await self.alerts.list_for_user(user_id=user_id, **filters)
+        return await self.alerts.list_for_user(
+            user_id=user_id, now=datetime.now(UTC), **filters
+        )
 
     async def update(
         self, alert_id: uuid.UUID, user_id: uuid.UUID, data: AlertUpdate

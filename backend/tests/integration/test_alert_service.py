@@ -3,7 +3,12 @@ from decimal import Decimal
 
 import pytest
 
-from backend.models.alert import AlertCondition, AlertRepeatPolicy, AlertStatus
+from backend.models.alert import (
+    AlertCondition,
+    AlertRepeatPolicy,
+    AlertStatus,
+    current_status,
+)
 from backend.schemas.alert import AlertUpdate, ExpiryPreset
 from backend.services.alert import (
     MAX_ALERTS_PER_USER,
@@ -221,3 +226,39 @@ async def test_an_alert_created_without_an_expiry_has_none(
     alert = await alert_service.create(user_id=user.id, data=alert_factory.build())
 
     assert alert.expires_at is None
+
+
+async def test_the_status_filter_agrees_with_current_status(
+    session, alert_service, user, alert_factory
+) -> None:
+    """One rule, two spellings: the Python one AlertRead uses and the SQL one
+    the list filter uses. Every combination that matters, both ways."""
+    now = datetime.now(UTC)
+    hour = timedelta(hours=1)
+    rows = [
+        (AlertStatus.ACTIVE, None),
+        (AlertStatus.ACTIVE, now + hour),
+        (AlertStatus.ACTIVE, now - hour),
+        (AlertStatus.PAUSED, now + hour),
+        (AlertStatus.PAUSED, now - hour),
+        (AlertStatus.COMPLETED, now - hour),  # keeps its reason
+        (AlertStatus.EXPIRED, now - hour),  # already recorded
+    ]
+    alerts = []
+    for stored, expires_at in rows:
+        alert = await alert_service.create(user_id=user.id, data=alert_factory.build())
+        alert.status = stored
+        alert.expires_at = expires_at
+        alerts.append(alert)
+    await session.flush()
+
+    for status in AlertStatus:
+        listed, total = await alert_service.list(user.id, status=status)
+
+        expected = {
+            a.id
+            for a in alerts
+            if current_status(a.status, a.expires_at, now) is status
+        }
+        assert {a.id for a in listed} == expected, status
+        assert total == len(expected), status

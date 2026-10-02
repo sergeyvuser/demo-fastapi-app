@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +18,9 @@ async def demo_user(session: AsyncSession) -> User:
 
 
 async def alert_count(session: AsyncSession, user_id: uuid.UUID) -> int:
-    _, total = await AlertRepository(session).list_for_user(user_id, limit=1)
+    _, total = await AlertRepository(session).list_for_user(
+        user_id, now=datetime.now(UTC), limit=1
+    )
     return total
 
 

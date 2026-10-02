@@ -7,7 +7,7 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Alert
-from backend.models.alert import OCCUPYING_STATUSES, AlertStatus
+from backend.models.alert import OCCUPYING_STATUSES, AlertStatus, current_status_is
 from backend.repositories.base import BaseRepository
 from backend.schemas.alert import AlertCreateInternal, AlertUpdate
 
@@ -27,6 +27,7 @@ class AlertRepository(BaseRepository[Alert, AlertCreateInternal, AlertUpdate]):
         self,
         user_id: uuid.UUID,
         *,
+        now: datetime,
         status: AlertStatus | None = None,
         symbol: str | None = None,
         skip: int = 0,
@@ -34,7 +35,9 @@ class AlertRepository(BaseRepository[Alert, AlertCreateInternal, AlertUpdate]):
     ) -> tuple[Sequence[Alert], int]:
         where = [Alert.user_id == user_id]
         if status is not None:
-            where.append(Alert.status == status)
+            # the Status in force now, as AlertRead reports it — not the
+            # stored one, or a filter would disagree with the items it returns
+            where.append(current_status_is(status, now))
         if symbol is not None:
             where.append(Alert.symbol == symbol)
 

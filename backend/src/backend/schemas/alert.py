@@ -1,12 +1,17 @@
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from enum import IntEnum
 from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
-from backend.models.alert import AlertCondition, AlertRepeatPolicy, AlertStatus
+from backend.models.alert import (
+    AlertCondition,
+    AlertRepeatPolicy,
+    AlertStatus,
+    current_status,
+)
 
 Symbol = Annotated[
     str,
@@ -69,11 +74,26 @@ class AlertRead(AlertBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    status: AlertStatus
+    status: AlertStatus = Field(
+        description=(
+            "The Status in force now. An Alert whose `expires_at` has passed "
+            "reads `expired` from that instant, even before the system has "
+            "recorded it."
+        )
+    )
     last_triggered_at: datetime | None
     finished_at: datetime | None
+    expires_at: datetime | None
     trigger_count: int
     created_at: datetime
+
+    @model_validator(mode="after")
+    def _report_the_status_in_force_now(self) -> Self:
+        # The row can lag behind the Expiry by up to a day (see
+        # current_status); a reader is told what is true, not what was last
+        # written.
+        self.status = current_status(self.status, self.expires_at, datetime.now(UTC))
+        return self
 
 
 class AlertUpdate(BaseModel):
