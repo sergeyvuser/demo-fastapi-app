@@ -148,7 +148,7 @@ async def api_client(
 
     async with AsyncClient(
         transport=ASGITransport(app=fastapi_app),
-        base_url="http://test",
+        base_url="https://test",
     ) as client:
         yield client
 

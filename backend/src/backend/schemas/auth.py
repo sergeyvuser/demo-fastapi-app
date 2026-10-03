@@ -1,14 +1,9 @@
 from pydantic import BaseModel, Field
 
 
-class TokenPair(BaseModel):
+class AccessToken(BaseModel):
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
-
-
-class RefreshRequest(BaseModel):
-    refresh_token: str
 
 
 class VerificationRequest(BaseModel):

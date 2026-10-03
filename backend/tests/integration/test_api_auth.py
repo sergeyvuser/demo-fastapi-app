@@ -11,6 +11,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from redis.asyncio import Redis
 
+from backend.api.v1.routes.auth import REFRESH_COOKIE, REFRESH_COOKIE_PATH
 from backend.core.config import settings
 from backend.core.verification import (
     TOKEN_BYTES,
@@ -23,9 +24,31 @@ from backend.models.user import User
 
 REGISTER = "/api/v1/auth/register"
 LOGIN = "/api/v1/auth/login"
+LOGOUT = "/api/v1/auth/logout"
 REFRESH = "/api/v1/auth/refresh"
 VERIFY = "/api/v1/auth/verify"
 RESEND = "/api/v1/auth/resend-verification"
+
+
+async def _login(client: AsyncClient, user: User, password: str) -> str:
+    """Sign in; the client's jar now holds the refresh cookie. Returns its value."""
+    response = await client.post(
+        LOGIN, data={"username": user.email, "password": password}
+    )
+    assert response.status_code == 200
+    return client.cookies[REFRESH_COOKIE]
+
+
+async def _refresh_with(client: AsyncClient, refresh_token: str):
+    """Present one specific refresh token, whatever the jar holds.
+
+    A browser can only ever send the cookie it has; replaying a retired one is
+    what an attacker with a stolen copy does, so it is spelled out by hand.
+    """
+    client.cookies.clear()
+    return await client.post(
+        REFRESH, headers={"Cookie": f"{REFRESH_COOKIE}={refresh_token}"}
+    )
 
 
 @pytest.fixture
@@ -85,7 +108,7 @@ async def test_duplicate_email_is_a_conflict(
     assert response.json().keys() >= {"type", "title", "status", "detail", "instance"}
 
 
-async def test_login_returns_a_token_pair(
+async def test_login_sets_the_refresh_cookie_and_keeps_it_out_of_the_body(
     api_client: AsyncClient, user_with_password: User, password: str
 ) -> None:
     # OAuth2PasswordRequestForm reads a FORM body, not JSON — hence data=
@@ -94,9 +117,17 @@ async def test_login_returns_a_token_pair(
     )
 
     assert response.status_code == 200
-    body = response.json()
-    assert body["token_type"] == "bearer"
-    assert body["access_token"] and body["refresh_token"]
+    assert response.json().keys() == {"access_token", "token_type"}
+    cookie = response.headers["set-cookie"].lower()
+    assert cookie.startswith(f"{REFRESH_COOKIE}=")
+    for attribute in (
+        "httponly",
+        "secure",
+        "samesite=strict",
+        f"path={REFRESH_COOKIE_PATH}",
+        f"max-age={settings.auth.refresh_token_ttl_days * 24 * 60 * 60}",
+    ):
+        assert attribute in cookie
 
 
 async def test_wrong_password_is_unauthorized(
@@ -151,33 +182,50 @@ async def test_repeated_registrations_hit_the_rate_limiter(
     assert int(refused.headers["retry-after"]) > 0
 
 
+async def test_refresh_replaces_the_cookie(
+    api_client: AsyncClient, user_with_password: User, password: str
+) -> None:
+    issued = await _login(api_client, user_with_password, password)
+
+    response = await api_client.post(REFRESH)  # the jar sends the cookie itself
+
+    assert response.status_code == 200
+    assert response.json().keys() == {"access_token", "token_type"}
+    # unobservable while the token travelled in bodies: the jar holds exactly
+    # one cookie by that name, and it is no longer the one login issued
+    assert api_client.cookies[REFRESH_COOKIE] != issued
+
+
+async def test_refresh_without_a_cookie_is_unauthorized(
+    api_client: AsyncClient,
+) -> None:
+    assert (await api_client.post(REFRESH)).status_code == 401
+
+
 async def test_replaying_a_rotated_refresh_token_kills_the_family(
     api_client: AsyncClient, user_with_password: User, password: str
 ) -> None:
-    pair = (
-        await api_client.post(
-            LOGIN, data={"username": user_with_password.email, "password": password}
-        )
-    ).json()
-
-    rotated = await api_client.post(
-        REFRESH, json={"refresh_token": pair["refresh_token"]}
-    )
-    assert rotated.status_code == 200
-    fresh = rotated.json()
-    assert fresh["refresh_token"] != pair["refresh_token"]
+    issued = await _login(api_client, user_with_password, password)
+    assert (await api_client.post(REFRESH)).status_code == 200
+    fresh = api_client.cookies[REFRESH_COOKIE]
 
     # presenting the retired token means it leaked: revoke everything
-    replayed = await api_client.post(
-        REFRESH, json={"refresh_token": pair["refresh_token"]}
-    )
-    assert replayed.status_code == 401
-
+    assert (await _refresh_with(api_client, issued)).status_code == 401
     # ...including the token that was legitimately issued a moment ago
-    after_breach = await api_client.post(
-        REFRESH, json={"refresh_token": fresh["refresh_token"]}
-    )
-    assert after_breach.status_code == 401
+    assert (await _refresh_with(api_client, fresh)).status_code == 401
+
+
+async def test_logout_revokes_and_clears_the_refresh_cookie(
+    api_client: AsyncClient, user_with_password: User, password: str
+) -> None:
+    issued = await _login(api_client, user_with_password, password)
+
+    response = await api_client.post(LOGOUT)
+
+    assert response.status_code == 204
+    assert REFRESH_COOKIE not in api_client.cookies
+    # cleared in the browser is not enough: a copy taken earlier must be dead too
+    assert (await _refresh_with(api_client, issued)).status_code == 401
 
 
 async def test_verification_marks_the_user(

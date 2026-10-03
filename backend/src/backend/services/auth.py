@@ -1,4 +1,5 @@
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
@@ -19,7 +20,6 @@ from backend.core.verification import (
 from backend.models.user import User
 from backend.repositories.refresh_token import RefreshTokenRepository
 from backend.repositories.user import UserRepository
-from backend.schemas.auth import TokenPair
 from backend.schemas.user import UserCreate, UserCreateInternal
 from backend.tasks.email import send_verification_email
 from shared.metrics import auth_successes
@@ -48,6 +48,19 @@ class VerificationLinkGoneError(GoneError):
     # the label the Grafana panel already groups by; an expired link is a
     # failure of the authentication funnel, so it keeps being counted
     metric_reason = "invalid_verification"
+
+
+@dataclass(frozen=True, slots=True)
+class IssuedTokens:
+    """What a sign-in or a rotation hands out.
+
+    Deliberately not a response schema: the two halves leave by different
+    channels — the access token in the body, the refresh token in an httpOnly
+    cookie — and deciding that is the HTTP layer's job, not this service's.
+    """
+
+    access_token: str
+    refresh_token: str
 
 
 # Pre-calculated hash for response time alignment (see login)
@@ -122,7 +135,7 @@ class AuthService:
 
     async def login(
         self, email: str, password: str, user_agent: str | None = None
-    ) -> TokenPair:
+    ) -> IssuedTokens:
         user = await self.users.get_by_email(email)
         if user is None:
             # Spend as much time verifying fakes as we do verifying real ones.
@@ -133,14 +146,18 @@ class AuthService:
             or not user.is_active
         ):
             raise InvalidCredentialsError
-        pair = await self._issue_pair(user_id=user.id, user_agent=user_agent)
+        tokens = await self._issue_tokens(user_id=user.id, user_agent=user_agent)
         await self.session.commit()
         auth_successes.inc()
-        return pair
+        return tokens
 
     async def refresh(
-        self, refresh_token: str, user_agent: str | None = None
-    ) -> TokenPair:
+        self, refresh_token: str | None, user_agent: str | None = None
+    ) -> IssuedTokens:
+        if refresh_token is None:
+            # no cookie at all: the browser was never signed in here, or the
+            # cookie expired on its own — the same answer as a forged one
+            raise InvalidRefreshTokenError
         token = await self.tokens.get_by_hash(
             token_hash=security.hash_refresh_token(refresh_token)
         )
@@ -156,11 +173,13 @@ class AuthService:
         if token.expires_at <= now:
             raise InvalidRefreshTokenError
         await self.tokens.revoke(token)  # rotation: the old one goes out
-        pair = await self._issue_pair(user_id=token.user_id, user_agent=user_agent)
+        tokens = await self._issue_tokens(user_id=token.user_id, user_agent=user_agent)
         await self.session.commit()
-        return pair
+        return tokens
 
-    async def logout(self, refresh_token: str) -> None:
+    async def logout(self, refresh_token: str | None) -> None:
+        if refresh_token is None:
+            return
         token = await self.tokens.get_by_hash(
             token_hash=security.hash_refresh_token(refresh_token)
         )
@@ -168,9 +187,9 @@ class AuthService:
             await self.tokens.revoke(token)
             await self.session.commit()
 
-    async def _issue_pair(
+    async def _issue_tokens(
         self, user_id: uuid.UUID, user_agent: str | None
-    ) -> TokenPair:
+    ) -> IssuedTokens:
         raw_refresh = security.generate_refresh_token()
         await self.tokens.add(
             user_id=user_id,
@@ -179,7 +198,7 @@ class AuthService:
             + timedelta(days=settings.auth.refresh_token_ttl_days),
             user_agent=user_agent,
         )
-        return TokenPair(
+        return IssuedTokens(
             access_token=security.create_access_token(user_id=user_id),
             refresh_token=raw_refresh,
         )
