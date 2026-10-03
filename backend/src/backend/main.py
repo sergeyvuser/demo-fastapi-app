@@ -23,6 +23,15 @@ configure_logging(settings.log)
 app = FastAPI(
     title="Crypto Alerts Backend Service",
     lifespan=lifespan,
+    # Everything public lives under /api, the docs included: the edge proxy
+    # hands every other path to the frontend (ADR 0004), so a route at the
+    # root would not fail loudly — it would quietly serve the application shell.
+    # The OAuth2 redirect is Swagger UI's own route and defaults to the root.
+    # ReDoc is off: one docs UI is enough, and a second is a second path to keep.
+    docs_url=f"{settings.api.prefix}/docs",
+    swagger_ui_oauth2_redirect_url=f"{settings.api.prefix}/docs/oauth2-redirect",
+    openapi_url=f"{settings.api.prefix}/openapi.json",
+    redoc_url=None,
 )
 app.add_middleware(CorrelationIdMiddleware)
 # add_middleware inserts at position 0, so the LAST one added runs FIRST.
