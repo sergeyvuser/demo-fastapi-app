@@ -49,3 +49,23 @@ async def test_the_sweep_expires_a_paused_alert_the_evaluator_never_sees(
         assert alert.status is AlertStatus.EXPIRED
         # five hours late, and still the instant it stopped
         assert alert.finished_at == expires_at
+
+
+@pytest.mark.usefixtures("tasks_use_the_test_engine")
+async def test_the_sweep_leaves_an_alert_whose_expiry_is_still_ahead(
+    db_engine: AsyncEngine, committed_alert: Alert
+) -> None:
+    """An hour ahead is ahead in every zone. Swept against a naive local
+    `now`, east of UTC this Alert would be expired hours early."""
+    async with AsyncSessionLocal(bind=db_engine) as setup:
+        alert = await setup.get(Alert, committed_alert.id)
+        assert alert is not None
+        alert.status = AlertStatus.PAUSED
+        alert.expires_at = datetime.now(UTC) + timedelta(hours=1)
+        await setup.commit()
+
+    await expire_alerts()
+
+    async with AsyncSessionLocal(bind=db_engine) as check:
+        alert = await check.get(Alert, committed_alert.id)
+        assert alert is not None and alert.status is AlertStatus.PAUSED

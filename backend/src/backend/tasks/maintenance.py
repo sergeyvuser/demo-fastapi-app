@@ -109,7 +109,7 @@ async def expire_alerts() -> int:
     from each, like the rest of the night.
     """
     async with AsyncSessionLocal() as session:
-        expired = await AlertRepository(session).mark_expired(now=datetime.now())
+        expired = await AlertRepository(session).mark_expired(now=datetime.now(UTC))
         await session.commit()
     logger.bind(expired=expired).info("alert expiry sweep finished")
     return expired

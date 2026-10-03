@@ -56,6 +56,7 @@ select = [
     "ASYNC", # async pitfalls: blocking calls in async code
     "RUF", # ruff-specific
     "G",
+    "DTZ", # flake8-datetimez — no naive datetimes
 ]
 
 [tool.ruff.lint.per-file-ignores]
