@@ -4,6 +4,7 @@ from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from backend.api.deps import CurrentUserDep, RedisDep
+from backend.api.ws.manager import manager
 from backend.core.config import settings
 from backend.core.db import AsyncSessionDep
 from backend.core.rate_limit import FixedWindowRateLimiter
@@ -153,4 +154,6 @@ async def logout(
     # Authenticated by the bearer token, not by the cookie: no state-changing
     # route trusts a cookie, so the CSRF surface stays /refresh alone.
     await AuthService(session).logout(current_user, refresh_token)
+    # after the commit: a socket is only cut once the revocation is durable
+    await manager.disconnect_user(current_user.id)
     _clear_refresh_cookie(response)

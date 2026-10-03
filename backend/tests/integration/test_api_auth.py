@@ -3,6 +3,7 @@ import uuid
 from collections.abc import Callable, Generator
 
 import pytest
+from fastapi import status
 from httpx import AsyncClient
 from loguru import logger
 from opentelemetry import trace
@@ -12,6 +13,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from redis.asyncio import Redis
 
 from backend.api.v1.routes.auth import REFRESH_COOKIE, REFRESH_COOKIE_PATH
+from backend.api.ws.manager import Connection, manager
 from backend.core.config import settings
 from backend.core.verification import (
     TOKEN_BYTES,
@@ -70,6 +72,41 @@ async def _seed_pending(redis: Redis, token: str, user_id: uuid.UUID) -> None:
         PendingVerification(user_id=user_id).model_dump_json(),
         ex=TOKEN_TTL_SECONDS,
     )
+
+
+class _FakeSocket:
+    """Stands in for a WebSocket: the manager only ever calls close() on it."""
+
+    def __init__(self, *, gone: bool = False) -> None:
+        self.gone = gone
+        self.closed_with: int | None = None
+
+    async def close(self, code: int = 1000, reason: str | None = None) -> None:
+        if self.gone:
+            # what Starlette raises when the client already went away
+            raise RuntimeError("Cannot call 'send' once a close message has been sent")
+        self.closed_with = code
+
+
+@pytest.fixture
+def open_socket() -> Generator[Callable[..., _FakeSocket]]:
+    """Register sockets with the real manager, and take them out afterwards.
+
+    No endpoint runs here, so nothing else would unregister them — and the
+    manager is a module-level singleton that outlives the test.
+    """
+    opened: list[Connection] = []
+
+    def _open(user_id: uuid.UUID, *, gone: bool = False) -> _FakeSocket:
+        ws = _FakeSocket(gone=gone)
+        conn = Connection(ws=ws, user_id=user_id)  # type: ignore[arg-type]
+        manager.register(conn)
+        opened.append(conn)
+        return ws
+
+    yield _open
+    for conn in opened:
+        manager.unregister(conn)
 
 
 async def test_register_creates_user_and_hands_off_the_email(
@@ -264,6 +301,38 @@ async def test_logout_leaves_other_devices_able_to_refresh(
     # revocation is per User for access tokens only; the other device's
     # refresh cookie is its own session, and it carries on
     assert (await _refresh_with(api_client, other_device)).status_code == 200
+
+
+async def test_logout_closes_every_socket_of_that_user_and_no_other(
+    api_client: AsyncClient,
+    user: User,
+    other_user: User,
+    auth_headers: Callable[[User], dict[str, str]],
+    open_socket: Callable[..., _FakeSocket],
+) -> None:
+    tabs = [open_socket(user.id), open_socket(user.id)]  # e.g. phone and laptop
+    bystander = open_socket(other_user.id)
+
+    response = await api_client.post(LOGOUT, headers=auth_headers(user))
+
+    assert response.status_code == 204
+    assert [ws.closed_with for ws in tabs] == [status.WS_1008_POLICY_VIOLATION] * 2
+    assert bystander.closed_with is None
+
+
+async def test_a_socket_already_gone_does_not_spare_the_others(
+    api_client: AsyncClient,
+    user: User,
+    auth_headers: Callable[[User], dict[str, str]],
+    open_socket: Callable[..., _FakeSocket],
+) -> None:
+    open_socket(user.id, gone=True)
+    survivor = open_socket(user.id)
+
+    response = await api_client.post(LOGOUT, headers=auth_headers(user))
+
+    assert response.status_code == 204
+    assert survivor.closed_with == status.WS_1008_POLICY_VIOLATION
 
 
 async def test_verification_marks_the_user(

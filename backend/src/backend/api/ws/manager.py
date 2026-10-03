@@ -4,7 +4,7 @@ import uuid
 from collections import defaultdict
 from typing import Any, TypedDict
 
-from fastapi import WebSocket
+from fastapi import WebSocket, status
 
 from shared.events import AlertTriggeredEvent, TickEvent
 from shared.metrics import ws_connections
@@ -50,6 +50,23 @@ class ConnectionManager:
     def unregister(self, conn: Connection) -> None:
         self._connections.discard(conn)
         ws_connections.dec()
+
+    async def disconnect_user(self, user_id: uuid.UUID) -> None:
+        """Close every socket this User holds, on every device.
+
+        SINGLE-INSTANCE ONLY. This sees the sockets of this process and no
+        other: with a second API replica, a logout handled by one replica
+        leaves the User's sockets on the other open. Scaling out means
+        replacing this with a broadcast (e.g. a "user signed out" event every
+        replica consumes) — until then `api` must stay one container.
+        """
+        # a snapshot: each close lets the endpoint's `finally` unregister its
+        # connection, which would change the set mid-iteration
+        for conn in [c for c in self._connections if c.user_id == user_id]:
+            # the client may be gone already; one dead socket must not leave
+            # the rest open, nor fail the logout that asked for it
+            with contextlib.suppress(RuntimeError, OSError):
+                await conn.ws.close(code=status.WS_1008_POLICY_VIOLATION)
 
     @property
     def active_count(self) -> int:
