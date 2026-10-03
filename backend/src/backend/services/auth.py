@@ -177,15 +177,24 @@ class AuthService:
         await self.session.commit()
         return tokens
 
-    async def logout(self, refresh_token: str | None) -> None:
-        if refresh_token is None:
-            return
-        token = await self.tokens.get_by_hash(
-            token_hash=security.hash_refresh_token(refresh_token)
-        )
-        if token is not None and token.revoked_at is None:
-            await self.tokens.revoke(token)
-            await self.session.commit()
+    async def logout(self, user: User, refresh_token: str | None) -> None:
+        # Every access token this User holds dies here, on every device. The
+        # other devices' refresh cookies survive, so they re-refresh and carry
+        # on; only this one is actually signed out.
+        user.tokens_valid_from = datetime.now(UTC)
+        if refresh_token is not None:
+            token = await self.tokens.get_by_hash(
+                token_hash=security.hash_refresh_token(refresh_token)
+            )
+            # only the caller's own: a cookie naming another User is not this
+            # request's to revoke
+            if (
+                token is not None
+                and token.user_id == user.id
+                and token.revoked_at is None
+            ):
+                await self.tokens.revoke(token)
+        await self.session.commit()
 
     async def _issue_tokens(
         self, user_id: uuid.UUID, user_agent: str | None

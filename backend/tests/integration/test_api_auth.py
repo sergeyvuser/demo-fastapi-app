@@ -28,6 +28,7 @@ LOGOUT = "/api/v1/auth/logout"
 REFRESH = "/api/v1/auth/refresh"
 VERIFY = "/api/v1/auth/verify"
 RESEND = "/api/v1/auth/resend-verification"
+ME = "/api/v1/users/me"
 
 
 async def _login(client: AsyncClient, user: User, password: str) -> str:
@@ -216,16 +217,53 @@ async def test_replaying_a_rotated_refresh_token_kills_the_family(
 
 
 async def test_logout_revokes_and_clears_the_refresh_cookie(
-    api_client: AsyncClient, user_with_password: User, password: str
+    api_client: AsyncClient,
+    user_with_password: User,
+    password: str,
+    auth_headers: Callable[[User], dict[str, str]],
 ) -> None:
     issued = await _login(api_client, user_with_password, password)
 
-    response = await api_client.post(LOGOUT)
+    response = await api_client.post(LOGOUT, headers=auth_headers(user_with_password))
 
     assert response.status_code == 204
     assert REFRESH_COOKIE not in api_client.cookies
     # cleared in the browser is not enough: a copy taken earlier must be dead too
     assert (await _refresh_with(api_client, issued)).status_code == 401
+
+
+async def test_logout_requires_a_session(api_client: AsyncClient) -> None:
+    assert (await api_client.post(LOGOUT)).status_code == 401
+
+
+async def test_an_access_token_issued_before_logout_is_rejected(
+    api_client: AsyncClient,
+    user: User,
+    auth_headers: Callable[[User], dict[str, str]],
+) -> None:
+    headers = auth_headers(user)
+    assert (await api_client.get(ME, headers=headers)).status_code == 200
+
+    assert (await api_client.post(LOGOUT, headers=headers)).status_code == 204
+
+    # the same token, still well inside its 15 minutes
+    assert (await api_client.get(ME, headers=headers)).status_code == 401
+
+
+async def test_logout_leaves_other_devices_able_to_refresh(
+    api_client: AsyncClient,
+    user_with_password: User,
+    password: str,
+    auth_headers: Callable[[User], dict[str, str]],
+) -> None:
+    other_device = await _login(api_client, user_with_password, password)
+    await _login(api_client, user_with_password, password)  # this device
+
+    await api_client.post(LOGOUT, headers=auth_headers(user_with_password))
+
+    # revocation is per User for access tokens only; the other device's
+    # refresh cookie is its own session, and it carries on
+    assert (await _refresh_with(api_client, other_device)).status_code == 200
 
 
 async def test_verification_marks_the_user(

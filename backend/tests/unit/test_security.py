@@ -1,10 +1,14 @@
 import uuid
+from datetime import UTC, datetime
 
 import jwt
 import pytest
 
 from backend.core import security
 from backend.core.config import settings
+
+EPOCH = datetime(2026, 10, 3, 12, 0, 0, 700_000, tzinfo=UTC)  # mid-second logout
+EPOCH_SECOND = int(EPOCH.timestamp())
 
 
 def test_password_verifies_against_its_own_hash() -> None:
@@ -53,3 +57,21 @@ def test_refresh_token_hash_is_deterministic_and_unique() -> None:
 
     assert security.hash_refresh_token(token) == security.hash_refresh_token(token)
     assert security.hash_refresh_token(token) != security.hash_refresh_token(other)
+
+
+def test_a_token_issued_in_the_same_second_as_the_logout_is_revoked() -> None:
+    # it cannot be told apart from one issued a moment before the logout,
+    # so the rounding has to fail closed
+    assert security.revoked_by_epoch(EPOCH_SECOND, EPOCH)
+
+
+def test_a_token_issued_before_the_logout_is_revoked() -> None:
+    assert security.revoked_by_epoch(EPOCH_SECOND - 1, EPOCH)
+
+
+def test_a_token_issued_after_the_logout_second_survives() -> None:
+    assert not security.revoked_by_epoch(EPOCH_SECOND + 1, EPOCH)
+
+
+def test_without_an_epoch_nothing_is_revoked() -> None:
+    assert not security.revoked_by_epoch(EPOCH_SECOND, None)

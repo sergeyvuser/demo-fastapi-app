@@ -145,7 +145,12 @@ async def refresh(
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
-    session: AsyncSessionDep, response: Response, refresh_token: RefreshCookie = None
+    current_user: CurrentUserDep,
+    session: AsyncSessionDep,
+    response: Response,
+    refresh_token: RefreshCookie = None,
 ):
-    await AuthService(session).logout(refresh_token)
+    # Authenticated by the bearer token, not by the cookie: no state-changing
+    # route trusts a cookie, so the CSRF surface stays /refresh alone.
+    await AuthService(session).logout(current_user, refresh_token)
     _clear_refresh_cookie(response)

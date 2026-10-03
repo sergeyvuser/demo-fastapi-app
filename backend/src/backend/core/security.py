@@ -44,6 +44,20 @@ def decode_access_token(token: str) -> dict[str, Any]:
     )
 
 
+def revoked_by_epoch(issued_at: int, tokens_valid_from: datetime | None) -> bool:
+    """Whether a logout has revoked a token issued at `issued_at`.
+
+    `iat` is whole seconds, the epoch is not. Truncating the epoch and using
+    `<=` makes a token minted in the same second as the logout revoked, never
+    spared: it may have been issued a moment after the button was pressed, but
+    it may just as well have been issued a moment before, and the rounding has
+    to fail closed.
+    """
+    if tokens_valid_from is None:
+        return False
+    return issued_at <= int(tokens_valid_from.timestamp())
+
+
 def generate_refresh_token() -> str:
     return secrets.token_urlsafe(48)
 

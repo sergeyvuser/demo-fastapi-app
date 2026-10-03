@@ -31,10 +31,16 @@ async def get_current_user(
     try:
         payload = security.decode_access_token(token)
         user_id = uuid.UUID(payload["sub"])
+        issued_at = payload["iat"]
     except jwt.InvalidTokenError, KeyError, ValueError:
         raise _credentials_exc from None
     user = await UserRepository(session=session).get_by_id(user_id)
-    if user is None or not user.is_active:
+    # the row is loaded anyway for the active check, so the epoch costs nothing
+    if (
+        user is None
+        or not user.is_active
+        or security.revoked_by_epoch(issued_at, user.tokens_valid_from)
+    ):
         raise _credentials_exc
     return user
 
