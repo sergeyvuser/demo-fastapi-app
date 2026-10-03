@@ -1,7 +1,8 @@
 from collections.abc import AsyncGenerator
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 from fastapi import Depends
+from sqlalchemy import CursorResult, Executable
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -37,3 +38,16 @@ async def get_async_db_session() -> AsyncGenerator[AsyncSession]:
 
 
 AsyncSessionDep = Annotated[AsyncSession, Depends(get_async_db_session)]
+
+
+async def rows_affected(session: AsyncSession, stmt: Executable) -> int:
+    """Run a bulk UPDATE or DELETE and say how many rows it touched.
+
+    The caller commits. One home for the cast below, which every bulk
+    statement in the project otherwise repeats.
+    """
+    # DML execute returns a CursorResult at runtime; the signature says Result
+    result = cast(CursorResult[Any], await session.execute(stmt))
+    # rowcount is a SQLAlchemy memoized_property; PyCharm reads the raw function
+    # noinspection PyTypeChecker
+    return result.rowcount

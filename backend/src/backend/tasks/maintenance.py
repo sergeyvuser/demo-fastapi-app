@@ -1,11 +1,10 @@
 from datetime import UTC, datetime, timedelta
-from typing import Any, cast
 
 from loguru import logger
-from sqlalchemy import CursorResult, delete, or_
+from sqlalchemy import delete, or_
 
 from backend.core.config import settings
-from backend.core.db import AsyncSessionLocal
+from backend.core.db import AsyncSessionLocal, rows_affected
 from backend.models import RefreshToken
 from backend.repositories.alert import AlertRepository
 from backend.repositories.trigger import TriggerRepository
@@ -34,23 +33,18 @@ async def cleanup_refresh_tokens() -> int:
 
     cutoff = retention_cutoff(RETENTION_TOKENS)
     async with AsyncSessionLocal() as session:
-        # DML execute returns a CursorResult at runtime; the signature says Result
-        result = cast(
-            CursorResult[Any],
-            await session.execute(
-                delete(RefreshToken).where(
-                    or_(
-                        RefreshToken.expires_at < cutoff,
-                        RefreshToken.revoked_at < cutoff,
-                    )
+        purged = await rows_affected(
+            session,
+            delete(RefreshToken).where(
+                or_(
+                    RefreshToken.expires_at < cutoff,
+                    RefreshToken.revoked_at < cutoff,
                 )
             ),
         )
         await session.commit()
-    logger.bind(purged=result.rowcount).info("refresh token cleanup finished")
-    # rowcount is a SQLAlchemy memoized_property; PyCharm reads the raw function
-    # noinspection PyTypeChecker
-    return result.rowcount
+    logger.bind(purged=purged).info("refresh token cleanup finished")
+    return purged
 
 
 @broker.task(schedule=[{"cron": "0 4 * * *"}])

@@ -12,14 +12,13 @@ hold up the product: the demo account is a courtesy, not a precondition.
 import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, cast
 
 from loguru import logger
-from sqlalchemy import CursorResult, delete
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.config import settings
-from backend.core.db import AsyncSessionLocal
+from backend.core.db import AsyncSessionLocal, rows_affected
 from backend.core.security import hash_password
 from backend.models.alert import Alert, AlertCondition
 from backend.repositories.alert import AlertRepository
@@ -105,16 +104,13 @@ async def reset_demo(session: AsyncSession) -> int:
         await seed_demo(session=session)
         return 0
 
-    # DML execute returns a CursorResult at runtime; the signature says Result
-    removed = cast(
-        CursorResult[Any],
-        await session.execute(delete(Alert).where(Alert.user_id == user.id)),
+    removed = await rows_affected(
+        session,
+        delete(Alert).where(Alert.user_id == user.id),
     )
     await seed_demo(session)  # commits both the delete and the fresh examples
-    logger.bind(removed=removed.rowcount).info("demo account reset")
-    # rowcount is a SQLAlchemy memoized_property; PyCharm reads the raw function
-    # noinspection PyTypeChecker
-    return removed.rowcount
+    logger.bind(removed=removed).info("demo account reset")
+    return removed
 
 
 async def main() -> None:

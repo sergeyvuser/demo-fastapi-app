@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.core.db import rows_affected
 from backend.models import Alert
 from backend.models.alert import OCCUPYING_STATUSES, AlertStatus, current_status_is
 from backend.repositories.base import BaseRepository
@@ -180,7 +181,6 @@ class AlertRepository(BaseRepository[Alert, AlertCreateInternal, AlertUpdateInte
             update(Alert)
             .where(*where)
             .values(status=AlertStatus.EXPIRED, finished_at=Alert.expires_at)
-            .returning(Alert.id)
             .execution_options(synchronize_session=False)
         )
-        return len((await self.session.scalars(stmt)).all())
+        return await rows_affected(self.session, stmt)
