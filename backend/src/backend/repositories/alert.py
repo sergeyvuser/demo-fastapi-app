@@ -154,3 +154,33 @@ class AlertRepository(BaseRepository[Alert, AlertCreateInternal, AlertUpdateInte
             .execution_options(synchronize_session=False)
         )
         await self.session.execute(stmt)
+
+    async def mark_expired(
+        self, now: datetime, alert_ids: Sequence[uuid.UUID] | None = None
+    ) -> int:
+        """Record EXPIRED on Alerts whose Expiry has passed. The caller commits.
+
+        Two callers, one statement. The evaluator names the Alerts it has
+        just found past their Expiry; the nightly sweep names none and gets
+        every one the evaluator cannot see.
+
+        `finished_at` is the Expiry itself, not `now`: the Alert stopped when
+        its Expiry passed (CONTEXT.md, Finished), and a sweep that arrives
+        hours later must not move that instant — retention counts from it,
+        and the Digest reads it.
+
+        The WHERE re-checks what the caller believed: a `once` that Completed
+        between the read and this write keeps its reason. The boundary is
+        expiry_has_passed()'s: an Expiry equal to `now` has passed.
+        """
+        where = [Alert.status.in_(OCCUPYING_STATUSES), Alert.expires_at <= now]
+        if alert_ids is not None:
+            where.append(Alert.id.in_(alert_ids))
+        stmt = (
+            update(Alert)
+            .where(*where)
+            .values(status=AlertStatus.EXPIRED, finished_at=Alert.expires_at)
+            .returning(Alert.id)
+            .execution_options(synchronize_session=False)
+        )
+        return len((await self.session.scalars(stmt)).all())

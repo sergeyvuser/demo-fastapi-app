@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Alert, Trigger
-from backend.models.alert import AlertRepeatPolicy, condition_holds
+from backend.models.alert import AlertRepeatPolicy, condition_holds, expiry_has_passed
 from backend.models.trigger import TriggerDelivery
 from backend.repositories.alert import AlertRepository
 from backend.repositories.trigger import TriggerRepository
@@ -27,9 +27,17 @@ class AlertEvaluationService:
     async def process_tick(self, tick: TickEvent) -> list[AlertTriggeredEvent]:
         events: list[AlertTriggeredEvent] = []
         transitions = 0
+        expired: list[uuid.UUID] = []
         now = datetime.now(UTC)
 
         for alert in await self.alerts.get_active_for_symbol(tick.symbol):
+            # Before the Condition, so an Alert cannot go off on the very Tick
+            # that finds its Expiry passed. The rows are already loaded: this
+            # reads the same query more carefully, it is not a second one.
+            if expiry_has_passed(alert.expires_at, now):
+                expired.append(alert.id)
+                continue
+
             on_cross = alert.repeat_policy is AlertRepeatPolicy.ON_CROSS
 
             if not self._condition_met(alert, tick):
@@ -100,9 +108,15 @@ class AlertEvaluationService:
                 )
             )
 
-        # A pass that only wrote transitions has no events and still has
-        # something to commit.
-        if events or transitions:
+        # One statement for the whole Tick, and self-extinguishing: an
+        # EXPIRED row is not loaded again.
+        if expired:
+            await self.alerts.mark_expired(now=now, alert_ids=expired)
+
+        # Transitions and expiries are writes with no event; a pass that made
+        # only those still has something to commit. Leave `expired` out and
+        # every expiry rolls back with the session — silently, on every Tick.
+        if events or transitions or expired:
             await self.session.commit()
         return events
 

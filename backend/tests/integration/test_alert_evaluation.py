@@ -1,7 +1,7 @@
 import asyncio
 import uuid
 from collections.abc import Generator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -12,6 +12,7 @@ from backend.core.db import AsyncSessionLocal
 from backend.models import Trigger, User
 from backend.models.alert import Alert, AlertCondition, AlertRepeatPolicy, AlertStatus
 from backend.models.trigger import TriggerDelivery
+from backend.repositories.alert import AlertRepository
 from backend.schemas.alert import AlertUpdate
 from backend.services.alert_evaluation import AlertEvaluationService
 from shared.events import AlertTriggeredEvent, TickEvent
@@ -366,3 +367,97 @@ async def test_crossing_state_is_written_only_when_it_changes(
 
     await service.process_tick(make_tick("99"))  # leaves: exactly one write
     assert len(updates_to_alerts) == 1
+
+
+PAST = timedelta(minutes=1)
+
+
+@pytest.mark.parametrize("policy", list(AlertRepeatPolicy))
+async def test_an_alert_past_its_expiry_does_not_go_off_and_is_expired(
+    session, user, policy
+) -> None:
+    """Whichever comes first: the Condition holds on this Tick, but the
+    Expiry is already behind it — for `once` too."""
+    alert = await make_alert_row(
+        session, user, repeat_policy=policy, expires_at=datetime.now(UTC) - PAST
+    )
+
+    events = await AlertEvaluationService(session).process_tick(make_tick("101"))
+
+    assert events == []
+    assert await triggers_of(session, alert.id) == []
+    await session.refresh(alert)
+    assert alert.status is AlertStatus.EXPIRED
+    # the instant it stopped, not the instant a Tick noticed
+    assert alert.finished_at == alert.expires_at
+
+
+async def test_an_alert_before_its_expiry_goes_off_as_usual(session, user) -> None:
+    await make_alert_row(session, user, expires_at=datetime.now(UTC) + PAST)
+
+    events = await AlertEvaluationService(session).process_tick(make_tick("101"))
+
+    assert len(events) == 1
+
+
+async def test_an_expiry_is_written_once(session, user, updates_to_alerts) -> None:
+    """Self-extinguishing: an EXPIRED row is not loaded by the next Tick."""
+    await make_alert_row(session, user, expires_at=datetime.now(UTC) - PAST)
+    service = AlertEvaluationService(session)
+
+    await service.process_tick(make_tick("99"))
+    await service.process_tick(make_tick("99"))
+
+    assert len(updates_to_alerts) == 1
+
+
+async def test_marking_expired_leaves_a_finished_alert_its_reason(
+    session, user
+) -> None:
+    """A `once` that Completed before anything recorded its Expiry stays
+    Completed, with the `finished_at` it already had."""
+    finished_at = datetime.now(UTC) - 2 * PAST
+    alert = await make_alert_row(
+        session,
+        user,
+        status=AlertStatus.COMPLETED,
+        finished_at=finished_at,
+        expires_at=datetime.now(UTC) - PAST,
+    )
+
+    marked = await AlertRepository(session).mark_expired(datetime.now(UTC))
+
+    assert marked == 0
+    await session.refresh(alert)
+    assert alert.status is AlertStatus.COMPLETED
+    assert alert.finished_at == finished_at
+
+
+async def test_an_expiry_found_by_a_tick_survives_the_session(
+    db_engine: AsyncEngine, committed_alert: Alert
+) -> None:
+    """A Tick that finds only an expiry — no Trigger, no transition — still
+    commits.
+
+    The `session` fixture would pass this with the commit missing: it reads
+    back its own uncommitted write. Separate sessions cannot.
+    """
+    async with AsyncSessionLocal(bind=db_engine) as setup:
+        alert = await setup.get(Alert, committed_alert.id)
+        assert alert is not None
+        alert.expires_at = datetime.now(UTC) - PAST
+        await setup.commit()
+
+    async with AsyncSessionLocal(bind=db_engine) as session:
+        events = await AlertEvaluationService(session).process_tick(
+            TickEvent(
+                symbol=committed_alert.symbol,
+                price=Decimal("101"),
+                ts=datetime.now(UTC),
+            )
+        )
+    assert events == []
+
+    async with AsyncSessionLocal(bind=db_engine) as check:
+        alert = await check.get(Alert, committed_alert.id)
+        assert alert is not None and alert.status is AlertStatus.EXPIRED
