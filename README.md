@@ -39,7 +39,7 @@ Three things are worth knowing before you click:
 | Runtime       | Python 3.14, [uv](https://docs.astral.sh/uv/) workspace monorepo                                          |
 | API           | FastAPI on [Granian](https://github.com/emmett-framework/granian) (ASGI)                                  |
 | Database      | PostgreSQL 18, SQLAlchemy 2.0 (async) + asyncpg, Alembic migrations                                       |
-| Auth          | JWT access + rotating opaque refresh tokens, argon2 (pwdlib)                                              |
+| Auth          | JWT access + rotating opaque refresh in an httpOnly cookie, argon2 (pwdlib)                               |
 | Messaging     | RabbitMQ + FastStream (events), Taskiq (background + scheduled jobs)                                      |
 | Cache         | Redis (price cache, rate limiting, dedup, result backend)                                                 |
 | Email         | aiosmtplib + Mailpit (dev SMTP sandbox)                                                                   |
@@ -150,10 +150,23 @@ Conventions:
 ## Auth model (implemented)
 
 - `POST /api/v1/auth/register` → user with argon2-hashed password
-- `POST /api/v1/auth/login` (OAuth2 form) → short-lived JWT access +
-  long-lived opaque refresh (sha256 stored server-side)
-- `POST /api/v1/auth/refresh` → rotation; reuse of a revoked token revokes
-  the whole session family (theft detection)
+- `POST /api/v1/auth/login` (OAuth2 form) → a short-lived JWT access token in
+  the body, and a long-lived opaque refresh token (sha256 stored server-side)
+  that exists nowhere but an `HttpOnly; Secure; SameSite=Strict` cookie scoped
+  by `Path` to `/api/v1/auth` — never sent with any other request, never
+  readable by JavaScript
+- `POST /api/v1/auth/refresh` → no body; reads the cookie, rotates it, returns
+  a new access token. Reuse of a revoked token revokes the whole session
+  family (theft detection)
+- `POST /api/v1/auth/logout` → bearer-authenticated, no body. Revokes this
+  device's refresh cookie, and through a per-user token epoch every access
+  token already issued to the account — checked on the user row each request
+  loads anyway, so it costs no extra I/O. Other devices re-refresh and carry
+  on. It also closes the account's open WebSockets, which holds only while the
+  API runs as a single instance
+- The access token is meant to live in memory, so no state-changing route is
+  authenticated by a cookie and `/refresh` is the whole CSRF surface. A script
+  keeps the session with curl's cookie jar (`-c`/`-b`)
 - `POST /api/v1/auth/verify` → confirm email. The one-time token travels in
   the request body and never in a URL, so it cannot be left behind in a
   server span or a proxy access log. Three answers, which the UI words
