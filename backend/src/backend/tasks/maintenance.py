@@ -12,11 +12,14 @@ from backend.seed_demo import reset_demo
 from backend.tasks.broker import broker
 
 RETENTION_TOKENS = timedelta(days=30)
-# Deliberately the same number as the Finished Alert retention (stage 13
-# ticket 06): Alerts are deleted 30 days after finishing, and their Triggers
-# cascade away with them. If either number changes, change both, or the
-# cascade starts eating history that is still inside its own window.
+# The hot path writes Triggers without bound, so how long they stay is a
+# decision, not a default.
 RETENTION_TRIGGERS = timedelta(days=30)
+# Finished Alerts go this long after `finished_at`, and their Triggers
+# cascade away with them. Shorter than RETENTION_TRIGGERS and the cascade
+# would eat history still inside its own window — so this is not a second
+# number to keep in step, it is the same one.
+RETENTION_FINISHED_ALERTS = RETENTION_TRIGGERS
 
 
 def retention_cutoff(window: timedelta) -> datetime:
@@ -107,3 +110,20 @@ async def expire_alerts() -> int:
         await session.commit()
     logger.bind(expired=expired).info("alert expiry sweep finished")
     return expired
+
+
+@broker.task(schedule=[{"cron": "45 3 * * *"}])
+async def purge_finished_alerts() -> int:
+    """Delete Alerts Finished longer than RETENTION_FINISHED_ALERTS ago.
+
+    A Finished Alert frees its slot, so nothing else bounds how many pile up.
+    After the expiry sweep, so an Alert it has just recorded is judged by the
+    `finished_at` it was just given; after the Trigger purge, so the cascade
+    finds nothing left to take.
+    """
+    cutoff = retention_cutoff(RETENTION_FINISHED_ALERTS)
+    async with AsyncSessionLocal() as session:
+        purged = await AlertRepository(session).delete_finished_before(cutoff)
+        await session.commit()
+    logger.bind(purged=purged).info("finished alert retention finished")
+    return purged

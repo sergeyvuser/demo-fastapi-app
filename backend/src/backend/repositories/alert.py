@@ -3,12 +3,17 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.db import rows_affected
 from backend.models import Alert
-from backend.models.alert import OCCUPYING_STATUSES, AlertStatus, current_status_is
+from backend.models.alert import (
+    FINISHED_STATUSES,
+    OCCUPYING_STATUSES,
+    AlertStatus,
+    current_status_is,
+)
 from backend.repositories.base import BaseRepository
 from backend.schemas.alert import AlertCreateInternal, AlertUpdateInternal
 
@@ -184,3 +189,18 @@ class AlertRepository(BaseRepository[Alert, AlertCreateInternal, AlertUpdateInte
             .execution_options(synchronize_session=False)
         )
         return await rows_affected(self.session, stmt)
+
+    async def delete_finished_before(self, cutoff: datetime) -> int:
+        """Bulk delete of Alerts Finished before `cutoff`. The caller commits.
+
+        Their Triggers go with them — `ON DELETE CASCADE` in the database,
+        not the ORM, which is why a bulk statement is enough. An Alert this
+        long Finished has Triggers older still, already past their own window.
+        """
+        return await rows_affected(
+            self.session,
+            delete(Alert).where(
+                Alert.status.in_(FINISHED_STATUSES),
+                Alert.finished_at < cutoff,
+            ),
+        )

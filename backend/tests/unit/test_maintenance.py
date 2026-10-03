@@ -3,13 +3,16 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from backend.tasks.maintenance import (
+    RETENTION_FINISHED_ALERTS,
     RETENTION_TOKENS,
     RETENTION_TRIGGERS,
     retention_cutoff,
 )
 
 
-@pytest.mark.parametrize("window", [RETENTION_TOKENS, RETENTION_TRIGGERS])
+@pytest.mark.parametrize(
+    "window", [RETENTION_TOKENS, RETENTION_TRIGGERS, RETENTION_FINISHED_ALERTS]
+)
 def test_the_retention_cutoff_is_an_absolute_instant(window: timedelta) -> None:
     cutoff = retention_cutoff(window)
 
@@ -18,11 +21,12 @@ def test_the_retention_cutoff_is_an_absolute_instant(window: timedelta) -> None:
     assert abs(datetime.now(UTC) - window - cutoff) < timedelta(seconds=5)
 
 
-def test_trigger_and_alert_retention_stay_paired() -> None:
+def test_finished_alerts_outlive_their_triggers() -> None:
     """Triggers cascade away with their Alert, so a Finished Alert deleted
     sooner than the Trigger window would take live history with it.
 
-    A tripwire, not a law: it turns into an equality with the Finished Alert
-    window as soon as ticket 06 declares one.
+    The real rule is `>=`, not `==`: equal by construction today, and this
+    is what breaks if somebody turns the alias back into a literal.
     """
-    assert RETENTION_TRIGGERS.days == 30
+    assert RETENTION_FINISHED_ALERTS >= RETENTION_TRIGGERS
+    assert timedelta(days=30) == RETENTION_TRIGGERS
