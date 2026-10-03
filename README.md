@@ -15,7 +15,7 @@ realtime dashboard frontend.
 ## Live demo
 
 - Application — https://alerts.vorobev.dev
-- API documentation (Swagger) — https://alerts.vorobev.dev/docs
+- API documentation (Swagger) — https://alerts.vorobev.dev/api/docs
 - Dashboards, read-only — https://grafana.vorobev.dev
 
 Sign in with **`demo@vorobev.dev`** / **`demo-alerts-2026`**, or register with your own address.
@@ -93,7 +93,7 @@ python -c "import secrets; print(secrets.token_hex(32))"   # -> APP_CONFIG__AUTH
 make up          # build + start the full stack (migrations run automatically)
 ```
 
-- API & Swagger: http://127.0.0.1:8000/docs
+- API & Swagger: http://127.0.0.1:8000/api/docs
 - RabbitMQ UI: http://127.0.0.1:15672
 - Mailpit (caught emails): http://127.0.0.1:8025
 - Grafana (dashboards): http://127.0.0.1:3000
