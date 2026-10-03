@@ -1,15 +1,14 @@
 import asyncio
-import uuid
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import delete, event, func, select
+from sqlalchemy import event, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from backend.core.db import AsyncSessionLocal
-from backend.models import Trigger, User
+from backend.models import Trigger
 from backend.models.alert import Alert, AlertCondition, AlertRepeatPolicy, AlertStatus
 from backend.models.trigger import TriggerDelivery
 from backend.repositories.alert import AlertRepository
@@ -159,46 +158,6 @@ async def test_deleting_an_alert_deletes_its_triggers(
         select(func.count()).select_from(Trigger).where(Trigger.alert_id == alert.id)
     )
     assert remaining == 0
-
-
-@pytest.fixture
-async def committed_alert(db_engine: AsyncEngine, request):
-    """An Alert that is really on disk, visible from every connection.
-
-    The `session` fixture cannot serve a race test: it is one connection
-    inside one transaction, and a transaction is invisible to everyone but
-    itself — two "concurrent" sessions built on it would be the same session.
-    So this fixture commits for real and cleans up after itself; deleting the
-    User cascades to the Alert and to any Triggers the test produced.
-    """
-    policy = getattr(request, "param", AlertRepeatPolicy.WHILE_TRUE)
-    suffix = uuid.uuid4().hex[:8]
-    async with AsyncSessionLocal(bind=db_engine) as setup:
-        user = User(
-            username=f"race-{suffix}",
-            email=f"race-{suffix}@example.com",
-            hashed_password="not-a-real-hash",
-            telegram_chat_id=424242,
-        )
-        setup.add(user)
-        await setup.flush()  # assigns the id the Alert needs
-        alert = Alert(
-            user_id=user.id,
-            symbol="RACEUSDT",  # its own Symbol: nothing else can match this Tick
-            condition=AlertCondition.PRICE_ABOVE,
-            threshold=Decimal("100"),
-            cooldown_seconds=3600,
-            repeat_policy=policy,
-        )
-        setup.add(alert)
-        await setup.commit()
-
-    # expire_on_commit=False, so the attributes survive the commit above
-    yield alert
-
-    async with AsyncSessionLocal(bind=db_engine) as teardown:
-        await teardown.execute(delete(User).where(User.id == alert.user_id))
-        await teardown.commit()
 
 
 @pytest.mark.parametrize("committed_alert", [AlertRepeatPolicy.ONCE], indirect=True)

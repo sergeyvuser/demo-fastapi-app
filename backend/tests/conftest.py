@@ -18,6 +18,7 @@ from httpx import ASGITransport, AsyncClient
 from polyfactory.factories.pydantic_factory import ModelFactory
 from pydantic import SecretStr
 from redis.asyncio import Redis
+from sqlalchemy import delete
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from taskiq import AsyncBroker
@@ -28,6 +29,7 @@ from backend.core.config import settings
 from backend.core.db import AsyncSessionLocal, get_async_db_session, make_engine
 from backend.main import app as fastapi_app
 from backend.models import User
+from backend.models.alert import Alert, AlertCondition, AlertRepeatPolicy
 from backend.schemas.alert import AlertCreate
 from backend.services.alert import AlertService
 from backend.services.prices import PriceCache
@@ -164,22 +166,6 @@ async def taskiq_broker(_redis_settings: None) -> AsyncGenerator[AsyncBroker]:
     await broker.shutdown()
 
 
-class AlertCreateFactory(ModelFactory[AlertCreate]):
-    # symbol and threshold are constrained types; polyfactory can satisfy them
-    # on its own, but pinned values keep assertion failures readable
-    symbol = "BTCUSDT"
-    threshold = Decimal("64000.00000001")
-    cooldown_seconds = 3600
-    # A random preset would make every test depend on a coin toss it never
-    # asked for; the Expiry tests set one explicitly.
-    expires_in_seconds = None
-
-
-@pytest.fixture
-def alert_factory() -> type[AlertCreateFactory]:
-    return AlertCreateFactory
-
-
 async def _create_user(session: AsyncSession, **overrides) -> User:
     suffix = uuid.uuid4().hex[:8]
     user = User(
@@ -239,6 +225,22 @@ def enqueued_emails(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
     return sent
 
 
+class AlertCreateFactory(ModelFactory[AlertCreate]):
+    # symbol and threshold are constrained types; polyfactory can satisfy them
+    # on its own, but pinned values keep assertion failures readable
+    symbol = "BTCUSDT"
+    threshold = Decimal("64000.00000001")
+    cooldown_seconds = 3600
+    # A random preset would make every test depend on a coin toss it never
+    # asked for; the Expiry tests set one explicitly.
+    expires_in_seconds = None
+
+
+@pytest.fixture
+def alert_factory() -> type[AlertCreateFactory]:
+    return AlertCreateFactory
+
+
 @pytest.fixture
 def alert_service(session: AsyncSession, clean_redis: Redis) -> AlertService:
     """The service with both of its dependencies.
@@ -247,3 +249,43 @@ def alert_service(session: AsyncSession, clean_redis: Redis) -> AlertService:
     crossing state, so a session alone is no longer enough to build one.
     """
     return AlertService(session=session, prices=PriceCache(clean_redis))
+
+
+@pytest.fixture
+async def committed_alert(db_engine: AsyncEngine, request):
+    """An Alert that is really on disk, visible from every connection.
+
+    The `session` fixture cannot serve a race test: it is one connection
+    inside one transaction, and a transaction is invisible to everyone but
+    itself — two "concurrent" sessions built on it would be the same session.
+    So this fixture commits for real and cleans up after itself; deleting the
+    User cascades to the Alert and to any Triggers the test produced.
+    """
+    policy = getattr(request, "param", AlertRepeatPolicy.WHILE_TRUE)
+    suffix = uuid.uuid4().hex[:8]
+    async with AsyncSessionLocal(bind=db_engine) as setup:
+        user = User(
+            username=f"race-{suffix}",
+            email=f"race-{suffix}@example.com",
+            hashed_password="not-a-real-hash",
+            telegram_chat_id=424242,
+        )
+        setup.add(user)
+        await setup.flush()  # assigns the id the Alert needs
+        alert = Alert(
+            user_id=user.id,
+            symbol="RACEUSDT",  # its own Symbol: nothing else can match this Tick
+            condition=AlertCondition.PRICE_ABOVE,
+            threshold=Decimal("100"),
+            cooldown_seconds=3600,
+            repeat_policy=policy,
+        )
+        setup.add(alert)
+        await setup.commit()
+
+    # expire_on_commit=False, so the attributes survive the commit above
+    yield alert
+
+    async with AsyncSessionLocal(bind=db_engine) as teardown:
+        await teardown.execute(delete(User).where(User.id == alert.user_id))
+        await teardown.commit()

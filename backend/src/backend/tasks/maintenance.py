@@ -7,6 +7,7 @@ from sqlalchemy import CursorResult, delete, or_
 from backend.core.config import settings
 from backend.core.db import AsyncSessionLocal
 from backend.models import RefreshToken
+from backend.repositories.alert import AlertRepository
 from backend.repositories.trigger import TriggerRepository
 from backend.seed_demo import reset_demo
 from backend.tasks.broker import broker
@@ -89,3 +90,26 @@ async def purge_old_triggers() -> int:
         await session.commit()
     logger.bind(purged=purged).info("trigger retention finished")
     return purged
+
+
+@broker.task(schedule=[{"cron": "15 3 * * *"}])
+async def expire_alerts() -> int:
+    """Record EXPIRED on every Alert whose Expiry passed out of the
+    evaluator's sight.
+
+    The evaluator records what it loads: Active Alerts on a Symbol that is
+    still ticking. This is the net under it — a Paused Alert, the most
+    ordinary way to reach an Expiry ("paused and forgotten"); one on a Symbol
+    withdrawn from the Subscription; one whose Expiry fell while the system
+    was down. Readers do not wait for it — current_status() already says
+    `expired` — it only brings the rows in line, and with them the slot
+    count and the Digest.
+
+    Between the token cleanup and the Trigger purge, a quarter of an hour
+    from each, like the rest of the night.
+    """
+    async with AsyncSessionLocal() as session:
+        expired = await AlertRepository(session).mark_expired(now=datetime.now())
+        await session.commit()
+    logger.bind(expired=expired).info("alert expiry sweep finished")
+    return expired
