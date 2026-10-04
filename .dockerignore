@@ -5,3 +5,6 @@
 **/*.pyc
 .ruff_cache
 .env
+**/.idea
+**/node_modules
+frontend/dist
