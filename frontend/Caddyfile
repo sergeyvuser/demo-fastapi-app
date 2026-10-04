@@ -1,0 +1,45 @@
+# The frontend's own file server, baked into its image (ADR 0004). Reached only
+# through the edge proxy, inside the compose network: no TLS, no public name,
+# and nothing here is the door — headers every response needs (HSTS, nosniff,
+# frame denial) are the edge's business, not this file's.
+{
+	# No admin API: nothing reconfigures a static server at runtime.
+	admin off
+	# Plain HTTP on a bare port; TLS terminates at the edge.
+	auto_https off
+	# Do not write autosave.json to /config — the configuration is this file.
+	persist_config off
+}
+
+:8080 {
+	root * /srv
+
+	# Strict, but for inline styles — bought deliberately. Mantine injects
+	# style tags whose nonce would have to differ per request, which a static
+	# file cannot carry, and templating the entry document costs more than the
+	# risk it covers: inline styles enable exfiltration through CSS selectors,
+	# inline scripts would be code execution, and script-src stays 'self'.
+	# connect-src 'self' covers fetch and the socket only because the API is
+	# on the same origin; a second origin would have to be named here.
+	# img-src admits data: because Vite inlines small assets as data URIs.
+	header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+
+	# Fingerprinted by content hash: a changed file is a new name, so a name
+	# can be cached forever. A missing one is a real 404 — answering it with
+	# the shell would surface as an unreadable MIME-type error in the browser.
+	handle /assets/* {
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	# Everything else is the application: any path that is not a file gets the
+	# entry document with a 200, and the app renders its own NotFound. The
+	# route list is deliberately not repeated here — a second copy of the router.
+	# no-cache means "revalidate before use", not "never store"; a stale cached
+	# document would pin a browser to asset names that no longer exist.
+	handle {
+		header Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}
