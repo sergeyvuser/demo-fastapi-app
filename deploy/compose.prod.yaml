@@ -23,6 +23,7 @@
 x-backend-image: &backend-image ghcr.io/sergeyvuser/demo-fastapi-app/backend:${IMAGE_TAG:?}
 x-ingestor-image: &ingestor-image ghcr.io/sergeyvuser/demo-fastapi-app/ingestor:${IMAGE_TAG:?}
 x-notifier-image: &notifier-image ghcr.io/sergeyvuser/demo-fastapi-app/notifier:${IMAGE_TAG:?}
+x-frontend-image: &frontend-image ghcr.io/sergeyvuser/demo-fastapi-app/frontend:${IMAGE_TAG:?}
 
 # Overrides of the base x-app-env block. `environment:` wins over `env_file:`,
 # so anything the base pins to a laptop value must be pinned again here.
@@ -253,6 +254,31 @@ services:
       migrate:
         condition: service_completed_successfully
     deploy: { resources: { limits: { memory: 256M } } }
+
+  # The built bundle behind its own Caddy (ADR 0004); the edge proxies to it
+  # on frontend:8080. Exists in production alone, like the edge: development
+  # serves the same code from the Vite dev server instead.
+  #
+  # No env_file and no environment, on purpose: a static file server has no
+  # use for the database password or the bot token, and the bundle compiles
+  # no environment-specific value either — one image for every deploy.
+  frontend:
+    image: *frontend-image
+    restart: unless-stopped
+    # The entry document, not a separate health path: "serving" means the
+    # shell actually comes back, which is what `up --wait` should wait for.
+    # wget is busybox's, verified present in caddy:2.11.4-alpine before this
+    # was written — the image has no curl. A tag bump must re-check it.
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/" ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    # A first guess, and labelled as one: Caddy serving two files should sit
+    # far below this. Re-measure from memory.stat in production
+    # (`docker exec <c> cat /sys/fs/cgroup/memory.stat`, anon + file), not
+    # from `docker stats` — the lesson every other limit in this file records.
+    deploy: { resources: { limits: { memory: 64M } } }
 
   prometheus:
     ports: !reset [ ]

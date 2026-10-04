@@ -398,3 +398,17 @@ def test_the_subscription_is_one_list_both_services_read(
     symbols = json.loads(pinned["api"])
     assert [s["name"] for s in symbols] == ["BTCUSDT", "ETHUSDT"]
     assert all(isinstance(s["precision"], int) for s in symbols)
+
+
+def test_the_frontend_ships_at_the_tag_and_reads_no_configuration(
+    rendered_services: dict[str, Any],
+    services_reading_env_files: dict[str, Any],
+) -> None:
+    """One image for every deploy, holding none of the stack's secrets.
+
+    Asserted against the render with both env files present: `config` inlines
+    env_file contents into `environment`, so a service that reads neither file
+    has no environment key at all.
+    """
+    assert rendered_services["frontend"]["image"] == f"{REGISTRY}/frontend:{IMAGE_TAG}"
+    assert "environment" not in services_reading_env_files["frontend"]

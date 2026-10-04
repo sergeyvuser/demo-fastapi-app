@@ -64,7 +64,7 @@ jobs:
       packages: write
     strategy:
       matrix:
-        service: [ backend, ingestor, notifier ]
+        service: [ backend, ingestor, notifier, frontend ]
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: docker/setup-buildx-action@v4.2.0
