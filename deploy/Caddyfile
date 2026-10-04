@@ -73,13 +73,41 @@ alerts.vorobev.dev {
 		respond 404
 	}
 
-	# Everything else, /docs and /openapi.json included on purpose — they are
-	# the shop window. WebSocket upgrades on /ws need no configuration:
-	# reverse_proxy recognises the upgrade and switches to a raw bidirectional
-	# stream. The Host header is passed through unchanged (unlike nginx's
-	# default), which is what lets TrustedHostMiddleware see the real name.
-	handle {
+	# The API's root-level paths, which exist for callers inside the compose
+	# network — the container healthcheck, the scraper, the operator — and stay
+	# exactly where they are in the application. Past the catch-all below they
+	# would no longer reach the API anyway, but they would answer with the app
+	# shell and a 200: an outside uptime check pointed at /healthz would report
+	# a dead API as alive. A 404 says what is true. /metrics is in the snippet,
+	# since Grafana needs it too.
+	handle /healthz {
+		respond 404
+	}
+
+	handle /readyz {
+		respond 404
+	}
+
+	handle /internal/* {
+		respond 404
+	}
+
+	# The whole API, documentation included (/api/docs, /api/openapi.json).
+	# This is why the application may add no route outside /api (ADR 0004):
+	# a root-level path would land in the catch-all and quietly serve the
+	# shell. WebSocket upgrades under /api need no configuration — the proxy
+	# recognises the upgrade and switches to a raw bidirectional stream. The
+	# Host header passes through unchanged (unlike nginx's default), which is
+	# what lets TrustedHostMiddleware see the real name.
+	handle /api/* {
 		reverse_proxy api:8080
+	}
+
+	# Everything else is the application. Which paths exist is the frontend
+	# router's knowledge, not this file's: the frontend's own Caddy answers a
+	# missing asset 404 and any other unknown path with the shell.
+	handle {
+		reverse_proxy frontend:8080
 	}
 }
 
