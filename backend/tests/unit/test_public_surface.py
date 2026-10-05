@@ -18,9 +18,6 @@ from backend.main import app
 # Reached only from inside the compose network: the healthcheck, the scraper,
 # the operator. The door answers all of them 404.
 INTERNAL = {"/metrics", "/healthz", "/readyz", "/internal/ws-stats"}
-# Still at the root until impl 09 moves it to /api/v1/ws; once the door's
-# catch-all points at the frontend this path is broken in production.
-SOCKET = "/ws"
 
 
 def _paths() -> set[str]:
@@ -39,10 +36,15 @@ def _paths() -> set[str]:
 
 def test_nothing_outside_api_but_the_internal_paths() -> None:
     outside = {p for p in _paths() if not p.startswith("/api/")}
-    assert outside == INTERNAL | {SOCKET}
+    assert outside == INTERNAL
 
 
 def test_the_docs_are_served_under_api_and_only_once() -> None:
     paths = _paths()
     assert {"/api/docs", "/api/openapi.json"} <= paths
     assert not any("redoc" in p for p in paths)
+
+
+def test_the_socket_lives_under_the_versioned_api() -> None:
+    # the socket inherits REST's versioning instead of a version field of its own
+    assert "/api/v1/ws" in _paths()

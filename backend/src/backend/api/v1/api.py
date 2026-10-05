@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from backend.api.ws.routes import router as ws_router
 from backend.core.config import settings
 
 from .routes.alerts import router as alerts_router
@@ -16,3 +17,4 @@ router.include_router(alerts_router)
 router.include_router(prices_router)
 router.include_router(symbols_router)
 router.include_router(triggers_router)
+router.include_router(ws_router)
