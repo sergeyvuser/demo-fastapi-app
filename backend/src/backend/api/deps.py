@@ -1,15 +1,12 @@
-import uuid
 from typing import Annotated
 
-import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from redis.asyncio import Redis
 
-from backend.core import security
 from backend.core.db import AsyncSessionDep
 from backend.models import User
-from backend.repositories.user import UserRepository
+from backend.services.auth import AuthService, InvalidAccessTokenError
 
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/api/v1/auth/login",
@@ -29,20 +26,12 @@ async def get_current_user(
     session: AsyncSessionDep,
 ) -> User:
     try:
-        payload = security.decode_access_token(token)
-        user_id = uuid.UUID(payload["sub"])
-        issued_at = payload["iat"]
-    except jwt.InvalidTokenError, KeyError, ValueError:
+        authenticated = await AuthService(session).authenticate(token)
+    except InvalidAccessTokenError:
+        # FastAPI's own 401, as before: this commit moves the rule, it does
+        # not change what a client receives
         raise _credentials_exc from None
-    user = await UserRepository(session=session).get_by_id(user_id)
-    # the row is loaded anyway for the active check, so the epoch costs nothing
-    if (
-        user is None
-        or not user.is_active
-        or security.revoked_by_epoch(issued_at, user.tokens_valid_from)
-    ):
-        raise _credentials_exc
-    return user
+    return authenticated.user
 
 
 CurrentUserDep = Annotated[User, Depends(get_current_user)]

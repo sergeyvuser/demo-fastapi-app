@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
+import jwt
 from loguru import logger
 from pydantic import ValidationError
 from redis.asyncio import Redis
@@ -43,6 +44,13 @@ class InvalidRefreshTokenError(UnauthorizedError):
     metric_reason = "invalid_refresh"
 
 
+class InvalidAccessTokenError(UnauthorizedError):
+    default_detail = "Could not validate credentials"
+    # No metric_reason on purpose: an expired access token is the normal cue
+    # to refresh — every open tab produces one every 15 minutes — and counting
+    # them would bury the failures the auth panel exists to show.
+
+
 class VerificationLinkGoneError(GoneError):
     default_detail = "This verification link is no longer valid"
     # the label the Grafana panel already groups by; an expired link is a
@@ -63,6 +71,18 @@ class IssuedTokens:
     refresh_token: str
 
 
+@dataclass(frozen=True, slots=True)
+class Authenticated:
+    """Who an access token speaks for, and until when.
+
+    The expiry is for the socket: a request is over long before its token
+    expires, a socket is not, and has to be closed once it does.
+    """
+
+    user: User
+    expires_at: datetime
+
+
 # Pre-calculated hash for response time alignment (see login)
 _DUMMY_HASH = security.hash_password("dummy-password-for-timing")
 
@@ -73,6 +93,29 @@ class AuthService:
         self.users = UserRepository(session)
         self.tokens = RefreshTokenRepository(session)
         self.redis = redis
+
+    async def authenticate(self, access_token: str) -> Authenticated:
+        """The one rule an access token is accepted by, over HTTP and the socket.
+
+        A valid signature is not enough: the User must still exist and be
+        active, and a logout must not have revoked the token by its epoch.
+        """
+        try:
+            payload = security.decode_access_token(access_token)
+            user_id = uuid.UUID(payload["sub"])
+            issued_at = payload["iat"]
+            expires_at = datetime.fromtimestamp(payload["exp"], UTC)
+        except jwt.InvalidTokenError, KeyError, ValueError:
+            raise InvalidAccessTokenError from None
+        user = await self.users.get_by_id(user_id)
+        # the row is loaded anyway for the active check, so the epoch costs nothing
+        if (
+            user is None
+            or not user.is_active
+            or security.revoked_by_epoch(issued_at, user.tokens_valid_from)
+        ):
+            raise InvalidAccessTokenError
+        return Authenticated(user=user, expires_at=expires_at)
 
     async def register(self, data: UserCreate) -> User:
         if await self.users.get_by_email(data.email):
