@@ -1,27 +1,63 @@
 import asyncio
-import uuid
+from typing import Literal
 
-import jwt
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
+from pydantic import BaseModel, ValidationError
 
 from backend.api.ws.manager import Connection, manager
-from backend.core import security
+from backend.core.db import SessionFactory, SessionFactoryDep
+from backend.services.auth import Authenticated, AuthService, InvalidAccessTokenError
 
 router = APIRouter(tags=["WS"])
 
+# How long an accepted socket may stay anonymous. The price of accepting
+# before authenticating: a bounded window of connections nobody vouched for.
+AUTH_DEADLINE_SECONDS = 5.0
+
+
+class AuthFrame(BaseModel):
+    action: Literal["auth"]
+    token: str
+
+
+async def _authenticate(
+    ws: WebSocket, sessions: SessionFactory
+) -> Authenticated | None:
+    """Wait for the auth frame and check it by the same rule as HTTP.
+
+    None means "close it": no frame in time, a frame that is not auth, or a
+    token the rule refuses. The client gets one close code for all three.
+    """
+    try:
+        async with asyncio.timeout(AUTH_DEADLINE_SECONDS):
+            frame = AuthFrame.model_validate_json(await ws.receive_text())
+    except TimeoutError, ValidationError, KeyError:
+        # KeyError: a binary frame, which receive_text cannot read
+        return None
+    try:
+        # a session for this check only: one from Depends would live as long
+        # as the socket, holding a pooled connection for hours
+        async with sessions() as session:
+            return await AuthService(session).authenticate(frame.token)
+    except InvalidAccessTokenError:
+        return None
+
 
 @router.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket, token: str) -> None:
-    # 1. Authenticate BEFORE accept: bad token → handshake rejected.
+async def websocket_endpoint(ws: WebSocket, sessions: SessionFactoryDep) -> None:
+    # Accept first, authenticate in-band: a credential in the URL lands in the
+    # edge's access log and in the server span's http.url.
+    await ws.accept()
     try:
-        payload = security.decode_access_token(token)
-        user_id = uuid.UUID(payload["sub"])
-    except jwt.InvalidTokenError, KeyError, ValueError:
+        authenticated = await _authenticate(ws, sessions)
+    except WebSocketDisconnect:
+        return  # left before saying who it was: nothing to close or unregister
+    if authenticated is None:
         await ws.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    await ws.accept()
-    conn = Connection(ws=ws, user_id=user_id)
+    # registered only now: until here the manager has nothing to send it to
+    conn = Connection(ws=ws, user_id=authenticated.user.id)
     manager.register(conn)
 
     async def sender() -> None:

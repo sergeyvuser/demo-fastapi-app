@@ -7,8 +7,11 @@ steals events from the notifier or from another replica. Queues die with
 the process (auto_delete); nothing accumulates for a dead instance.
 
 Rules:
-- authenticate BEFORE `websocket.accept()` — a bad token is a rejected
-  handshake (close 1008), never an accepted-then-closed socket;
+- accept first, authenticate in-band: the first frame must be
+  `{"action": "auth", "token": ...}` within AUTH_DEADLINE_SECONDS, checked
+  by the same rule as HTTP (AuthService.authenticate). Anything else closes
+  with 1008, and the connection is registered with the manager only once it
+  verifies — an anonymous socket is never served;
 - outbound delivery is per-connection and bounded (drop-oldest): a slow
   client loses stale ticks, it must never block the broadcaster or grow
   server memory — freshness beats completeness for market data;

@@ -1,4 +1,5 @@
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
+from contextlib import AbstractAsyncContextManager
 from typing import Annotated, Any, cast
 
 from fastapi import Depends
@@ -38,6 +39,18 @@ async def get_async_db_session() -> AsyncGenerator[AsyncSession]:
 
 
 AsyncSessionDep = Annotated[AsyncSession, Depends(get_async_db_session)]
+
+# Something that opens a session: `async with factory() as session:`.
+SessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]
+
+
+def get_session_factory() -> SessionFactory:
+    """For code that outlives a request — the socket — and opens short
+    sessions of its own instead of holding one from Depends for hours."""
+    return AsyncSessionLocal
+
+
+SessionFactoryDep = Annotated[SessionFactory, Depends(get_session_factory)]
 
 
 async def rows_affected(session: AsyncSession, stmt: Executable) -> int:

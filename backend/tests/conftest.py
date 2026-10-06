@@ -8,6 +8,7 @@ code between test modules.
 
 import uuid
 from collections.abc import AsyncGenerator, Callable, Generator
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from decimal import Decimal
 from pathlib import Path
 
@@ -15,6 +16,8 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from httpx import ASGITransport, AsyncClient
+from httpx_ws import AsyncWebSocketSession, aconnect_ws
+from httpx_ws.transport import ASGIWebSocketTransport
 from polyfactory.factories.pydantic_factory import ModelFactory
 from pydantic import SecretStr
 from redis.asyncio import Redis
@@ -26,7 +29,12 @@ from testcontainers.community.postgres import PostgresContainer
 
 from backend.core import security
 from backend.core.config import settings
-from backend.core.db import AsyncSessionLocal, get_async_db_session, make_engine
+from backend.core.db import (
+    AsyncSessionLocal,
+    get_async_db_session,
+    get_session_factory,
+    make_engine,
+)
 from backend.main import app as fastapi_app
 from backend.models import User
 from backend.models.alert import Alert, AlertCondition, AlertRepeatPolicy
@@ -39,6 +47,7 @@ from backend.tasks.email import send_verification_email
 BACKEND_DIR = Path(__file__).parents[1]
 
 PASSWORD = "correct-horse-battery-staple"
+SOCKET = "/api/v1/ws"
 
 
 @pytest.fixture
@@ -153,6 +162,42 @@ async def api_client(
         yield client
 
     fastapi_app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def ws_connect(
+    session: AsyncSession,
+) -> Generator[Callable[[], AbstractAsyncContextManager[AsyncWebSocketSession]]]:
+    """Open the real socket endpoint in-process, on the test's own event loop.
+
+    A factory, not an open connection: the transport runs the app inside an
+    anyio task group, which must be exited by the task that entered it, and
+    pytest-asyncio runs a fixture's setup and teardown in different tasks.
+    Opened inside the test — `async with ws_connect() as ws:` — it is one task.
+
+    The endpoint opens short sessions of its own through get_session_factory;
+    here every one of them is the test's savepoint session.
+    """
+
+    @asynccontextmanager
+    async def _test_session() -> AsyncGenerator[AsyncSession]:
+        yield session  # left open: the `session` fixture owns it
+
+    fastapi_app.dependency_overrides[get_session_factory] = lambda: _test_session
+
+    @asynccontextmanager
+    async def _connect() -> AsyncGenerator[AsyncWebSocketSession]:
+        async with (
+            AsyncClient(
+                transport=ASGIWebSocketTransport(app=fastapi_app),
+                base_url="https://test",
+            ) as client,
+            aconnect_ws(SOCKET, client) as ws,
+        ):
+            yield ws
+
+    yield _connect
+    fastapi_app.dependency_overrides.pop(get_session_factory, None)
 
 
 @pytest.fixture(scope="session")
