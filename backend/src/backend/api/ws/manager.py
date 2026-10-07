@@ -6,6 +6,7 @@ from typing import Any, TypedDict
 
 from fastapi import WebSocket, status
 
+from backend.api.ws.messages import TickMessage, TriggerMessage
 from shared.events import AlertTriggeredEvent, TickEvent
 from shared.metrics import ws_connections
 
@@ -15,11 +16,11 @@ _QUEUE_SIZE = 100
 class WsStats(TypedDict):
     connections: int
     unique_users: int
-    subscriptions_by_symbol: dict[str, int]
+    watchers_by_symbol: dict[str, int]
 
 
 class Connection:
-    """One client: its socket, its subscriptions, its send queue."""
+    """One client: its socket, the Symbols it watches, its send queue."""
 
     def __init__(self, ws: WebSocket, user_id: uuid.UUID) -> None:
         self.ws = ws
@@ -80,30 +81,35 @@ class ConnectionManager:
         return {
             "connections": len(self._connections),
             "unique_users": len({c.user_id for c in self._connections}),
-            "subscriptions_by_symbol": dict(by_symbol),
+            "watchers_by_symbol": dict(by_symbol),
         }
 
     async def broadcast_tick(self, tick: TickEvent) -> None:
-        message = {
-            "type": "tick",
-            "symbol": tick.symbol,
-            "price": str(tick.price),
-            "ts": tick.ts.isoformat(),
-        }
+        # built and dumped once: every watcher is handed the same dict
+        message = TickMessage(
+            symbol=tick.symbol,
+            price=tick.price,
+            reference_price=tick.reference_price,
+            ts=tick.ts,
+        ).model_dump(mode="json")
         for conn in self._connections:
             if tick.symbol in conn.symbols:
                 conn.enqueue(message)
 
-    async def send_alert(self, event: AlertTriggeredEvent) -> None:
-        message = {
-            "type": "alert",
-            "alert_id": str(event.alert_id),
-            "symbol": event.symbol,
-            "condition": event.condition,
-            "threshold": str(event.threshold),
-            "price": str(event.price),
-            "triggered_at": event.triggered_at.isoformat(),
-        }
+    async def send_trigger(self, event: AlertTriggeredEvent) -> None:
+        # The event also carries user_id and telegram_chat_id — one routes it,
+        # the other is the notifier's — and neither belongs on a browser's wire.
+        message = TriggerMessage(
+            trigger_id=event.trigger_id,
+            alert_id=event.alert_id,
+            symbol=event.symbol,
+            condition=event.condition,
+            threshold=event.threshold,
+            price=event.price,
+            triggered_at=event.triggered_at,
+        ).model_dump(mode="json")
+        # every socket of the owner, whatever it watches: a Trigger is the
+        # User's, not the Symbol's
         for conn in self._connections:
             if conn.user_id == event.user_id:
                 conn.enqueue(message)

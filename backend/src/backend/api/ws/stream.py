@@ -56,5 +56,5 @@ async def on_tick(tick: TickEvent) -> None:
 
 
 @stream_router.subscriber(_ws_alerts_queue, ALERTS_EXCHANGE)
-async def on_alert(event: AlertTriggeredEvent) -> None:
-    await manager.send_alert(event=event)
+async def on_trigger(event: AlertTriggeredEvent) -> None:
+    await manager.send_trigger(event=event)

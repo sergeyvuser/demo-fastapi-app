@@ -1,9 +1,11 @@
 """The socket's contract, driven through the real endpoint."""
 
 import asyncio
+import uuid
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import jwt
 import pytest
@@ -16,6 +18,7 @@ from backend.api.ws.manager import manager
 from backend.core import security
 from backend.core.config import settings
 from backend.models.user import User
+from shared.events import AlertTriggeredEvent, TickEvent
 
 Connect = Callable[[], AbstractAsyncContextManager[AsyncWebSocketSession]]
 POLICY_VIOLATION = status.WS_1008_POLICY_VIOLATION
@@ -181,3 +184,65 @@ async def test_a_malformed_frame_is_an_error_not_a_close(
         }
         await ws.send_json({"action": "watch", "symbols": ["ETHUSDT"]})
         assert (await ws.receive_json(timeout=2))["type"] == "watching"  # still open
+
+
+def _tick(symbol: str, price: str) -> TickEvent:
+    return TickEvent(
+        symbol=symbol,
+        price=Decimal(price),
+        reference_price=Decimal("74000.0"),
+        ts=datetime.now(UTC),
+    )
+
+
+async def test_ticks_reach_only_the_symbols_a_socket_watches(
+    ws_connect: Connect, user: User
+) -> None:
+    async with ws_connect() as ws:
+        await _authenticated(ws, security.create_access_token(user.id))  # BTCUSDT
+        await manager.broadcast_tick(_tick("ETHUSDT", "2400.55"))
+        await manager.broadcast_tick(_tick("BTCUSDT", "75793.4"))
+        # the first thing to arrive is BTCUSDT: ETHUSDT was never sent here
+        message = await ws.receive_json(timeout=2)
+        assert message["type"] == "tick"
+        assert message["symbol"] == "BTCUSDT"
+        # decimals travel as strings: a JSON number would lose precision in JS
+        assert message["price"] == "75793.4"
+        assert message["reference_price"] == "74000.0"
+
+
+async def test_a_trigger_reaches_its_owner_and_no_one_else(
+    ws_connect: Connect, user: User, other_user: User
+) -> None:
+    event = AlertTriggeredEvent(
+        trigger_id=uuid.uuid4(),
+        alert_id=uuid.uuid4(),
+        user_id=user.id,
+        telegram_chat_id=424242,
+        symbol="BTCUSDT",
+        condition="price_above",
+        threshold=Decimal("75000"),
+        price=Decimal("75793.4"),
+        triggered_at=datetime.now(UTC),
+    )
+    async with ws_connect() as mine, ws_connect() as theirs:
+        await _authenticated(mine, security.create_access_token(user.id))
+        await _authenticated(theirs, security.create_access_token(other_user.id))
+        await manager.send_trigger(event)
+
+        message = await mine.receive_json(timeout=2)
+        assert message["type"] == "trigger"
+        assert message["trigger_id"] == str(event.trigger_id)
+        # routing and the notifier's chat id stay on the server
+        assert set(message) == {
+            "type",
+            "trigger_id",
+            "alert_id",
+            "symbol",
+            "condition",
+            "threshold",
+            "price",
+            "triggered_at",
+        }
+        with pytest.raises(TimeoutError):
+            await theirs.receive_json(timeout=0.3)
