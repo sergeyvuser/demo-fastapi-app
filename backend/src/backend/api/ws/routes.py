@@ -2,12 +2,21 @@ import asyncio
 import contextlib
 import uuid
 from datetime import UTC, datetime
-from typing import Any, Literal
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from backend.api.ws.manager import Connection, manager
+from backend.api.ws.messages import (
+    AuthFrame,
+    ErrorMessage,
+    ServerMessage,
+    UnwatchFrame,
+    WatchFrame,
+    WatchingMessage,
+    client_frame,
+)
+from backend.core.config import settings
 from backend.core.db import SessionFactory, SessionFactoryDep
 from backend.services.auth import Authenticated, AuthService, InvalidAccessTokenError
 
@@ -18,11 +27,6 @@ router = APIRouter(tags=["WS"])
 AUTH_DEADLINE_SECONDS = 5.0
 
 
-class AuthFrame(BaseModel):
-    action: Literal["auth"]
-    token: str
-
-
 def _loop_deadline(expires_at: datetime) -> float:
     """Translate a calendar instant into the event loop's clock.
 
@@ -31,6 +35,10 @@ def _loop_deadline(expires_at: datetime) -> float:
     """
     remaining = (expires_at - datetime.now(UTC)).total_seconds()
     return asyncio.get_running_loop().time() + remaining
+
+
+async def _send(ws: WebSocket, message: ServerMessage) -> None:
+    await ws.send_json(message.model_dump(mode="json"))
 
 
 async def _verify(token: str, sessions: SessionFactory) -> Authenticated | None:
@@ -61,7 +69,7 @@ async def _authenticate(
 
 
 async def _renew(
-    msg: Any, user_id: uuid.UUID, sessions: SessionFactory
+    frame: AuthFrame, user_id: uuid.UUID, sessions: SessionFactory
 ) -> Authenticated | None:
     """A fresh auth frame on an open socket: the same rule, and the same User.
 
@@ -69,10 +77,6 @@ async def _renew(
     user_id decides whose Triggers it receives, and switching it mid-socket
     is what a reconnect is for.
     """
-    try:
-        frame = AuthFrame.model_validate(msg)
-    except ValidationError:
-        return None
     renewed = await _verify(frame.token, sessions)
     if renewed is None or renewed.user.id != user_id:
         return None
@@ -104,16 +108,21 @@ async def websocket_endpoint(ws: WebSocket, sessions: SessionFactoryDep) -> None
     close_code: int | None = None
     try:
         # The socket lives no longer than its credential. Only a fresh auth
-        # frame moves the deadline — see the "auth" case below.
+        # frame moves the deadline — see the AuthFrame case below.
         async with asyncio.timeout_at(
             _loop_deadline(authenticated.expires_at)
         ) as lifetime:
             while True:
-                msg = await ws.receive_json()
-                symbols = {s.upper() for s in msg.get("symbols", [])}
-                match msg.get("action"):
-                    case "auth":
-                        renewed = await _renew(msg, conn.user_id, sessions)
+                try:
+                    frame = client_frame.validate_json(await ws.receive_text())
+                except ValidationError, KeyError:
+                    # a client bug, or a tab left open across a deploy: say
+                    # so and keep serving — closing would make it a reconnect loop
+                    await _send(ws, ErrorMessage(code="invalid_frame"))
+                    continue
+                match frame:
+                    case AuthFrame():
+                        renewed = await _renew(frame, conn.user_id, sessions)
                         if renewed is None:
                             close_code = status.WS_1008_POLICY_VIOLATION
                             break
@@ -121,13 +130,23 @@ async def websocket_endpoint(ws: WebSocket, sessions: SessionFactoryDep) -> None
                         # no reply: the message union has no member for it,
                         # and a socket that stays open is the confirmation
                         continue
-                    case "subscribe":
-                        conn.symbols |= symbols
-                    case "unsubscribe":
-                        conn.symbols -= symbols
-                await ws.send_json(
-                    {"type": "subscriptions", "symbols": sorted(conn.symbols)}
-                )
+                    case WatchFrame(symbols=symbols):
+                        requested = {s.upper() for s in symbols}
+                        unknown = {
+                            s for s in requested if s not in settings.subscription
+                        }
+                        if unknown:
+                            # never a close: a typo is not a policy violation
+                            await _send(
+                                ws,
+                                ErrorMessage(
+                                    code="unknown_symbols", symbols=sorted(unknown)
+                                ),
+                            )
+                        conn.symbols |= requested - unknown
+                    case UnwatchFrame(symbols=symbols):
+                        conn.symbols -= {s.upper() for s in symbols}
+                await _send(ws, WatchingMessage(symbols=sorted(conn.symbols)))
     except TimeoutError:
         # the token expired and no fresh one arrived in time
         close_code = status.WS_1008_POLICY_VIOLATION

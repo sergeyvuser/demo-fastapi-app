@@ -1,4 +1,4 @@
-"""The socket's opening: an auth frame, checked like HTTP, before anything else."""
+"""The socket's contract, driven through the real endpoint."""
 
 import asyncio
 from collections.abc import Callable
@@ -51,15 +51,18 @@ def _token_expiring_in(user: User, seconds: int) -> str:
 async def _authenticated(ws: AsyncWebSocketSession, token: str) -> None:
     """Send an auth frame and prove it was accepted: only a served socket answers."""
     await ws.send_json({"action": "auth", "token": token})
-    await ws.send_json({"action": "subscribe", "symbols": ["BTCUSDT"]})
-    assert (await ws.receive_json(timeout=2))["symbols"] == ["BTCUSDT"]
+    await ws.send_json({"action": "watch", "symbols": ["BTCUSDT"]})
+    assert await ws.receive_json(timeout=2) == {
+        "type": "watching",
+        "symbols": ["BTCUSDT"],
+    }
 
 
 async def test_an_auth_frame_opens_the_socket(ws_connect: Connect, user: User) -> None:
     before = manager.active_count
     async with ws_connect() as ws:
         await ws.send_json(_auth(user))
-        await ws.send_json({"action": "subscribe", "symbols": ["BTCUSDT"]})
+        await ws.send_json({"action": "watch", "symbols": ["BTCUSDT"]})
         # an answer at all means the socket was authenticated and is served
         assert (await ws.receive_json(timeout=2))["symbols"] == ["BTCUSDT"]
         assert manager.active_count == before + 1
@@ -84,7 +87,7 @@ async def test_a_token_issued_before_a_logout_cannot_open_a_socket(
 
 async def test_nothing_is_served_before_the_auth_frame(ws_connect: Connect) -> None:
     async with ws_connect() as ws:
-        await ws.send_json({"action": "subscribe", "symbols": ["BTCUSDT"]})
+        await ws.send_json({"action": "watch", "symbols": ["BTCUSDT"]})
         assert await _close_code(ws) == POLICY_VIOLATION
 
 
@@ -114,7 +117,7 @@ async def test_a_fresh_auth_frame_outlives_the_first_token(
         await _authenticated(ws, _token_expiring_in(user, 2))
         await ws.send_json(_auth(user))  # a full 15-minute token
         await asyncio.sleep(2.5)  # past the first token's exp
-        await ws.send_json({"action": "subscribe", "symbols": ["ETHUSDT"]})
+        await ws.send_json({"action": "watch", "symbols": ["ETHUSDT"]})
         # still open, and the watched set survived re-authentication
         assert (await ws.receive_json(timeout=2))["symbols"] == ["BTCUSDT", "ETHUSDT"]
 
@@ -135,3 +138,46 @@ async def test_a_bad_token_on_an_open_socket_closes_with_1008(
         await _authenticated(ws, security.create_access_token(user.id))
         await ws.send_json({"action": "auth", "token": "not-a-jwt"})
         assert await _close_code(ws) == POLICY_VIOLATION
+
+
+async def test_unknown_symbols_are_refused_without_closing(
+    ws_connect: Connect, user: User
+) -> None:
+    async with ws_connect() as ws:
+        await _authenticated(ws, security.create_access_token(user.id))
+        await ws.send_json({"action": "watch", "symbols": ["ethusdt", "foousdt"]})
+        assert await ws.receive_json(timeout=2) == {
+            "type": "error",
+            "code": "unknown_symbols",
+            "symbols": ["FOOUSDT"],
+        }
+        # watching is authoritative: what was accepted, not what was asked for
+        assert await ws.receive_json(timeout=2) == {
+            "type": "watching",
+            "symbols": ["BTCUSDT", "ETHUSDT"],
+        }
+
+
+async def test_unwatch_takes_symbols_out_of_the_set(
+    ws_connect: Connect, user: User
+) -> None:
+    async with ws_connect() as ws:
+        await _authenticated(ws, security.create_access_token(user.id))
+        await ws.send_json({"action": "unwatch", "symbols": ["btcusdt"]})
+        assert await ws.receive_json(timeout=2) == {"type": "watching", "symbols": []}
+
+
+async def test_a_malformed_frame_is_an_error_not_a_close(
+    ws_connect: Connect, user: User
+) -> None:
+    async with ws_connect() as ws:
+        await _authenticated(ws, security.create_access_token(user.id))
+        # the old vocabulary, as a tab left open across a deploy would send it
+        await ws.send_json({"action": "subscribe", "symbols": ["ETHUSDT"]})
+        assert await ws.receive_json(timeout=2) == {
+            "type": "error",
+            "code": "invalid_frame",
+            "symbols": [],
+        }
+        await ws.send_json({"action": "watch", "symbols": ["ETHUSDT"]})
+        assert (await ws.receive_json(timeout=2))["type"] == "watching"  # still open
