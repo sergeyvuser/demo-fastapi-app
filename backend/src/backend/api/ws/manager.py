@@ -5,7 +5,7 @@ from collections import defaultdict
 from collections.abc import AsyncGenerator
 from typing import Any, TypedDict
 
-from fastapi import WebSocket, status
+from fastapi import status
 
 from backend.api.ws.messages import CLOSE_REPLACED, TickMessage, TriggerMessage
 from shared.events import AlertTriggeredEvent, TickEvent
@@ -31,8 +31,7 @@ class WsStats(TypedDict):
 class Connection:
     """One client: its socket, the Symbols it watches, its send queue."""
 
-    def __init__(self, ws: WebSocket, user_id: uuid.UUID) -> None:
-        self.ws = ws
+    def __init__(self, user_id: uuid.UUID) -> None:
         self.user_id = user_id
         self.symbols: set[str] = set()
         self.queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=_QUEUE_SIZE)
