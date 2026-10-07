@@ -56,6 +56,7 @@ rate_limit_hits = Counter(
 
 ws_ticks_dropped = Counter(
     "ws_ticks_dropped_total",
-    "Ticks replaced by a newer one for the same Symbol before the socket sampler flushed",
+    "Ticks replaced by a newer one for the same Symbol before the socket sampler "
+    "flushed",
     ["symbol"],
 )
