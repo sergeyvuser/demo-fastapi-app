@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from redis.asyncio import Redis
 
+from backend.api.ws.manager import manager
 from backend.api.ws.stream import stream_router
 from backend.core.config import settings
 from backend.core.db import engine
@@ -43,7 +44,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # form is kept so the order reads in this function instead of being implied
     # by that merge. Never both: the broker's lifespan would run twice, and
     # FastStream skips the second start with a RuntimeWarning.
-    async with stream_router.lifespan_context(app):
+    # The socket's tick sampler runs outside the bridge that feeds it: started
+    # before the first Tick can arrive, stopped after the last one has.
+    async with manager.sampling(), stream_router.lifespan_context(app):
         yield
 
     # Shutdown

@@ -125,3 +125,27 @@ async def test_a_tick_is_cached_by_its_own_subscriber(
     # the stored format stays two bare decimal strings, one key each
     assert await clean_redis.get("price:BTCUSDT") == "101"
     assert await clean_redis.get("price24h:BTCUSDT") == "99"
+
+
+async def test_the_evaluator_sees_every_tick_however_fast_they_come(
+    session, clean_redis, monkeypatch
+) -> None:
+    """The socket's sampler keeps one Tick per Symbol every 250 ms. That
+    throttle belongs to the socket fan-out alone: a Condition crossed and
+    uncrossed between two flushes must still reach the evaluator."""
+    monkeypatch.setattr(evaluator, "AsyncSessionLocal", lambda: _lend(session))
+    monkeypatch.setattr(evaluator, "_price_cache", PriceCache(clean_redis))
+
+    prices = ("99", "101", "99", "101", "99")
+    async with TestRabbitBroker(evaluator.broker) as br:
+        for price in prices:
+            tick = TickEvent(
+                symbol="BTCUSDT", price=Decimal(price), ts=datetime.now(UTC)
+            )
+            await br.publish(
+                tick.model_dump(mode="json"),
+                exchange=TICKS_EXCHANGE,
+                routing_key=tick.symbol,  # exactly how the ingestor publishes
+            )
+
+        assert evaluator.on_ticks.mock.call_count == len(prices)

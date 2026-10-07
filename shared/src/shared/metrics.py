@@ -53,3 +53,9 @@ rate_limit_hits = Counter(
     "Requests rejected by the rate limiter",
     ["scope"],
 )
+
+ws_ticks_dropped = Counter(
+    "ws_ticks_dropped_total",
+    "Ticks replaced by a newer one for the same Symbol before the socket sampler flushed",
+    ["symbol"],
+)

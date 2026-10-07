@@ -2,19 +2,24 @@ import asyncio
 import contextlib
 import uuid
 from collections import defaultdict
+from collections.abc import AsyncGenerator
 from typing import Any, TypedDict
 
 from fastapi import WebSocket, status
 
 from backend.api.ws.messages import CLOSE_REPLACED, TickMessage, TriggerMessage
 from shared.events import AlertTriggeredEvent, TickEvent
-from shared.metrics import ws_connections
+from shared.metrics import ws_connections, ws_ticks_dropped
 
 _QUEUE_SIZE = 100
 # Insurance for one 512 MB instance against a tab multiplied by a script, not
 # a product rule: one socket per tab, with hidden tabs releasing theirs, leaves
 # a real person holding one to three.
 MAX_SOCKETS_PER_USER = 5
+# One flush for the whole process, every connection on the same cadence.
+# Invisible to a person, and it bounds a socket to four Ticks a second per
+# watched Symbol however fast the exchange moves.
+SAMPLE_INTERVAL_SECONDS = 0.25
 
 
 class WsStats(TypedDict):
@@ -49,6 +54,8 @@ class ConnectionManager:
         # A dict used as an ordered set: iteration follows registration, so a
         # User's first connection found in it is that User's oldest.
         self._connections: dict[Connection, None] = {}
+        # the latest Tick per Symbol since the last flush
+        self._pending: dict[str, TickEvent] = {}
 
     async def register(self, conn: Connection) -> None:
         """Take on a connection, closing the User's oldest beyond the cap."""
@@ -102,17 +109,44 @@ class ConnectionManager:
             "watchers_by_symbol": dict(by_symbol),
         }
 
-    async def broadcast_tick(self, tick: TickEvent) -> None:
-        # built and dumped once: every watcher is handed the same dict
-        message = TickMessage(
-            symbol=tick.symbol,
-            price=tick.price,
-            reference_price=tick.reference_price,
-            ts=tick.ts,
-        ).model_dump(mode="json")
-        for conn in self._connections:
-            if tick.symbol in conn.symbols:
-                conn.enqueue(message)
+    def offer_tick(self, tick: TickEvent) -> None:
+        """Hold a Tick for the next flush; a newer one for its Symbol replaces it.
+
+        Only the socket fan-out is sampled. The evaluator reads every Tick
+        from a broker queue of its own, and nothing here sits on that path.
+        """
+        if tick.symbol in self._pending:
+            ws_ticks_dropped.labels(tick.symbol).inc()
+        self._pending[tick.symbol] = tick
+
+    def flush(self) -> None:
+        """Send the held Ticks to their watchers: one message per Symbol."""
+        pending, self._pending = self._pending, {}
+        for tick in pending.values():
+            # built and dumped once: every watcher is handed the same dict
+            message = TickMessage(
+                symbol=tick.symbol,
+                price=tick.price,
+                reference_price=tick.reference_price,
+                ts=tick.ts,
+            ).model_dump(mode="json")
+            for conn in self._connections:
+                if tick.symbol in conn.symbols:
+                    conn.enqueue(message)
+
+    async def _sample_forever(self) -> None:
+        while True:
+            await asyncio.sleep(SAMPLE_INTERVAL_SECONDS)
+            self.flush()
+
+    @contextlib.asynccontextmanager
+    async def sampling(self) -> AsyncGenerator[None]:
+        """Run the sampler for as long as the block lasts — the app's lifespan."""
+        task = asyncio.create_task(self._sample_forever())
+        try:
+            yield
+        finally:
+            task.cancel()
 
     async def send_trigger(self, event: AlertTriggeredEvent) -> None:
         # The event also carries user_id and telegram_chat_id — one routes it,

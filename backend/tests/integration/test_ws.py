@@ -12,6 +12,7 @@ import jwt
 import pytest
 from fastapi import status
 from httpx_ws import AsyncWebSocketSession, WebSocketDisconnect
+from prometheus_client import REGISTRY
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.ws import routes
@@ -197,13 +198,21 @@ def _tick(symbol: str, price: str) -> TickEvent:
     )
 
 
+def _dropped(symbol: str) -> float:
+    # a labelled counter has no sample until its first increment
+    return (
+        REGISTRY.get_sample_value("ws_ticks_dropped_total", {"symbol": symbol}) or 0.0
+    )
+
+
 async def test_ticks_reach_only_the_symbols_a_socket_watches(
     ws_connect: Connect, user: User
 ) -> None:
     async with ws_connect() as ws:
         await _authenticated(ws, security.create_access_token(user.id))  # BTCUSDT
-        await manager.broadcast_tick(_tick("ETHUSDT", "2400.55"))
-        await manager.broadcast_tick(_tick("BTCUSDT", "75793.4"))
+        manager.offer_tick(_tick("ETHUSDT", "2400.55"))
+        manager.offer_tick(_tick("BTCUSDT", "75793.4"))
+        manager.flush()
         # the first thing to arrive is BTCUSDT: ETHUSDT was never sent here
         message = await ws.receive_json(timeout=2)
         assert message["type"] == "tick"
@@ -274,3 +283,29 @@ async def test_a_sixth_socket_closes_the_oldest(
         for ws in sockets[1:]:  # the five newest are still served
             await ws.send_json({"action": "watch", "symbols": ["ETHUSDT"]})
             assert (await ws.receive_json(timeout=2))["type"] == "watching"
+
+
+async def test_the_sampler_sends_the_latest_tick_and_counts_the_rest(
+    ws_connect: Connect, user: User
+) -> None:
+    before = _dropped("BTCUSDT")
+    async with ws_connect() as ws:
+        await _authenticated(ws, security.create_access_token(user.id))
+        for price in ("75790.1", "75791.2", "75793.4"):
+            manager.offer_tick(_tick("BTCUSDT", price))
+        manager.flush()
+
+        assert (await ws.receive_json(timeout=2))["price"] == "75793.4"
+        assert _dropped("BTCUSDT") == before + 2
+        # one message per Symbol per flush, and nothing queued behind it
+        manager.flush()
+        with pytest.raises(TimeoutError):
+            await ws.receive_json(timeout=0.3)
+
+
+async def test_the_sampler_flushes_on_its_own(ws_connect: Connect, user: User) -> None:
+    async with ws_connect() as ws, manager.sampling():
+        await _authenticated(ws, security.create_access_token(user.id))
+        manager.offer_tick(_tick("BTCUSDT", "75793.4"))
+        # no manual flush: the sampler's own cadence delivers it
+        assert (await ws.receive_json(timeout=1))["price"] == "75793.4"

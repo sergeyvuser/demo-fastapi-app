@@ -52,7 +52,7 @@ _ws_alerts_queue = RabbitQueue(
 
 @stream_router.subscriber(_ws_ticks_queue, TICKS_EXCHANGE)
 async def on_tick(tick: TickEvent) -> None:
-    await manager.broadcast_tick(tick=tick)
+    manager.offer_tick(tick=tick)
 
 
 @stream_router.subscriber(_ws_alerts_queue, ALERTS_EXCHANGE)
