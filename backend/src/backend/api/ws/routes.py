@@ -10,6 +10,7 @@ from backend.api.ws.manager import Connection, manager
 from backend.api.ws.messages import (
     AuthFrame,
     ErrorMessage,
+    HeartbeatMessage,
     ServerMessage,
     UnwatchFrame,
     WatchFrame,
@@ -25,6 +26,10 @@ router = APIRouter(tags=["WS"])
 # How long an accepted socket may stay anonymous. The price of accepting
 # before authenticating: a bounded window of connections nobody vouched for.
 AUTH_DEADLINE_SECONDS = 5.0
+# The client's watchdog declares a socket dead after 45 s without a message
+# of any kind; a heartbeat after 20 s of silence keeps two misses inside that.
+HEARTBEAT_SECONDS = 20.0
+_HEARTBEAT = HeartbeatMessage().model_dump(mode="json")
 
 
 def _loop_deadline(expires_at: datetime) -> float:
@@ -102,7 +107,13 @@ async def websocket_endpoint(ws: WebSocket, sessions: SessionFactoryDep) -> None
 
     async def sender() -> None:
         while True:
-            await ws.send_json(await conn.queue.get())
+            try:
+                async with asyncio.timeout(HEARTBEAT_SECONDS):
+                    message = await conn.queue.get()
+            except TimeoutError:
+                # nothing to say for a while: say that the socket is alive
+                message = _HEARTBEAT
+            await ws.send_json(message)
 
     send_task = asyncio.create_task(sender())
     close_code: int | None = None

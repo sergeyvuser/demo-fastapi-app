@@ -246,3 +246,14 @@ async def test_a_trigger_reaches_its_owner_and_no_one_else(
         }
         with pytest.raises(TimeoutError):
             await theirs.receive_json(timeout=0.3)
+
+
+async def test_a_quiet_socket_hears_a_heartbeat(
+    ws_connect: Connect, user: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(routes, "HEARTBEAT_SECONDS", 0.2)
+    async with ws_connect() as ws:
+        await _authenticated(ws, security.create_access_token(user.id))
+        assert await ws.receive_json(timeout=2) == {"type": "heartbeat"}
+        # and it keeps beating while nothing else is said
+        assert await ws.receive_json(timeout=2) == {"type": "heartbeat"}
