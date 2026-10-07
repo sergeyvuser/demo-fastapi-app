@@ -103,7 +103,7 @@ async def websocket_endpoint(ws: WebSocket, sessions: SessionFactoryDep) -> None
 
     # registered only now: until here the manager has nothing to send it to
     conn = Connection(ws=ws, user_id=authenticated.user.id)
-    manager.register(conn)
+    await manager.register(conn)
 
     async def sender() -> None:
         while True:

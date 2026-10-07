@@ -87,3 +87,11 @@ class ErrorMessage(BaseModel):
 ServerMessage = (
     TickMessage | TriggerMessage | WatchingMessage | HeartbeatMessage | ErrorMessage
 )
+
+# Close codes belong to the contract as much as the messages: a client
+# branches on them.
+#   1008 (policy violation): authentication failed or lapsed — sign in again.
+#   4000 (private range, RFC 6455 section 7.4.2): replaced by a newer socket
+#        of the same User. Reconnecting on it would push out the next oldest,
+#        so a client waits for the person to come back to the tab instead.
+CLOSE_REPLACED = 4000

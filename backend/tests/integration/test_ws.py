@@ -1,6 +1,7 @@
 """The socket's contract, driven through the real endpoint."""
 
 import asyncio
+import contextlib
 import uuid
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
@@ -15,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.ws import routes
 from backend.api.ws.manager import manager
+from backend.api.ws.messages import CLOSE_REPLACED
 from backend.core import security
 from backend.core.config import settings
 from backend.models.user import User
@@ -257,3 +259,18 @@ async def test_a_quiet_socket_hears_a_heartbeat(
         assert await ws.receive_json(timeout=2) == {"type": "heartbeat"}
         # and it keeps beating while nothing else is said
         assert await ws.receive_json(timeout=2) == {"type": "heartbeat"}
+
+
+async def test_a_sixth_socket_closes_the_oldest(
+    ws_connect: Connect, user: User
+) -> None:
+    token = security.create_access_token(user.id)
+    async with contextlib.AsyncExitStack() as stack:
+        sockets = [await stack.enter_async_context(ws_connect()) for _ in range(6)]
+        for ws in sockets:  # authenticated in order, so sockets[0] is the oldest
+            await _authenticated(ws, token)
+
+        assert await _close_code(sockets[0]) == CLOSE_REPLACED
+        for ws in sockets[1:]:  # the five newest are still served
+            await ws.send_json({"action": "watch", "symbols": ["ETHUSDT"]})
+            assert (await ws.receive_json(timeout=2))["type"] == "watching"

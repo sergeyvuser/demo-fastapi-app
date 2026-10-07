@@ -6,11 +6,15 @@ from typing import Any, TypedDict
 
 from fastapi import WebSocket, status
 
-from backend.api.ws.messages import TickMessage, TriggerMessage
+from backend.api.ws.messages import CLOSE_REPLACED, TickMessage, TriggerMessage
 from shared.events import AlertTriggeredEvent, TickEvent
 from shared.metrics import ws_connections
 
 _QUEUE_SIZE = 100
+# Insurance for one 512 MB instance against a tab multiplied by a script, not
+# a product rule: one socket per tab, with hidden tabs releasing theirs, leaves
+# a real person holding one to three.
+MAX_SOCKETS_PER_USER = 5
 
 
 class WsStats(TypedDict):
@@ -42,15 +46,29 @@ class Connection:
 
 class ConnectionManager:
     def __init__(self) -> None:
-        self._connections: set[Connection] = set()
+        # A dict used as an ordered set: iteration follows registration, so a
+        # User's first connection found in it is that User's oldest.
+        self._connections: dict[Connection, None] = {}
 
-    def register(self, conn: Connection) -> None:
-        self._connections.add(conn)
+    async def register(self, conn: Connection) -> None:
+        """Take on a connection, closing the User's oldest beyond the cap."""
+        mine = [c for c in self._connections if c.user_id == conn.user_id]
+        excess = len(mine) - MAX_SOCKETS_PER_USER + 1
+        for old in mine[: max(excess, 0)]:
+            # counted out now rather than when its endpoint notices the close,
+            # so the next registration cannot count it twice
+            self.unregister(old)
+            with contextlib.suppress(RuntimeError, OSError):
+                await old.ws.close(code=CLOSE_REPLACED)
+        self._connections[conn] = None
         ws_connections.inc()
 
     def unregister(self, conn: Connection) -> None:
-        self._connections.discard(conn)
-        ws_connections.dec()
+        """Idempotent: an evicted connection comes through here twice — from
+        register, and again from its own endpoint's `finally`."""
+        if conn in self._connections:
+            del self._connections[conn]
+            ws_connections.dec()
 
     async def disconnect_user(self, user_id: uuid.UUID) -> None:
         """Close every socket this User holds, on every device.

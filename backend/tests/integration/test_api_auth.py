@@ -1,6 +1,6 @@
 import secrets
 import uuid
-from collections.abc import Callable, Generator
+from collections.abc import Awaitable, Callable, Generator
 
 import pytest
 from fastapi import status
@@ -89,7 +89,7 @@ class _FakeSocket:
 
 
 @pytest.fixture
-def open_socket() -> Generator[Callable[..., _FakeSocket]]:
+def open_socket() -> Generator[Callable[..., Awaitable[_FakeSocket]]]:
     """Register sockets with the real manager, and take them out afterwards.
 
     No endpoint runs here, so nothing else would unregister them — and the
@@ -97,10 +97,10 @@ def open_socket() -> Generator[Callable[..., _FakeSocket]]:
     """
     opened: list[Connection] = []
 
-    def _open(user_id: uuid.UUID, *, gone: bool = False) -> _FakeSocket:
+    async def _open(user_id: uuid.UUID, *, gone: bool = False) -> _FakeSocket:
         ws = _FakeSocket(gone=gone)
         conn = Connection(ws=ws, user_id=user_id)  # type: ignore[arg-type]
-        manager.register(conn)
+        await manager.register(conn)
         opened.append(conn)
         return ws
 
@@ -308,10 +308,13 @@ async def test_logout_closes_every_socket_of_that_user_and_no_other(
     user: User,
     other_user: User,
     auth_headers: Callable[[User], dict[str, str]],
-    open_socket: Callable[..., _FakeSocket],
+    open_socket: Callable[..., Awaitable[_FakeSocket]],
 ) -> None:
-    tabs = [open_socket(user.id), open_socket(user.id)]  # e.g. phone and laptop
-    bystander = open_socket(other_user.id)
+    tabs = [
+        await open_socket(user.id),
+        await open_socket(user.id),
+    ]  # e.g. phone and laptop
+    bystander = await open_socket(other_user.id)
 
     response = await api_client.post(LOGOUT, headers=auth_headers(user))
 
@@ -324,10 +327,10 @@ async def test_a_socket_already_gone_does_not_spare_the_others(
     api_client: AsyncClient,
     user: User,
     auth_headers: Callable[[User], dict[str, str]],
-    open_socket: Callable[..., _FakeSocket],
+    open_socket: Callable[..., Awaitable[_FakeSocket]],
 ) -> None:
-    open_socket(user.id, gone=True)
-    survivor = open_socket(user.id)
+    await open_socket(user.id, gone=True)
+    survivor = await open_socket(user.id)
 
     response = await api_client.post(LOGOUT, headers=auth_headers(user))
 
