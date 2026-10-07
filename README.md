@@ -6,7 +6,7 @@ Async price-alert service for crypto markets. Users register, create alerts
 ("BTCUSDT above 120k"), an ingestor streams Bybit tickers into RabbitMQ, an
 evaluator matches ticks against active alerts, a notifier delivers Telegram
 alerts, and background jobs send email (verification, daily digest). A
-`/ws` endpoint streams live ticks and alerts to clients — ready for a
+`/api/v1/ws` endpoint streams live ticks and Triggers to clients — ready for a
 realtime dashboard frontend.
 
 > Learning project: built stage by stage to practice a modern async Python
@@ -190,19 +190,32 @@ undeliverable notifications.
 
 ## Realtime (implemented)
 
-`GET ws://<host>/ws?token=<access_jwt>` — authenticated WebSocket. Not in
-Swagger (OpenAPI has no WebSocket); this is the contract:
+`wss://<host>/api/v1/ws` — authenticated WebSocket. Not in Swagger (OpenAPI
+has no WebSocket); the frames are pydantic models in
+`backend/src/backend/api/ws/messages.py`, and this is the contract:
 
 ```
-client → {"action": "subscribe",   "symbols": ["BTCUSDT"]}
-client → {"action": "unsubscribe", "symbols": ["BTCUSDT"]}
-server → {"type": "subscriptions", "symbols": [...]}          # ack
-server → {"type": "tick",  "symbol": "...", "price": "...", "ts": "..."}
-server → {"type": "alert", "alert_id": "...", "symbol": "...", ...}  # this user only
+client → {"action": "auth",    "token": "<access_jwt>"}   # first, within 5 s
+client → {"action": "watch",   "symbols": ["BTCUSDT"]}
+client → {"action": "unwatch", "symbols": ["BTCUSDT"]}
+server → {"type": "watching",  "symbols": [...]}          # the authoritative set
+server → {"type": "tick",      "symbol", "price", "reference_price", "ts"}
+server → {"type": "trigger",   "trigger_id", "alert_id", "symbol", ...}  # owner only
+server → {"type": "heartbeat"}                            # after 20 s of silence
+server → {"type": "error",     "code": "unknown_symbols" | "invalid_frame", "symbols": [...]}
 ```
 
-Ticks are filtered by subscription; alerts are delivered only to their
-owner. The browser must reconnect on drop (server restart closes sockets).
+- The token travels in the first frame, never in the URL, where proxy access
+  logs and trace spans would record it. Nothing is sent before it verifies,
+  by the same rule as HTTP — a token issued before a logout is refused.
+- The socket lives no longer than its token: send a fresh `auth` frame after
+  every refresh. There is no reply; staying open is the confirmation.
+- Ticks are sampled server-side — at most one per Symbol every 250 ms, latest
+  wins. Only the socket fan-out is throttled; the evaluator sees every tick.
+- Close codes: `1008` — authentication failed or lapsed; `4000` — replaced by
+  a newer socket of the same user (five per user). Do not reconnect on `4000`.
+- Nothing is buffered for a disconnected client: on reconnect, refetch the
+  Trigger history and `GET /api/v1/symbols`.
 
 ## Background jobs (implemented)
 
@@ -217,7 +230,8 @@ Taskiq worker + scheduler over RabbitMQ, Redis result backend:
 Three pillars, each answering a different question:
 
 - **Metrics** — `/metrics` on every service (RED metrics for HTTP plus custom
-  counters: ticks, alerts fired, notifications, auth failures, WS connections).
+  counters: ticks, alerts fired, notifications, auth failures, WS connections
+  and sampled-away ticks).
   Scraped by Prometheus, charted in Grafana.
 - **Logs** — flat JSON to stdout, one line per event, with structured fields
   (`logger.bind(...)`). Every line carries `correlation_id` (propagated across
