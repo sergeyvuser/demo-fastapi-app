@@ -11,6 +11,7 @@ from decimal import Decimal
 import jwt
 import pytest
 from fastapi import status
+from httpx import AsyncClient
 from httpx_ws import AsyncWebSocketSession, WebSocketDisconnect
 from prometheus_client import REGISTRY
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -283,6 +284,29 @@ async def test_a_sixth_socket_closes_the_oldest(
         for ws in sockets[1:]:  # the five newest are still served
             await ws.send_json({"action": "watch", "symbols": ["ETHUSDT"]})
             assert (await ws.receive_json(timeout=2))["type"] == "watching"
+
+
+async def test_logout_closes_every_socket_of_that_user_and_no_other(
+    api_client: AsyncClient,
+    ws_connect: Connect,
+    user: User,
+    other_user: User,
+    auth_headers: Callable[[User], dict[str, str]],
+) -> None:
+    async with ws_connect() as phone, ws_connect() as laptop, ws_connect() as bystander:
+        await _authenticated(phone, security.create_access_token(user.id))
+        await _authenticated(laptop, security.create_access_token(user.id))
+        await _authenticated(bystander, security.create_access_token(other_user.id))
+
+        response = await api_client.post(
+            "/api/v1/auth/logout", headers=auth_headers(user)
+        )
+
+        assert response.status_code == 204
+        assert await _close_code(phone) == POLICY_VIOLATION
+        assert await _close_code(laptop) == POLICY_VIOLATION
+        await bystander.send_json({"action": "watch", "symbols": ["ETHUSDT"]})
+        assert (await bystander.receive_json(timeout=2))["type"] == "watching"
 
 
 async def test_the_sampler_sends_the_latest_tick_and_counts_the_rest(

@@ -36,6 +36,26 @@ class Connection:
         self.user_id = user_id
         self.symbols: set[str] = set()
         self.queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=_QUEUE_SIZE)
+        self.close_code: int | None = None
+        self._closing = asyncio.Event()
+
+    def request_close(self, code: int) -> None:
+        """Ask this connection's own endpoint to close it, with `code`.
+
+        Nobody else may call ws.close(): under Granian a close issued while
+        the endpoint is waiting in receive() never returns — the socket stays
+        open and the caller hangs. The endpoint closes it itself, after it has
+        stopped receiving. The first request wins.
+        """
+        if self.close_code is None:
+            self.close_code = code
+            self._closing.set()
+
+    async def closing(self) -> int:
+        """Wait until a close has been requested; return its code."""
+        await self._closing.wait()
+        assert self.close_code is not None
+        return self.close_code
 
     def enqueue(self, message: dict[str, Any]) -> None:
         """Drop-oldest backpressure: a slow client loses stale ticks,
@@ -57,7 +77,7 @@ class ConnectionManager:
         # the latest Tick per Symbol since the last flush
         self._pending: dict[str, TickEvent] = {}
 
-    async def register(self, conn: Connection) -> None:
+    def register(self, conn: Connection) -> None:
         """Take on a connection, closing the User's oldest beyond the cap."""
         mine = [c for c in self._connections if c.user_id == conn.user_id]
         excess = len(mine) - MAX_SOCKETS_PER_USER + 1
@@ -65,8 +85,7 @@ class ConnectionManager:
             # counted out now rather than when its endpoint notices the close,
             # so the next registration cannot count it twice
             self.unregister(old)
-            with contextlib.suppress(RuntimeError, OSError):
-                await old.ws.close(code=CLOSE_REPLACED)
+            old.request_close(CLOSE_REPLACED)
         self._connections[conn] = None
         ws_connections.inc()
 
@@ -77,7 +96,7 @@ class ConnectionManager:
             del self._connections[conn]
             ws_connections.dec()
 
-    async def disconnect_user(self, user_id: uuid.UUID) -> None:
+    def disconnect_user(self, user_id: uuid.UUID) -> None:
         """Close every socket this User holds, on every device.
 
         SINGLE-INSTANCE ONLY. This sees the sockets of this process and no
@@ -86,13 +105,9 @@ class ConnectionManager:
         replacing this with a broadcast (e.g. a "user signed out" event every
         replica consumes) — until then `api` must stay one container.
         """
-        # a snapshot: each close lets the endpoint's `finally` unregister its
-        # connection, which would change the set mid-iteration
-        for conn in [c for c in self._connections if c.user_id == user_id]:
-            # the client may be gone already; one dead socket must not leave
-            # the rest open, nor fail the logout that asked for it
-            with contextlib.suppress(RuntimeError, OSError):
-                await conn.ws.close(code=status.WS_1008_POLICY_VIOLATION)
+        for conn in self._connections:
+            if conn.user_id == user_id:
+                conn.request_close(status.WS_1008_POLICY_VIOLATION)
 
     @property
     def active_count(self) -> int:

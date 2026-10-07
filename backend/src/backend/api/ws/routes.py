@@ -103,7 +103,7 @@ async def websocket_endpoint(ws: WebSocket, sessions: SessionFactoryDep) -> None
 
     # registered only now: until here the manager has nothing to send it to
     conn = Connection(ws=ws, user_id=authenticated.user.id)
-    await manager.register(conn)
+    manager.register(conn)
 
     async def sender() -> None:
         while True:
@@ -115,8 +115,36 @@ async def websocket_endpoint(ws: WebSocket, sessions: SessionFactoryDep) -> None
                 message = _HEARTBEAT
             await ws.send_json(message)
 
-    send_task = asyncio.create_task(sender())
+    receiving = asyncio.create_task(_serve(ws, conn, authenticated, sessions))
+    closing = asyncio.create_task(conn.closing())
+    sending = asyncio.create_task(sender())
+    tasks = (receiving, closing, sending)
     close_code: int | None = None
+    try:
+        # Whichever ends first: the client's side of the conversation, or a
+        # close asked for from elsewhere — a logout, a newer socket.
+        await asyncio.wait({receiving, closing}, return_when=asyncio.FIRST_COMPLETED)
+        close_code = closing.result() if closing.done() else receiving.result()
+    finally:
+        for task in tasks:
+            task.cancel()
+        # Let each one unwind before the close: under Granian a close issued
+        # while a receive is still pending on the socket never returns.
+        await asyncio.gather(*tasks, return_exceptions=True)
+        manager.unregister(conn)
+        if close_code is not None:
+            # the client may already be gone; that must not mask the cleanup
+            with contextlib.suppress(RuntimeError, OSError):
+                await ws.close(code=close_code)
+
+
+async def _serve(
+    ws: WebSocket,
+    conn: Connection,
+    authenticated: Authenticated,
+    sessions: SessionFactory,
+) -> int | None:
+    """The receive loop: the code to close with, or None if the client left."""
     try:
         # The socket lives no longer than its credential. Only a fresh auth
         # frame moves the deadline — see the AuthFrame case below.
@@ -135,8 +163,7 @@ async def websocket_endpoint(ws: WebSocket, sessions: SessionFactoryDep) -> None
                     case AuthFrame():
                         renewed = await _renew(frame, conn.user_id, sessions)
                         if renewed is None:
-                            close_code = status.WS_1008_POLICY_VIOLATION
-                            break
+                            return status.WS_1008_POLICY_VIOLATION
                         lifetime.reschedule(_loop_deadline(renewed.expires_at))
                         # no reply: the message union has no member for it,
                         # and a socket that stays open is the confirmation
@@ -160,13 +187,6 @@ async def websocket_endpoint(ws: WebSocket, sessions: SessionFactoryDep) -> None
                 await _send(ws, WatchingMessage(symbols=sorted(conn.symbols)))
     except TimeoutError:
         # the token expired and no fresh one arrived in time
-        close_code = status.WS_1008_POLICY_VIOLATION
+        return status.WS_1008_POLICY_VIOLATION
     except WebSocketDisconnect:
-        pass
-    finally:
-        send_task.cancel()
-        manager.unregister(conn)
-        if close_code is not None:
-            # the client may already be gone; that must not mask the cleanup
-            with contextlib.suppress(RuntimeError, OSError):
-                await ws.close(code=close_code)
+        return None

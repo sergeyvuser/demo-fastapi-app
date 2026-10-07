@@ -155,5 +155,5 @@ async def logout(
     # route trusts a cookie, so the CSRF surface stays /refresh alone.
     await AuthService(session).logout(current_user, refresh_token)
     # after the commit: a socket is only cut once the revocation is durable
-    await manager.disconnect_user(current_user.id)
+    manager.disconnect_user(current_user.id)
     _clear_refresh_cookie(response)
