@@ -43,3 +43,13 @@ class UnauthorizedError(AppError):
 class GoneError(AppError):
     status_code = 410
     title = "Gone"
+
+
+class ServiceUnavailableError(AppError):
+    """We depend on something that cannot answer right now: "later", not "broken"."""
+
+    status_code = 503
+    title = "Service Unavailable"
+
+    def __init__(self, detail: str | None = None, *, retry_after: int):
+        super().__init__(detail, headers={"Retry-After": str(retry_after)})
