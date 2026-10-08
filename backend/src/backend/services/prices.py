@@ -70,7 +70,10 @@ class PriceCache:
         so the two halves line up with `symbols` by position.
         """
         if not symbols:
-            return {}  # MGET with no keys is an error, not an empty answer
+            # Not for correctness — redis-py turns Redis's refusal of an empty
+            # MGET into [] and the dict below comes out empty anyway. It saves
+            # a round trip that can only fail, and keeps us off that quirk.
+            return {}
         keys = [_price_key(s) for s in symbols] + [_reference_key(s) for s in symbols]
         raw = cast("list[str | None]", await self.redis.mget(keys))
         half = len(symbols)
