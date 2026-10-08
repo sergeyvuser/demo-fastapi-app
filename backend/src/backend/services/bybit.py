@@ -45,7 +45,9 @@ _Row = tuple[int, Decimal, Decimal, Decimal, Decimal, Decimal, Decimal]
 
 class _KlineResult(BaseModel):
     # Absent rather than empty on a business error: an unknown symbol answers
-    # `result: {}`, and `result["list"]` would raise.
+    # `result: {}`. Named `rows` because `list: list[...] = None` would bind
+    # `list` to None in the class body, and this very annotation would then
+    # evaluate `None[...]`.
     rows: list[_Row] | None = Field(default=None, alias="list")
 
 
