@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 from redis.asyncio import Redis
 
@@ -29,6 +30,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # not surface as 500s under traffic
     await redis.ping()
     app.state.redis = redis
+    # One client for the life of the process: it holds a connection pool, and
+    # a client per request would pay a TCP and TLS handshake to Bybit every time.
+    bybit = httpx.AsyncClient(base_url=settings.candles.base_url)
+    app.state.bybit = bybit
 
     # API process is a taskiq CLIENT: it must connect to the broker to
     # enqueue tasks. The worker/scheduler processes call startup() on
@@ -52,5 +57,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # Shutdown
     if not taskiq_broker.is_worker_process:
         await taskiq_broker.shutdown()
+    await bybit.aclose()
     await redis.aclose()
     await engine.dispose()

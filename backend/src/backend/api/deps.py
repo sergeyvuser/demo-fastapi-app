@@ -1,5 +1,6 @@
 from typing import Annotated
 
+import httpx
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from redis.asyncio import Redis
@@ -51,3 +52,10 @@ def get_redis(request: Request) -> Redis:
 
 
 RedisDep = Annotated[Redis, Depends(get_redis)]
+
+
+def get_bybit(request: Request) -> httpx.AsyncClient:
+    return request.app.state.bybit
+
+
+BybitDep = Annotated[httpx.AsyncClient, Depends(get_bybit)]

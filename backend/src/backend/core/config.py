@@ -125,6 +125,17 @@ class DemoConfig(BaseModel):
     password: str = "demo-password"
 
 
+class CandlesConfig(BaseModel):
+    """Price history, fetched from Bybit's public REST API."""
+
+    # api.bytick.com is Bybit's documented alternate host for the same API —
+    # the escape hatch if this one is ever unreachable from the server
+    base_url: str = "https://api.bybit.com"
+    # Per account per minute: invisible to a person, uninteresting to a script
+    rate_limit: int = 60
+    rate_window_seconds: int = 60
+
+
 class Settings(BaseServiceSettings):
     run: RunConfig = RunConfig()
     api: APIPrefixConfig = APIPrefixConfig()
@@ -132,6 +143,7 @@ class Settings(BaseServiceSettings):
     auth: AuthConfig
     smtp: SMTPConfig = SMTPConfig()
     demo: DemoConfig = DemoConfig()
+    candles: CandlesConfig = CandlesConfig()
 
 
 settings = Settings()
