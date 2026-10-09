@@ -18,7 +18,7 @@
 	acme_ca {$ACME_CA}
 }
 
-# Shared by both sites: what every response carries, what gets written down,
+# Shared by every site: what every response carries, what gets written down,
 # and what never leaves the compose network.
 (edge) {
 	header {
@@ -43,7 +43,7 @@
 		format json
 	}
 
-	# Both sites, not just the API: Prometheus scrapes api:8080/metrics inside
+    # Every site, not just the API: Prometheus scrapes api:8080/metrics inside
 	# the compose network, and Grafana serves its own /metrics unauthenticated
 	# by default — verified on grafana/grafana:13.1.1, a plain 200. From the
 	# outside neither must even admit to existing, hence 404 rather than 403.
@@ -119,5 +119,20 @@ grafana.vorobev.dev {
 	# puzzle for whoever reads this next.
 	handle {
 		reverse_proxy grafana:3000
+	}
+}
+
+# The bare domain and www have no content of their own yet; until a personal
+# site exists they send people to the application. Temporary on purpose: a
+# permanent redirect is cached by browsers indefinitely, and this one is
+# meant to be replaced.
+vorobev.dev, www.vorobev.dev {
+	import edge
+
+	# To the root, not {uri}: the apex has no paths of its own, and carrying
+	# them across would forward scanners' /.env and /.git/config probes onto
+	# the application's host for nothing.
+	handle {
+		redir https://alerts.vorobev.dev/ 302
 	}
 }
