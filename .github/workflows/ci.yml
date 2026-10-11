@@ -56,8 +56,31 @@ jobs:
           docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest
           detect --source=/repo --config=/repo/.gitleaks.toml --redact --verbose
 
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          # the same file the Dockerfile's tag and package.json "engines" agree
+          # with — tests/deploy/test_frontend_image.py holds the three together
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      # Types are derived, not committed: without this step the checker below
+      # has nothing to import. From the committed openapi.json, never from a
+      # developer's machine.
+      - run: npm run generate
+      - run: npm run typecheck
+      - run:
+          npm test
+
   build:
-    needs: [ lint, types, test, secrets ]
+    needs: [ lint, types, test, secrets, frontend ]
     runs-on: ubuntu-latest
     permissions:
       contents: read
