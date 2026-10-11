@@ -1,0 +1,271 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Crypto Alerts socket contract",
+    "version": "1"
+  },
+  "paths": {},
+  "components": {
+    "schemas": {
+      "AuthFrame": {
+        "properties": {
+          "action": {
+            "const": "auth",
+            "title": "Action",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "token"
+        ],
+        "title": "AuthFrame",
+        "type": "object"
+      },
+      "ErrorMessage": {
+        "properties": {
+          "type": {
+            "const": "error",
+            "default": "error",
+            "title": "Type",
+            "type": "string"
+          },
+          "code": {
+            "enum": [
+              "unknown_symbols",
+              "invalid_frame"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "symbols": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Symbols",
+            "type": "array"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "ErrorMessage",
+        "type": "object"
+      },
+      "HeartbeatMessage": {
+        "properties": {
+          "type": {
+            "const": "heartbeat",
+            "default": "heartbeat",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "HeartbeatMessage",
+        "type": "object"
+      },
+      "TickMessage": {
+        "properties": {
+          "type": {
+            "const": "tick",
+            "default": "tick",
+            "title": "Type",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Price",
+            "type": "string"
+          },
+          "reference_price": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Price"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "price",
+          "reference_price",
+          "ts"
+        ],
+        "title": "TickMessage",
+        "type": "object"
+      },
+      "TriggerMessage": {
+        "properties": {
+          "type": {
+            "const": "trigger",
+            "default": "trigger",
+            "title": "Type",
+            "type": "string"
+          },
+          "trigger_id": {
+            "format": "uuid",
+            "title": "Trigger Id",
+            "type": "string"
+          },
+          "alert_id": {
+            "format": "uuid",
+            "title": "Alert Id",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "condition": {
+            "title": "Condition",
+            "type": "string"
+          },
+          "threshold": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Threshold",
+            "type": "string"
+          },
+          "price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Price",
+            "type": "string"
+          },
+          "triggered_at": {
+            "format": "date-time",
+            "title": "Triggered At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trigger_id",
+          "alert_id",
+          "symbol",
+          "condition",
+          "threshold",
+          "price",
+          "triggered_at"
+        ],
+        "title": "TriggerMessage",
+        "type": "object"
+      },
+      "UnwatchFrame": {
+        "properties": {
+          "action": {
+            "const": "unwatch",
+            "title": "Action",
+            "type": "string"
+          },
+          "symbols": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Symbols",
+            "type": "array"
+          }
+        },
+        "required": [
+          "action",
+          "symbols"
+        ],
+        "title": "UnwatchFrame",
+        "type": "object"
+      },
+      "WatchFrame": {
+        "properties": {
+          "action": {
+            "const": "watch",
+            "title": "Action",
+            "type": "string"
+          },
+          "symbols": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Symbols",
+            "type": "array"
+          }
+        },
+        "required": [
+          "action",
+          "symbols"
+        ],
+        "title": "WatchFrame",
+        "type": "object"
+      },
+      "WatchingMessage": {
+        "description": "The set this connection actually watches — authoritative: the client\ndiffs what it asked for against it.",
+        "properties": {
+          "type": {
+            "const": "watching",
+            "default": "watching",
+            "title": "Type",
+            "type": "string"
+          },
+          "symbols": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Symbols",
+            "type": "array"
+          }
+        },
+        "required": [
+          "symbols"
+        ],
+        "title": "WatchingMessage",
+        "type": "object"
+      },
+      "ClientFrame": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/AuthFrame"
+          },
+          {
+            "$ref": "#/components/schemas/WatchFrame"
+          },
+          {
+            "$ref": "#/components/schemas/UnwatchFrame"
+          }
+        ]
+      },
+      "ServerMessage": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/TickMessage"
+          },
+          {
+            "$ref": "#/components/schemas/TriggerMessage"
+          },
+          {
+            "$ref": "#/components/schemas/WatchingMessage"
+          },
+          {
+            "$ref": "#/components/schemas/HeartbeatMessage"
+          },
+          {
+            "$ref": "#/components/schemas/ErrorMessage"
+          }
+        ]
+      }
+    }
+  }
+}
