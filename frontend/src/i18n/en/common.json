@@ -1,0 +1,9 @@
+{
+  "productName": "Crypto Alerts",
+  "documentTitle": "{{page}} · Crypto Alerts",
+  "language": {
+    "switchLabel": "Interface language",
+    "en": "English",
+    "ru": "Русский"
+  }
+}

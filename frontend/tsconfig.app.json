@@ -7,6 +7,9 @@
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
+    // The catalogues are .json, so they stay data a translator could be
+    // handed; this is what lets `ru satisfies typeof en` see their shape.
+    "resolveJsonModule": true,
 
     /* Bundler mode */
     "moduleResolution": "bundler",
