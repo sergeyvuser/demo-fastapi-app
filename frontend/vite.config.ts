@@ -24,6 +24,7 @@ export default defineConfig({
     // not reach the threads pool — so it is set on the main process, which
     // every pool inherits. `environment.test.ts` asserts that it took.
     globalSetup: ['./vitest.globalSetup.ts'],
+    setupFiles: ['./src/testing/setup.ts'],
   },
   build: {
     rolldownOptions: {
