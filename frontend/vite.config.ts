@@ -1,5 +1,5 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -14,6 +14,16 @@ export default defineConfig({
     proxy: {
       '/api': { target: 'http://127.0.0.1:8000', ws: true },
     },
+  },
+  test: {
+    // The application is a browser one: the language switch is storage plus a
+    // re-render, and the one clock listens for `visibilitychange`.
+    environment: 'jsdom',
+    // Time is rendered in the reader's own zone, so the output depends on the
+    // machine. `test.env` cannot pin it — a documented hole: TZ set there does
+    // not reach the threads pool — so it is set on the main process, which
+    // every pool inherits. `environment.test.ts` asserts that it took.
+    globalSetup: ['./vitest.globalSetup.ts'],
   },
   build: {
     rolldownOptions: {
