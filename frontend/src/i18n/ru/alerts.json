@@ -1,0 +1,8 @@
+{
+  "card": {
+    "triggerCount_one": "{{count, number}} срабатывание",
+    "triggerCount_few": "{{count, number}} срабатывания",
+    "triggerCount_many": "{{count, number}} срабатываний",
+    "triggerCount_other": "{{count, number}} срабатывания"
+  }
+}

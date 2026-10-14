@@ -1,0 +1,6 @@
+{
+  "card": {
+    "triggerCount_one": "{{count, number}} Trigger",
+    "triggerCount_other": "{{count, number}} Triggers"
+  }
+}

@@ -1,5 +1,7 @@
+import enAlerts from './en/alerts.json'
 import enCommon from './en/common.json'
 import enNotFound from './en/notFound.json'
+import ruAlerts from './ru/alerts.json'
 import ruCommon from './ru/common.json'
 import ruNotFound from './ru/notFound.json'
 
@@ -8,6 +10,7 @@ import ruNotFound from './ru/notFound.json'
 // Lazy loading is out of scope for the stage, which removes the only thing
 // real namespaces buy and leaves their cost — a namespace in every call.
 export const en = {
+  alerts: enAlerts,
   common: enCommon,
   notFound: enNotFound,
 }
@@ -18,6 +21,7 @@ export const en = {
 // and `_many` have nothing in English to correspond to, which is exactly the
 // hole the plural test closes.
 export const ru = {
+  alerts: ruAlerts,
   common: ruCommon,
   notFound: ruNotFound,
 } satisfies typeof en
