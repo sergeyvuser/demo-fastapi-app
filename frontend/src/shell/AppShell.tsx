@@ -1,36 +1,50 @@
-import { Container, Group, AppShell as MantineAppShell, Skeleton } from '@mantine/core'
-import { Outlet } from '@tanstack/react-router'
+import { Box, Container, Group, AppShell as MantineAppShell, Skeleton } from '@mantine/core'
+import { Outlet, useMatches } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { useSession } from '../api/session'
-import { LanguageSwitch } from '../i18n/LanguageSwitch'
+import { useSymbolsFeed } from '../prices/feed'
+import { STRIP_HEIGHT, TickerStrip } from '../prices/TickerStrip'
 import { ColorSchemeToggle } from './ColorSchemeToggle'
+import { PublicFooter, SignedInFooter } from './Footer'
 import { AnchorLink, ButtonLink } from './links'
 import { UserMenu } from './UserMenu'
+
+const HEADER_HEIGHT = 56
 
 // One shell for every screen, public or not: the header and the footer are
 // the frame, and what the header carries follows the session.
 export function AppShell() {
+  // Once, here: the strip is on every screen, so its feed is too.
+  useSymbolsFeed()
+  const signedInScreen = useMatches({
+    select: (matches) => matches.some((match) => match.routeId === '/signed-in'),
+  })
+
   return (
-    <MantineAppShell header={{ height: 56 }} footer={{ height: 48 }} padding="md">
+    <MantineAppShell header={{ height: HEADER_HEIGHT + STRIP_HEIGHT }} padding="md">
       <MantineAppShell.Header>
         <Header />
+        <Box bg="var(--mantine-color-default-hover)">
+          <Container size={1440} p={0}>
+            <TickerStrip />
+          </Container>
+        </Box>
       </MantineAppShell.Header>
-      <MantineAppShell.Main>
+      {/* A column, so a short screen still puts its footer at the bottom of
+          the window. The footer is in the flow, not fixed: four links and a
+          switch need two rows at 375 px, and a fixed footer that tall would
+          take a sixth of a phone's screen for good. */}
+      <MantineAppShell.Main style={{ display: 'flex', flexDirection: 'column' }}>
         {/* the grid the prototype measured: content capped and centred, the
             header on the same column */}
-        <Container size={1440} p={0}>
+        <Container size={1440} p={0} w="100%" style={{ flex: 1 }}>
           <Outlet />
         </Container>
+        <Container size={1440} p={0} w="100%">
+          {signedInScreen ? <SignedInFooter /> : <PublicFooter />}
+        </Container>
       </MantineAppShell.Main>
-      {/* A setting changed once does not earn a slot in the header. This
-          footer is temporary: impl 21 gives the public screens their own,
-          and impl 29 puts the same switch on Account. */}
-      <MantineAppShell.Footer px="md">
-        <Group h="100%" justify="flex-end">
-          <LanguageSwitch />
-        </Group>
-      </MantineAppShell.Footer>
     </MantineAppShell>
   )
 }
@@ -41,7 +55,7 @@ function Header() {
   const signedIn = status === 'authenticated'
 
   return (
-    <Container size={1440} h="100%" px="md">
+    <Container size={1440} h={HEADER_HEIGHT} px="md">
       <Group h="100%" justify="space-between" wrap="nowrap" gap="sm">
         <Group gap="md" wrap="nowrap">
           <AnchorLink

@@ -71,6 +71,9 @@ export default tseslint.config(
               // `component` is Mantine's polymorphism: an element name.
               '^(size|color|variant|radius|order|justify|align|gap|wrap|span|shadow|pos|display|c|bg|ta|fz|fw|lh|tt|td|ff|component)$',
               '^[pm][xytblrse]?$',
+              // A link's relation and browsing context are keywords from the
+              // HTML standard, not words a reader sees.
+              '^(rel|target)$',
             ],
           },
         },

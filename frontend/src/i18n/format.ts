@@ -22,6 +22,18 @@ export function formatPrice(price: string | number, precision: number, language:
   }).format(price as Intl.StringNumericLiteral)
 }
 
+// A change as a signed percentage: `+1.23%`, `-0.40%`, `0.00%`. The sign is
+// always written, so a direction is legible without its colour; zero gets
+// none, because "+0.00%" claims a direction that is not there.
+export function formatChange(ratio: number, language: string): string {
+  return new Intl.NumberFormat(language, {
+    style: 'percent',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    signDisplay: 'exceptZero',
+  }).format(ratio)
+}
+
 export type Separators = {
   decimalSeparator: string
   thousandSeparator: string

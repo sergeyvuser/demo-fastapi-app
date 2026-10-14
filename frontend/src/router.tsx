@@ -9,7 +9,8 @@ import {
 
 import { bootSession, getSession, subscribeToSession, type Session } from './api/session'
 import { NotFound } from './NotFound'
-import { Account, Alerts, History, Landing } from './screens/placeholders'
+import { Landing } from './screens/Landing'
+import { Account, Alerts, History } from './screens/placeholders'
 import { SignIn } from './screens/SignIn'
 import { SignUp } from './screens/SignUp'
 import { AppShell } from './shell/AppShell'

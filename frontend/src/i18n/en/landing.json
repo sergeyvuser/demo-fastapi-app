@@ -1,0 +1,7 @@
+{
+  "lede": "An Alert is a standing rule: watch a Symbol, and tell me when its price crosses a Threshold.",
+  "register": "Create an account",
+  "signIn": "Sign in",
+  "openAlerts": "Open your Alerts",
+  "pricesTitle": "Live prices"
+}

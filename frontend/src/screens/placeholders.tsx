@@ -1,13 +1,12 @@
 import { Title } from '@mantine/core'
-import { useDocumentTitle } from '@mantine/hooks'
 import type { ParseKeys } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
 import { usePageTitle } from '../i18n/documentTitle'
 
-// The four screens this ticket routes to but does not build: a title each,
-// enough to prove the route, the guard and the tab title. Tickets 21, 24, 25
-// and 29 move each one out into a screen of its own.
+// The three screens routed to but not yet built: a title each, enough to
+// prove the route, the guard and the tab title. Tickets 24, 25 and 29 move
+// each one out into a screen of its own.
 
 function Placeholder({ title }: { title: ParseKeys }) {
   const { t } = useTranslation()
@@ -29,16 +28,4 @@ export function History() {
 
 export function Account() {
   return <Placeholder title="shell.account" />
-}
-
-// The Landing's tab is the product's name alone — "Crypto Alerts · Crypto
-// Alerts" is what the page template would make of it. Ticket 21 fills it.
-export function Landing() {
-  const { t } = useTranslation()
-  useDocumentTitle(t('common.productName'))
-  return (
-    <Title order={1} size="h2">
-      {t('common.productName')}
-    </Title>
-  )
 }

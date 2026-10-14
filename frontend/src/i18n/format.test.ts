@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatPrice, separatorsFor, toDecimalPoint } from './format'
+import { formatChange, formatPrice, separatorsFor, toDecimalPoint } from './format'
 
 describe('formatPrice', () => {
   it('renders as many decimals as the Symbol quotes', () => {
@@ -22,6 +22,19 @@ describe('formatPrice', () => {
     // 20 digits of a decimal string survive; the same number through a double
     // would not.
     expect(formatPrice('123456789.123456789', 9, 'en')).toBe('123,456,789.123456789')
+  })
+})
+
+describe('formatChange', () => {
+  it('always writes the sign, except on zero', () => {
+    expect(formatChange(0.0123, 'en')).toBe('+1.23%')
+    expect(formatChange(-0.004, 'en')).toBe('-0.40%')
+    expect(formatChange(0, 'en')).toBe('0.00%')
+  })
+
+  it('follows the language', () => {
+    expect(formatChange(0.0123, 'ru')).not.toBe(formatChange(0.0123, 'en'))
+    expect(formatChange(0.0123, 'ru')).toContain('1,23')
   })
 })
 

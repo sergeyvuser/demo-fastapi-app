@@ -1,12 +1,16 @@
 import enAlerts from './en/alerts.json'
 import enAuth from './en/auth.json'
 import enCommon from './en/common.json'
+import enLanding from './en/landing.json'
 import enNotFound from './en/notFound.json'
+import enPrices from './en/prices.json'
 import enShell from './en/shell.json'
 import ruAlerts from './ru/alerts.json'
 import ruAuth from './ru/auth.json'
 import ruCommon from './ru/common.json'
+import ruLanding from './ru/landing.json'
 import ruNotFound from './ru/notFound.json'
+import ruPrices from './ru/prices.json'
 import ruShell from './ru/shell.json'
 
 // One file per feature per locale, merged here into the single namespace: the
@@ -17,7 +21,9 @@ export const en = {
   alerts: enAlerts,
   auth: enAuth,
   common: enCommon,
+  landing: enLanding,
   notFound: enNotFound,
+  prices: enPrices,
   shell: enShell,
 }
 
@@ -30,7 +36,9 @@ export const ru = {
   alerts: ruAlerts,
   auth: ruAuth,
   common: ruCommon,
+  landing: ruLanding,
   notFound: ruNotFound,
+  prices: ruPrices,
   shell: ruShell,
 } satisfies typeof en
 

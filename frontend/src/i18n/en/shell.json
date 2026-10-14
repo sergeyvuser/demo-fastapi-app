@@ -5,5 +5,9 @@
   "account": "Account",
   "userMenu": "Account menu",
   "signIn": "Sign in",
-  "signOut": "Sign out"
+  "signOut": "Sign out",
+  "footer": {
+    "author": "Author: {{name}}",
+    "source": "Source code"
+  }
 }
