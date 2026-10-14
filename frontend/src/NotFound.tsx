@@ -4,8 +4,11 @@
 import { Alert as MantineAlert } from '@mantine/core'
 import { useTranslation } from 'react-i18next'
 
+import { usePageTitle } from './i18n/documentTitle'
+
 export function NotFound() {
   const { t } = useTranslation()
+  usePageTitle('notFound.title')
 
   return (
     <MantineAlert color="gray" title={t('notFound.title')}>
