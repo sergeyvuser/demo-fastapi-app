@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { paths } from './generated/http'
 import { authMiddleware } from './middleware'
 import { ApiError } from './problem'
-import { getAccessToken, setAccessToken } from './session'
+import { endSession, getAccessToken, startSession } from './session'
 
 // Node has no page to resolve a relative URL against, so this client gets a
 // base; the middleware under test is the same object the application uses.
@@ -40,12 +40,12 @@ const pathOf = (request: Request) => new URL(request.url).pathname
 const unauthorized = () =>
   json(401, { type: 'about:blank', title: 'Unauthorized', status: 401, detail: 'Token expired' })
 
-beforeEach(() => setAccessToken(null))
+beforeEach(() => endSession())
 afterEach(() => vi.unstubAllGlobals())
 
 describe('authMiddleware', () => {
   it('attaches the bearer token', async () => {
-    setAccessToken('t1')
+    startSession('t1')
     const seen = network(() => json(200, { items: [] }))
 
     await api.GET('/api/v1/symbols')
@@ -54,7 +54,7 @@ describe('authMiddleware', () => {
   })
 
   it('answers a 401 with one refresh and repeats the request, body included', async () => {
-    setAccessToken('old')
+    startSession('old')
     const seen = network((request) => {
       if (pathOf(request) === REFRESH)
         return json(200, { access_token: 'new', token_type: 'bearer' })
@@ -74,7 +74,7 @@ describe('authMiddleware', () => {
   })
 
   it('sends a single refresh for requests that fail together', async () => {
-    setAccessToken('old')
+    startSession('old')
     const seen = network(async (request) => {
       if (pathOf(request) === REFRESH) {
         // long enough for every 401 to arrive while it is in flight
@@ -96,7 +96,7 @@ describe('authMiddleware', () => {
   })
 
   it('gives up after one retry instead of looping', async () => {
-    setAccessToken('old')
+    startSession('old')
     const seen = network((request) =>
       pathOf(request) === REFRESH
         ? json(200, { access_token: 'new', token_type: 'bearer' })
@@ -108,7 +108,7 @@ describe('authMiddleware', () => {
   })
 
   it('drops the token when the refresh itself is refused', async () => {
-    setAccessToken('old')
+    startSession('old')
     network(() => unauthorized())
 
     await expect(api.GET('/api/v1/symbols')).rejects.toBeInstanceOf(ApiError)
