@@ -73,11 +73,13 @@ jobs:
       - run: npm ci
       # Types are derived, not committed: without this step the checker below
       # has nothing to import. From the committed openapi.json, never from a
-      # developer's machine.
+      # developer's machine. The linter needs them too — its rules are
+      # type-aware.
       - run: npm run generate
+      - run: npm run format:check
+      - run: npm run lint
       - run: npm run typecheck
-      - run:
-          npm test
+      - run: npm test
 
   build:
     needs: [ lint, types, test, secrets, frontend ]
