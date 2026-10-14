@@ -5,11 +5,11 @@ import { Alert as MantineAlert } from '@mantine/core'
 import { useTranslation } from 'react-i18next'
 
 export function NotFound() {
-    const { t } = useTranslation()
+  const { t } = useTranslation()
 
-    return (
-        <MantineAlert color="gray" title={t('notFound.title')}>
-            {t('notFound.body')}
-        </MantineAlert>
-    )
+  return (
+    <MantineAlert color="gray" title={t('notFound.title')}>
+      {t('notFound.body')}
+    </MantineAlert>
+  )
 }

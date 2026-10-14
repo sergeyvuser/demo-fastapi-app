@@ -56,7 +56,8 @@ describe('authMiddleware', () => {
   it('answers a 401 with one refresh and repeats the request, body included', async () => {
     setAccessToken('old')
     const seen = network((request) => {
-      if (pathOf(request) === REFRESH) return json(200, { access_token: 'new', token_type: 'bearer' })
+      if (pathOf(request) === REFRESH)
+        return json(200, { access_token: 'new', token_type: 'bearer' })
       return request.headers.get('Authorization') === 'Bearer new'
         ? json(200, { status: 'verified' })
         : unauthorized()

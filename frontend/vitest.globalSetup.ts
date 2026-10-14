@@ -2,5 +2,5 @@
 // place `TZ` can be set from inside the project: assigned in `test.env` it
 // never reaches a worker thread.
 export default function setup(): void {
-    process.env.TZ = 'UTC'
+  process.env.TZ = 'UTC'
 }

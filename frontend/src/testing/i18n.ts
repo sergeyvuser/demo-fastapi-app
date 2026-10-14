@@ -12,18 +12,18 @@ import { resources } from '../i18n/resources'
 // English, the assertion would see a plausible string and go green — which is
 // the exact hole the plural test exists to close.
 export function createTestI18n(language: Language = 'en'): i18n {
-    const instance = createInstance()
+  const instance = createInstance()
 
-    void instance.use(initReactI18next).init({
-        lng: language,
-        fallbackLng: false,
-        resources,
-        interpolation: { escapeValue: false },
-        saveMissing: true,
-        missingKeyHandler: (_languages, namespace, key) => {
-            throw new Error(`i18n: missing key ${namespace}:${key}`)
-        },
-    })
+  void instance.use(initReactI18next).init({
+    lng: language,
+    fallbackLng: false,
+    resources,
+    interpolation: { escapeValue: false },
+    saveMissing: true,
+    missingKeyHandler: (_languages, namespace, key) => {
+      throw new Error(`i18n: missing key ${namespace}:${key}`)
+    },
+  })
 
-    return instance
+  return instance
 }

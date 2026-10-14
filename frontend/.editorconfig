@@ -1,0 +1,9 @@
+# The repository stores LF (.gitattributes), so the working copy keeps LF too:
+# an editor that writes CRLF would otherwise fail `prettier --check` locally
+# while CI, which checks out LF, stays green.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true

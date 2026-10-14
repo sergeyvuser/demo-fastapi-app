@@ -17,12 +17,12 @@ afterEach(cleanup)
 // `MediaQueryList` — that interface still carries the deprecated
 // addListener/removeListener pair, and nothing here calls them.
 vi.stubGlobal('matchMedia', (query: string) => ({
-    media: query,
-    matches: false,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => false,
+  media: query,
+  matches: false,
+  onchange: null,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  dispatchEvent: () => false,
 }))
 
 // Nor does jsdom implement element measurement, and Mantine's
@@ -30,10 +30,10 @@ vi.stubGlobal('matchMedia', (query: string) => ({
 // is asserted about the indicator's position, so a stub that observes nothing
 // is enough — but without it the component throws on mount.
 vi.stubGlobal(
-    'ResizeObserver',
-    class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-    },
+  'ResizeObserver',
+  class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
 )

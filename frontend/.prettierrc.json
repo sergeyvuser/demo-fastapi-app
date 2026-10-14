@@ -1,0 +1,7 @@
+{
+  "semi": false,
+  "singleQuote": true,
+  "printWidth": 100,
+  "plugins": ["@ianvs/prettier-plugin-sort-imports"],
+  "importOrder": ["<BUILT_IN_MODULES>", "<THIRD_PARTY_MODULES>", "", "^[.]"]
+}

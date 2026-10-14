@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "generate": "openapi-typescript openapi.json -o src/api/generated/http.d.ts && openapi-typescript ws.openapi.json -o src/api/generated/socket.d.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
     "typecheck": "tsc -b",
     "build": "npm run generate && tsc -b && vite build",
     "test": "vitest run",
@@ -24,6 +27,7 @@
     "react-i18next": "^17.0.16"
   },
   "devDependencies": {
+    "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
@@ -36,6 +40,7 @@
     "postcss": "^8.5.28",
     "postcss-preset-mantine": "^1.18.0",
     "postcss-simple-vars": "^7.0.1",
+    "prettier": "^3.9.10",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
     "vitest": "^5.0.3"

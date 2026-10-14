@@ -8,8 +8,8 @@ import ruNotFound from './ru/notFound.json'
 // Lazy loading is out of scope for the stage, which removes the only thing
 // real namespaces buy and leaves their cost — a namespace in every call.
 export const en = {
-    common: enCommon,
-    notFound: enNotFound,
+  common: enCommon,
+  notFound: enNotFound,
 }
 
 // `satisfies` is the compile error the stage asks for: a key paid for in
@@ -18,11 +18,11 @@ export const en = {
 // and `_many` have nothing in English to correspond to, which is exactly the
 // hole the plural test closes.
 export const ru = {
-    common: ruCommon,
-    notFound: ruNotFound,
+  common: ruCommon,
+  notFound: ruNotFound,
 } satisfies typeof en
 
 export const resources = {
-    en: { translation: en },
-    ru: { translation: ru },
+  en: { translation: en },
+  ru: { translation: ru },
 }
