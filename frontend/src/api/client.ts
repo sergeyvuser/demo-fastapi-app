@@ -8,7 +8,10 @@ import { ApiError } from './problem'
 
 // No baseUrl: paths in the schema start at /api, and the bundle must not know
 // its origin (ADR 0004).
-export const api = createFetchClient<paths>()
+// `fetch` is looked up on every call rather than captured once: openapi-fetch
+// keeps whichever function it saw at creation, and a test that stubs the
+// global afterwards would otherwise talk to the real one.
+export const api = createFetchClient<paths>({ fetch: (request) => fetch(request) })
 api.use(authMiddleware)
 
 export const $api = createClient(api)

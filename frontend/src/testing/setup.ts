@@ -33,6 +33,19 @@ installGlobal('matchMedia', (query: string) => ({
   dispatchEvent: () => false,
 }))
 
+// The application's client asks for `/api/...` with no origin, as a page on
+// this origin does. jsdom has a page URL, but `Request` here is Node's, which
+// has no page and refuses a relative URL — so the request would die before
+// any stubbed `fetch` saw it. Resolved against jsdom's location instead.
+installGlobal(
+  'Request',
+  class extends Request {
+    constructor(input: RequestInfo | URL, init?: RequestInit) {
+      super(typeof input === 'string' ? new URL(input, location.href) : input, init)
+    }
+  },
+)
+
 // Nor does jsdom implement element measurement, and Mantine's
 // SegmentedControl measures the control it slides its indicator over. Nothing
 // is asserted about the indicator's position, so a stub that observes nothing
