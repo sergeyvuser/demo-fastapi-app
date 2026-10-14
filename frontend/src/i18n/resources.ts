@@ -1,9 +1,13 @@
 import enAlerts from './en/alerts.json'
+import enAuth from './en/auth.json'
 import enCommon from './en/common.json'
 import enNotFound from './en/notFound.json'
+import enShell from './en/shell.json'
 import ruAlerts from './ru/alerts.json'
+import ruAuth from './ru/auth.json'
 import ruCommon from './ru/common.json'
 import ruNotFound from './ru/notFound.json'
+import ruShell from './ru/shell.json'
 
 // One file per feature per locale, merged here into the single namespace: the
 // file name becomes the top-level key, so two features cannot collide on one.
@@ -11,8 +15,10 @@ import ruNotFound from './ru/notFound.json'
 // real namespaces buy and leaves their cost — a namespace in every call.
 export const en = {
   alerts: enAlerts,
+  auth: enAuth,
   common: enCommon,
   notFound: enNotFound,
+  shell: enShell,
 }
 
 // `satisfies` is the compile error the stage asks for: a key paid for in
@@ -22,8 +28,10 @@ export const en = {
 // hole the plural test closes.
 export const ru = {
   alerts: ruAlerts,
+  auth: ruAuth,
   common: ruCommon,
   notFound: ruNotFound,
+  shell: ruShell,
 } satisfies typeof en
 
 export const resources = {

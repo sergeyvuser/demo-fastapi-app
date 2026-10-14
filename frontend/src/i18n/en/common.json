@@ -5,5 +5,9 @@
     "switchLabel": "Interface language",
     "en": "English",
     "ru": "Русский"
+  },
+  "colorScheme": {
+    "toDark": "Switch to the dark theme",
+    "toLight": "Switch to the light theme"
   }
 }

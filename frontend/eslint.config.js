@@ -28,6 +28,13 @@ export default tseslint.config(
       globals: globals.browser,
     },
     rules: {
+      // A guard leaves a route by throwing `redirect(...)` — the router's
+      // own control flow, and a Response rather than an Error. That one type
+      // is allowed by name; throwing any other non-Error stays a mistake.
+      '@typescript-eslint/only-throw-error': [
+        'error',
+        { allow: [{ from: 'package', package: '@tanstack/router-core', name: 'Redirect' }] },
+      ],
       // Type parity guards keys somebody wrote; it says nothing about
       // <Button>Create alert</Button>, where there is no key at all — that
       // string breaks neither the build nor a test and simply stays English
@@ -61,7 +68,8 @@ export default tseslint.config(
               // `color="gray"` are values from the theme, not words. The list
               // grows as screens arrive; what it must never swallow is
               // `label`, `description`, `error` or `placeholder`.
-              '^(size|color|variant|radius|order|justify|align|gap|wrap|span|shadow|pos|display|c|bg|ta|fz|fw|lh|tt|td|ff)$',
+              // `component` is Mantine's polymorphism: an element name.
+              '^(size|color|variant|radius|order|justify|align|gap|wrap|span|shadow|pos|display|c|bg|ta|fz|fw|lh|tt|td|ff|component)$',
               '^[pm][xytblrse]?$',
             ],
           },
