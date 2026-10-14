@@ -6,7 +6,7 @@ BACKEND := backend
 # habits are unchanged; `docker compose up` without this variable starts neither.
 export COMPOSE_PROFILES ?= tools
 
-.PHONY: help install run evaluator ingestor notifier worker scheduler up down stop-apps reset dev logs db-up tools migration migrate migrate-down migrate-check lint format types test test-unit test-integration check-ports docker-clean prod-config openapi
+.PHONY: help install run evaluator ingestor notifier worker scheduler up down stop-apps reset dev logs db-up tools migration migrate migrate-down migrate-check lint format types test test-unit test-integration check-ports docker-clean prod-config openapi front-install front-dev front-format front-lint front-types front-test
 
 help: ## Показать доступные команды
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -110,3 +110,22 @@ prod-config: ## Render the production stack (dummy env, nothing is started)
 
 openapi: ## Write the API contract the frontend is typed from (commit the result)
 	cd $(BACKEND) && uv run python -m backend.contract ../frontend
+
+front-install: ## Install the frontend dependencies exactly as the lockfile pins them
+	cd frontend && npm ci
+
+front-dev: ## Run the frontend dev server (it proxies /api to the local API)
+	cd frontend && npm run dev
+
+front-format: ## Rewrite the frontend with Prettier
+	cd frontend && npm run format
+
+front-lint: ## Prettier check and ESLint over the frontend
+	cd frontend && npm run format:check && npm run lint
+
+front-types: ## Generate the API types and type-check the frontend
+	cd frontend && npm run generate && npm run typecheck
+
+front-test: ## Vitest over the frontend
+	cd frontend && npm test
+	
