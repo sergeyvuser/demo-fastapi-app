@@ -134,6 +134,11 @@ make run         # API on http://127.0.0.1:8080
 | `make migration m="msg"`                   | new autogenerate migration (review it before applying!)  |
 | `make migrate` / `make migrate-down`       | apply / roll back one                                    |
 | `make migrate-check`                       | downgrade→upgrade round-trip + model/schema drift check  |
+| `make openapi`                             | rewrite the API contract the frontend is typed from      |
+| `make front-install`                       | frontend dependencies, exactly as the lockfile pins them |
+| `make front-dev`                           | frontend dev server (proxies `/api` to the local API)    |
+| `make front-format` / `make front-lint`    | Prettier rewrite / Prettier check + ESLint               |
+| `make front-types` / `make front-test`     | generate the API types + `tsc -b` / Vitest               |
 | `make docker-clean`                        | reclaim build cache and test leftovers (keeps volumes)   |
 
 Conventions:
@@ -142,6 +147,10 @@ Conventions:
   `feat(infra): ...`, `chore(ci): ...`.
 - Layering: `api → services → repositories → models`; imports point down only.
 - Schema changes go through Alembic only; `make migrate-check` must stay green.
+- **The API contract is committed.** Any change to a route, a request or response schema, or a
+  socket message means `make openapi` and committing `frontend/openapi.json` and
+  `frontend/ws.openapi.json` with it — the frontend's types are generated from those files, and
+  `test_api_contract.py` fails the build when they drift from the code.
 - Code comments and docstrings in English.
 - Nothing merges red: ruff, mypy and the whole test suite run on every push.
 - Domain vocabulary is settled in [CONTEXT.md](CONTEXT.md) — use those words, including in issues
