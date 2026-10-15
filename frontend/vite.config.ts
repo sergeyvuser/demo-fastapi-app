@@ -19,6 +19,15 @@ export default defineConfig({
     // The application is a browser one: the language switch is storage plus a
     // re-render, and the one clock listens for `visibilitychange`.
     environment: 'jsdom',
+    // jsdom costs a few hundred milliseconds to create, and the default pool
+    // creates it again for every file — over half of the run. vmThreads builds
+    // it once per worker and still gives every file a fresh window and fresh
+    // modules. Not `isolate: false`: that shares module state across files,
+    // and the session, the price store and the socket client all keep theirs
+    // in module scope. The price of a VM realm: an error made by Node itself
+    // (fs, a native fetch) fails `instanceof Error` here, so a test that fails
+    // only under this pool is worth suspecting of that first.
+    pool: 'vmThreads',
     // Time is rendered in the reader's own zone, so the output depends on the
     // machine. `test.env` cannot pin it — a documented hole: TZ set there does
     // not reach the threads pool — so it is set on the main process, which
