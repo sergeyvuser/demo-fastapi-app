@@ -28,6 +28,10 @@ export type Session = {
 // The access token lives here and nowhere else: not in storage, not in the
 // query cache. A reload loses it, and the refresh cookie buys a new one.
 let accessToken: string | null = null
+// How long the current token was issued for, in seconds — `expires_in`, as
+// the server answered. Relative on purpose: an absolute instant would be
+// compared with this machine's clock, which need not agree with the server's.
+let lifetime: number | null = null
 
 let session: Session = { status: 'pending', expired: false }
 const listeners = new Set<() => void>()
@@ -37,6 +41,12 @@ let boot: Promise<void> | null = null
 
 export function getAccessToken(): string | null {
   return accessToken
+}
+
+// Read it when the session announces a new token: that is the moment the
+// lifetime starts counting from.
+export function getTokenLifetime(): number | null {
+  return lifetime
 }
 
 export function getSession(): Session {
@@ -52,13 +62,15 @@ export function useSession(): Session {
   return useSyncExternalStore(subscribeToSession, getSession)
 }
 
-export function startSession(token: string): void {
+export function startSession(token: string, expiresIn: number): void {
   accessToken = token
+  lifetime = expiresIn
   publish({ status: 'authenticated', expired: false })
 }
 
 export function endSession(expired = false): void {
   accessToken = null
+  lifetime = null
   publish({ status: 'anonymous', expired })
 }
 
@@ -107,7 +119,8 @@ async function requestToken(): Promise<string | null> {
     // no body and no header: the httpOnly cookie is the credential
     const response = await fetch(REFRESH, { method: 'POST' })
     if (response.ok) {
-      startSession(((await response.json()) as AccessToken).access_token)
+      const token = (await response.json()) as AccessToken
+      startSession(token.access_token, token.expires_in)
     } else {
       endSession(wasSignedIn)
     }

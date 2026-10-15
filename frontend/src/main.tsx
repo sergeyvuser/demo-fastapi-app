@@ -12,6 +12,7 @@ import { I18nextProvider } from 'react-i18next'
 import { queryClient } from './api/client'
 import { bootSession } from './api/session'
 import { i18n } from './i18n'
+import { startRealtime } from './realtime/socket'
 import { createSessionRouter } from './router'
 import { colorSchemeManager, theme } from './theme'
 
@@ -19,6 +20,9 @@ import { colorSchemeManager, theme } from './theme'
 // refresh, and the Landing has no reason to be the one that triggers it. The
 // signed-in guard awaits this same promise; nothing else waits for it.
 void bootSession()
+// Beside it, for the same reason: the socket follows the session, not a
+// screen, and opens once the boot finds one.
+startRealtime()
 
 const router = createSessionRouter()
 

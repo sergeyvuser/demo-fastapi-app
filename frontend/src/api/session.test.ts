@@ -30,7 +30,11 @@ function refreshEndpoint(options: { signedIn: boolean }) {
       return new Response(null, { status: 401 })
     }
     cookie = presented + 1
-    return Response.json({ access_token: `access-${cookie}`, token_type: 'bearer' })
+    return Response.json({
+      access_token: `access-${cookie}`,
+      token_type: 'bearer',
+      expires_in: 900,
+    })
   })
 
   return {
@@ -106,7 +110,7 @@ describe('refreshing a running session', () => {
   it('marks a session lost while signed in as expired', async () => {
     refreshEndpoint({ signedIn: false })
     const tab = await openTab()
-    tab.startSession('access-old')
+    tab.startSession('access-old', 900)
 
     await tab.refreshSession()
 

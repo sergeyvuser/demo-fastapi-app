@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 
 import { $api } from '../api/client'
+import { useRealtimeStatus } from '../realtime/status'
 import { seedPrices } from './store'
 
 // How often the symbols list is asked for again. The public screens have no
@@ -10,15 +11,18 @@ import { seedPrices } from './store'
 export const SYMBOLS_POLL_MS = 10_000
 
 // The symbols response feeds the price store and is never rendered itself:
-// there is one path from the network to a price on screen, so there are not
-// two that could disagree. Mounted once, in the shell.
+// everything on screen comes out of the store, so no screen can show one
+// number from the poll and another from the socket. Mounted once, in the shell.
 //
-// Until ticket 22 this also keeps the signed-in screens moving. That ticket
-// feeds the same store from the socket and refetches this list on every
-// reconnect; whether the poll stops while the socket is live is its call.
+// While the socket is live the poll stops: Ticks are the faster copy of the
+// same numbers, and a poll answer landing after a newer Tick would wind the
+// price back. Every other state polls — anonymous, connecting, and above all
+// down, which is what keeps a signed-in screen correct if the socket never
+// connects at all. The socket refetches this list once on every reconnect.
 export function useSymbolsFeed(): void {
+  const live = useRealtimeStatus() === 'live'
   const { data } = $api.useQuery('get', '/api/v1/symbols', undefined, {
-    refetchInterval: SYMBOLS_POLL_MS,
+    refetchInterval: live ? false : SYMBOLS_POLL_MS,
     // a hidden tab asks nothing; React Query refetches on focus anyway
     refetchIntervalInBackground: false,
   })

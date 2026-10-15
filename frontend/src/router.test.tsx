@@ -53,7 +53,7 @@ describe('the router', () => {
     const { boot, settle } = controlledBoot()
     const { i18n } = renderAt('/alerts', boot)
 
-    startSession('access')
+    startSession('access', 900)
     act(() => settle())
 
     expect(await screen.findByRole('heading', { name: i18n.t('shell.alerts') })).toBeInTheDocument()

@@ -2,5 +2,6 @@
   "strip": "Prices",
   "noFreshPrice": "No fresh price",
   "dayChange": "24 h",
-  "dayChangeTitle": "Change since 24 hours ago"
+  "dayChangeTitle": "Change since 24 hours ago",
+  "reconnecting": "Reconnecting…"
 }

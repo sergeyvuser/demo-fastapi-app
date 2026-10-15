@@ -1,3 +1,4 @@
+import { holdRealtime } from '../realtime/socket'
 import { api, queryClient } from './client'
 import { bootSession, endSession, startSession } from './session'
 
@@ -17,13 +18,16 @@ export async function signIn(email: string, password: string): Promise<void> {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   })
   // Every non-2xx is thrown by the middleware, so here the body is there.
-  startSession(data!.access_token)
+  startSession(data!.access_token, data!.expires_in)
 }
 
 // The server is told first, while the bearer token is still in hand — logout
 // is authenticated by it, and an expired one is refreshed on the way like any
 // other call. Whatever the server answers, this browser is signed out after.
 export async function signOut(): Promise<void> {
+  // The socket goes first, from this side: the server is about to close it
+  // with 1008, and a tab that heard that would answer with a refresh.
+  holdRealtime()
   try {
     await api.POST('/api/v1/auth/logout')
   } catch {
