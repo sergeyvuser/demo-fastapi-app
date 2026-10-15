@@ -40,6 +40,16 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
     )
 
 
+def _access_token(token: str) -> AccessToken:
+    # One place builds the answer, so /login and /refresh cannot disagree
+    # about the lifetime. The same setting signs the token's `exp`
+    # (core/security.py), so the two cannot drift apart either.
+    return AccessToken(
+        access_token=token,
+        expires_in=settings.auth.access_token_ttl_minutes * 60,
+    )
+
+
 def _clear_refresh_cookie(response: Response) -> None:
     # a browser identifies a cookie by name, domain AND path: deleting it
     # with any other path deletes nothing and reports no error
@@ -125,7 +135,7 @@ async def login(
         user_agent=request.headers.get("user-agent"),
     )
     _set_refresh_cookie(response, tokens.refresh_token)
-    return AccessToken(access_token=tokens.access_token)
+    return _access_token(token=tokens.access_token)
 
 
 @router.post("/refresh", response_model=AccessToken)
@@ -141,7 +151,7 @@ async def refresh(
         refresh_token, user_agent=request.headers.get("user-agent")
     )
     _set_refresh_cookie(response, tokens.refresh_token)
-    return AccessToken(access_token=tokens.access_token)
+    return _access_token(token=tokens.access_token)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

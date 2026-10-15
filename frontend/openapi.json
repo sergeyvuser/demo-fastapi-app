@@ -911,11 +911,16 @@
             "type": "string",
             "title": "Token Type",
             "default": "bearer"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
           }
         },
         "type": "object",
         "required": [
-          "access_token"
+          "access_token",
+          "expires_in"
         ],
         "title": "AccessToken"
       },

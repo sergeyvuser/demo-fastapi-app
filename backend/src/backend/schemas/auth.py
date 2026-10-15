@@ -4,6 +4,10 @@ from pydantic import BaseModel, Field
 class AccessToken(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    # Seconds until the access token expires, as RFC 6749 section 5.1 names
+    # it. The client renews ahead of this instead of waiting for a 401: its
+    # longest-lived user of the token is the socket, which makes no requests.
+    expires_in: int
 
 
 class VerificationRequest(BaseModel):

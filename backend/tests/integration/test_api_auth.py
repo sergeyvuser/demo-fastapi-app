@@ -118,7 +118,10 @@ async def test_login_sets_the_refresh_cookie_and_keeps_it_out_of_the_body(
     )
 
     assert response.status_code == 200
-    assert response.json().keys() == {"access_token", "token_type"}
+    body = response.json()
+    assert body.keys() == {"access_token", "token_type", "expires_in"}
+    # the lifetime the token is signed with, in the RFC's unit
+    assert body["expires_in"] == settings.auth.access_token_ttl_minutes * 60
     cookie = response.headers["set-cookie"].lower()
     assert cookie.startswith(f"{REFRESH_COOKIE}=")
     for attribute in (
@@ -191,7 +194,7 @@ async def test_refresh_replaces_the_cookie(
     response = await api_client.post(REFRESH)  # the jar sends the cookie itself
 
     assert response.status_code == 200
-    assert response.json().keys() == {"access_token", "token_type"}
+    assert response.json().keys() == {"access_token", "token_type", "expires_in"}
     # unobservable while the token travelled in bodies: the jar holds exactly
     # one cookie by that name, and it is no longer the one login issued
     assert api_client.cookies[REFRESH_COOKIE] != issued
