@@ -3,5 +3,6 @@
   "noFreshPrice": "Нет свежей цены",
   "dayChange": "24 ч",
   "dayChangeTitle": "Изменение за 24 часа",
-  "reconnecting": "Переподключение…"
+  "reconnecting": "Переподключение…",
+  "unavailable": "Цены сейчас недоступны"
 }

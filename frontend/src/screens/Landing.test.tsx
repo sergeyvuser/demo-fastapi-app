@@ -20,15 +20,19 @@ const ETH: Item = { symbol: 'ETHUSDT', price: null, reference_price: '2514.57', 
 
 let symbolRequests = 0
 let items: Item[] = [BTC, ETH]
+// the API not answering the symbols list at all
+let symbolsDown = false
 const sockets = vi.fn()
 
 beforeEach(() => {
   symbolRequests = 0
   items = [BTC, ETH]
+  symbolsDown = false
   sockets.mockClear()
   vi.stubGlobal('fetch', (input: Request) => {
     if (new URL(input.url).pathname === '/api/v1/symbols') {
       symbolRequests += 1
+      if (symbolsDown) return Promise.resolve(new Response(null, { status: 503 }))
       return Promise.resolve(Response.json({ items }))
     }
     return Promise.resolve(new Response(null, { status: 401 }))
@@ -126,5 +130,25 @@ describe('the Landing', () => {
       'https://github.com/sergeyvuser/demo-fastapi-app',
     ])
     for (const link of links) expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+})
+
+// A skeleton that never resolves says "loading" about a server that is not
+// answering; the cards and the strip say what is true instead.
+describe('the Landing when the symbols list cannot be fetched', () => {
+  it('says so in words, and shows the prices once the server answers', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    symbolsDown = true
+    const { i18n } = renderLanding()
+    await act(() => vi.advanceTimersByTimeAsync(100))
+
+    // in the strip and where the cards would be
+    expect(screen.getAllByText(i18n.t('prices.unavailable'))).toHaveLength(2)
+
+    symbolsDown = false
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
+
+    expect(screen.getAllByText('81,794.5')).toHaveLength(2)
+    expect(screen.queryByText(i18n.t('prices.unavailable'))).toBeNull()
   })
 })

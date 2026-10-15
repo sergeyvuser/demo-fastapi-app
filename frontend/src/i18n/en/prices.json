@@ -3,5 +3,6 @@
   "noFreshPrice": "No fresh price",
   "dayChange": "24 h",
   "dayChangeTitle": "Change since 24 hours ago",
-  "reconnecting": "Reconnecting…"
+  "reconnecting": "Reconnecting…",
+  "unavailable": "Prices are unavailable right now"
 }

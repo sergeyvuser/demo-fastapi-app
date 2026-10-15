@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 
 import { $api } from '../api/client'
 import { useRealtimeStatus } from '../realtime/status'
-import { seedPrices } from './store'
+import { markPricesUnavailable, seedPrices } from './store'
 
 // How often the symbols list is asked for again. The public screens have no
 // socket — an anonymous one cannot exist, the first frame is the auth — so
@@ -21,7 +21,7 @@ export const SYMBOLS_POLL_MS = 10_000
 // connects at all. The socket refetches this list once on every reconnect.
 export function useSymbolsFeed(): void {
   const live = useRealtimeStatus() === 'live'
-  const { data } = $api.useQuery('get', '/api/v1/symbols', undefined, {
+  const { data, isError } = $api.useQuery('get', '/api/v1/symbols', undefined, {
     refetchInterval: live ? false : SYMBOLS_POLL_MS,
     // a hidden tab asks nothing; React Query refetches on focus anyway
     refetchIntervalInBackground: false,
@@ -30,4 +30,10 @@ export function useSymbolsFeed(): void {
   useEffect(() => {
     if (data) seedPrices(data.items)
   }, [data])
+
+  // After the client's own retries. The poll keeps asking all the same, so
+  // the prices appear by themselves when the server answers again.
+  useEffect(() => {
+    if (isError) markPricesUnavailable()
+  }, [isError])
 }

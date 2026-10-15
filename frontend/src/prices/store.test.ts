@@ -4,6 +4,7 @@ import {
   applyTick,
   getQuote,
   getSymbols,
+  markPricesUnavailable,
   resetPrices,
   seedPrices,
   subscribeToPrices,
@@ -65,6 +66,21 @@ describe('the price store', () => {
 
     expect(getQuote('ETHUSDT')).toBeUndefined()
     expect(listener).not.toHaveBeenCalled()
+    unsubscribe()
+  })
+
+  it('calls the prices unavailable only while no list has ever arrived', () => {
+    const listener = vi.fn()
+    const unsubscribe = subscribeToPrices(listener)
+
+    markPricesUnavailable()
+    expect(listener).toHaveBeenCalledOnce()
+    seedPrices([btc])
+    expect(listener).toHaveBeenCalledTimes(2)
+
+    // a failure after a list: nothing to tell, the last prices stand
+    markPricesUnavailable()
+    expect(listener).toHaveBeenCalledTimes(2)
     unsubscribe()
   })
 

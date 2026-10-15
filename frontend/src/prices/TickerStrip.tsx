@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useRealtimeStatus } from '../realtime/status'
 import { CoinMark } from './CoinMark'
 import { DayChange, Price } from './Price'
-import { useSymbols } from './store'
+import { usePricesUnavailable, useSymbols } from './store'
 
 // Exported for the shell, which reserves this much of the header for it.
 export const STRIP_HEIGHT = 36
@@ -16,6 +16,7 @@ export const STRIP_HEIGHT = 36
 export function TickerStrip() {
   const { t } = useTranslation()
   const symbols = useSymbols()
+  const unavailable = usePricesUnavailable()
 
   return (
     <ScrollArea type="never">
@@ -28,9 +29,15 @@ export function TickerStrip() {
         px="md"
       >
         <Reconnecting />
-        {symbols === null
-          ? [0, 1].map((index) => <Skeleton key={index} height={14} width={160} />)
-          : symbols.map((symbol) => <TickerItem key={symbol} symbol={symbol} />)}
+        {symbols !== null ? (
+          symbols.map((symbol) => <TickerItem key={symbol} symbol={symbol} />)
+        ) : unavailable ? (
+          <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+            {t('prices.unavailable')}
+          </Text>
+        ) : (
+          [0, 1].map((index) => <Skeleton key={index} height={14} width={160} />)
+        )}
       </Group>
     </ScrollArea>
   )

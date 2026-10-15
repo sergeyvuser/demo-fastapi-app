@@ -15,7 +15,7 @@ export type Quote = {
 
 type Snapshot = {
   // `null` until the first answer arrives: "loading" and "the system streams
-  // nothing" are different screens.
+  // nothing" are different screens (and "unavailable", below, a third).
   symbols: readonly string[] | null
   quotes: ReadonlyMap<string, Quote>
 }
@@ -26,11 +26,19 @@ type Snapshot = {
 // The symbols response seeds it and the socket's Ticks write to it, and no
 // screen knows which of the two a number came from.
 let snapshot: Snapshot = { symbols: null, quotes: new Map() }
+// A third state beside "loading" and "loaded": the list was asked for and
+// never came. Only ever true while `symbols` is null — once a list has
+// arrived, its prices stay on screen through any later failure.
+let unavailable = false
 const listeners = new Set<() => void>()
+
+function notify(): void {
+  for (const listener of listeners) listener()
+}
 
 function publish(next: Snapshot): void {
   snapshot = next
-  for (const listener of listeners) listener()
+  notify()
 }
 
 function sameQuote(a: Quote | undefined, b: Quote): a is Quote {
@@ -67,6 +75,8 @@ export function seedPrices(items: readonly SymbolRead[]): void {
   })
 
   if (!changed) return
+  // a first list always counts as changed, so this clears the failure too
+  unavailable = false
   publish({ symbols: items.map((item) => item.symbol), quotes })
 }
 
@@ -94,9 +104,23 @@ export function getQuote(symbol: string): Quote | undefined {
   return snapshot.quotes.get(symbol)
 }
 
+// The symbols list could not be fetched. Said only while no list has ever
+// arrived: a skeleton that never resolves claims "loading" about a server that
+// is not answering. Later failures change nothing — the last prices stand.
+export function markPricesUnavailable(): void {
+  if (snapshot.symbols !== null || unavailable) return
+  unavailable = true
+  notify()
+}
+
 // For tests: one store per module, so every test starts from "not loaded".
 export function resetPrices(): void {
+  unavailable = false
   publish({ symbols: null, quotes: new Map() })
+}
+
+export function usePricesUnavailable(): boolean {
+  return useSyncExternalStore(subscribeToPrices, () => unavailable)
 }
 
 export function subscribeToPrices(listener: () => void): () => void {

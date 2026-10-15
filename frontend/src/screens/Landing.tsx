@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useSession } from '../api/session'
 import { CoinMark } from '../prices/CoinMark'
 import { DayChange, Price } from '../prices/Price'
-import { useSymbols } from '../prices/store'
+import { usePricesUnavailable, useSymbols } from '../prices/store'
 import { ButtonLink } from '../shell/links'
 
 // The shop window: what this is, in one sentence, and proof that it is alive.
@@ -61,7 +61,14 @@ function Actions() {
 }
 
 function PriceCards() {
+  const { t } = useTranslation()
   const symbols = useSymbols()
+  const unavailable = usePricesUnavailable()
+
+  // said in words, where the cards would be; the strip above says it too
+  if (symbols === null && unavailable) {
+    return <Text c="dimmed">{t('prices.unavailable')}</Text>
+  }
 
   return (
     <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }}>
