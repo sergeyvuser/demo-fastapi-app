@@ -1,4 +1,6 @@
 {
   "title": "Page not found",
-  "body": "There is nothing at this address."
+  "body": "There is nothing at this address.",
+  "toAlerts": "Go to your Alerts",
+  "toLanding": "Go to the home page"
 }

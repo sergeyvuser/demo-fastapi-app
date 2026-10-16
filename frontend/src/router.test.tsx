@@ -91,6 +91,26 @@ describe('the router', () => {
 
     expect(await screen.findByText(i18n.t('notFound.title'))).toBeInTheDocument()
   })
+
+  it('offers a visitor the way back to the Landing from NotFound', async () => {
+    const { i18n } = renderAt('/no-such-page', () => Promise.resolve())
+
+    expect(await screen.findByRole('link', { name: i18n.t('notFound.toLanding') })).toHaveAttribute(
+      'href',
+      '/',
+    )
+  })
+
+  it('offers a signed-in person the way back to the Alerts from NotFound', async () => {
+    vi.stubGlobal('fetch', () => new Promise(() => {}))
+    startSession('access', 900)
+    const { i18n } = renderAt('/alerts/no/such/page', () => Promise.resolve())
+
+    expect(await screen.findByRole('link', { name: i18n.t('notFound.toAlerts') })).toHaveAttribute(
+      'href',
+      '/alerts',
+    )
+  })
 })
 
 describe('safeRedirect', () => {
