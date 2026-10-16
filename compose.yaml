@@ -239,7 +239,6 @@ services:
       <<: *app-env                                        # merge shared block
       APP_CONFIG__RUN__HOST: 0.0.0.0                      # plus service-specific
       APP_CONFIG__RUN__RELOAD: "0"
-      APP_CONFIG__RUN__PUBLIC_URL: http://127.0.0.1:8000
     ports:
       - "127.0.0.1:8000:8080"
     restart: unless-stopped
@@ -315,7 +314,10 @@ services:
     env_file: .env
     environment:
       <<: *app-env
-      APP_CONFIG__RUN__PUBLIC_URL: http://127.0.0.1:8000
+      # Links in letters open the frontend, and locally the frontend is the Vite
+      # dev server (`make front-dev`): it serves the app and proxies /api, the
+      # same one-origin shape Caddy gives production.
+      APP_CONFIG__RUN__PUBLIC_URL: http://127.0.0.1:5173
     restart: unless-stopped
     depends_on:
       rabbitmq: { condition: service_healthy }
