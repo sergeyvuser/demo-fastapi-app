@@ -1,6 +1,6 @@
 import type { Middleware } from 'openapi-fetch'
 
-import { ApiError, parseProblem } from './problem'
+import { ApiError, parseProblem, parseRetryAfter } from './problem'
 import { getAccessToken, refreshSession } from './session'
 
 // A Request's body is a stream and can be read once, so the request that was
@@ -35,7 +35,12 @@ export const authMiddleware: Middleware = {
       }
     }
 
-    if (!response.ok) throw new ApiError(parseProblem(response.status, await body(response)))
+    if (!response.ok) {
+      throw new ApiError(
+        parseProblem(response.status, await body(response)),
+        parseRetryAfter(response.headers.get('Retry-After')),
+      )
+    }
     return response
   },
 

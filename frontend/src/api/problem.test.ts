@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseProblem } from './problem'
+import { parseProblem, parseRetryAfter } from './problem'
 
 // The bodies are what the API sends today, copied rather than invented.
 describe('parseProblem', () => {
@@ -49,5 +49,20 @@ describe('parseProblem', () => {
   it('survives a body that is not ours', () => {
     // the edge proxy answers 502 with HTML while the API restarts
     expect(parseProblem(502, null)).toEqual({ status: 502, detail: null, fieldErrors: [] })
+  })
+})
+
+describe('parseRetryAfter', () => {
+  it('reads seconds, which is what the API sends', () => {
+    expect(parseRetryAfter('240')).toBe(240)
+  })
+
+  it.each([
+    ['absent', null],
+    ['an HTTP date', 'Wed, 21 Oct 2026 07:28:00 GMT'],
+    ['garbage', 'soon'],
+    ['negative', '-5'],
+  ])('says nothing for %s', (_case, header) => {
+    expect(parseRetryAfter(header)).toBeNull()
   })
 })

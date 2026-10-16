@@ -27,14 +27,25 @@ export class ApiError extends Error {
   readonly status: number
   readonly detail: string | null
   readonly fieldErrors: FieldError[]
+  // Seconds until asking again can work, from a 429's Retry-After; null when
+  // the response did not say.
+  readonly retryAfter: number | null
 
-  constructor(problem: Problem) {
+  constructor(problem: Problem, retryAfter: number | null = null) {
     super(problem.detail ?? `HTTP ${problem.status}`)
     this.name = 'ApiError'
     this.status = problem.status
     this.detail = problem.detail
     this.fieldErrors = problem.fieldErrors
+    this.retryAfter = retryAfter
   }
+}
+
+// The header may carry seconds or an HTTP date. This API sends seconds, and
+// a date is read as "not said" rather than parsed for a case that never comes.
+export function parseRetryAfter(header: string | null): number | null {
+  if (header === null || !/^\d+$/.test(header.trim())) return null
+  return Number(header.trim())
 }
 
 export function parseProblem(status: number, body: unknown): Problem {
