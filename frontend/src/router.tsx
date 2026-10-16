@@ -13,7 +13,9 @@ import { Landing } from './screens/Landing'
 import { Account, Alerts, History } from './screens/placeholders'
 import { SignIn } from './screens/SignIn'
 import { SignUp } from './screens/SignUp'
+import { Verify } from './screens/Verify'
 import { AppShell } from './shell/AppShell'
+import { BannerSlot } from './shell/BannerSlot'
 import { ContentSkeleton } from './shell/ContentSkeleton'
 
 // What the guards read. Passed in rather than imported, so a test can hand
@@ -68,6 +70,23 @@ const signUpRoute = createRoute({
   component: SignUp,
 })
 
+export type VerifySearch = {
+  token?: string
+}
+
+// Public: the letter is opened in whatever browser the mail client picks,
+// signed in or not, and the token alone is the proof.
+const verifyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/verify',
+  validateSearch: (search: Record<string, unknown>): VerifySearch => ({
+    // The router parses query values as JSON, so a token of digits alone
+    // would arrive as a number; only a string can be one the API minted.
+    token: typeof search.token === 'string' ? search.token : undefined,
+  }),
+  component: Verify,
+})
+
 // A layout with an id instead of a path: it adds nothing to the URL, only the
 // guard and the banner slot to everything under it.
 const signedInRoute = createRoute({
@@ -95,9 +114,7 @@ const signedInRoute = createRoute({
 function SignedInLayout() {
   return (
     <>
-      {/* The banner slot. Ticket 20's "verify your address" and ticket 23's
-          "this account is shared" both land here, and the demo account is
-          always verified, so the two never compete for it. */}
+      <BannerSlot />
       <Outlet />
     </>
   )
@@ -125,6 +142,7 @@ const routeTree = rootRoute.addChildren([
   landingRoute,
   signInRoute,
   signUpRoute,
+  verifyRoute,
   signedInRoute.addChildren([alertsRoute, historyRoute, accountRoute]),
 ])
 

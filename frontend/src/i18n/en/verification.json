@@ -1,0 +1,34 @@
+{
+  "title": "Address confirmation",
+  "checking": "Confirming your address…",
+  "failed": "Could not reach the server to confirm your address. Check your connection and try again.",
+  "retry": "Try again",
+  "toAlerts": "Go to your Alerts",
+  "signIn": "Sign in",
+  "verified": {
+    "title": "Your address is confirmed",
+    "body": "You can now create Alerts."
+  },
+  "used": {
+    "title": "This link has already been used",
+    "body": "Your address is already confirmed, so there is nothing more to do here."
+  },
+  "expired": {
+    "title": "This link has expired",
+    "bodySignedIn": "A link works for 24 hours. Ask for a new letter below.",
+    "bodySignedOut": "A link works for 24 hours. Sign in, and ask for a new letter from the banner at the top of the screen."
+  },
+  "banner": {
+    "title": "Confirm your e-mail address",
+    "body": "We sent a link to {{email}}. Until you follow it you can look around, but not create Alerts."
+  },
+  "resend": {
+    "action": "Send it again",
+    "sent": "Sent. A letter can take a minute or two — look in the spam folder too.",
+    "already": "Your address is already confirmed.",
+    "limited_one": "You have asked for several letters in a short time. Try again in {{count, number}} minute.",
+    "limited_other": "You have asked for several letters in a short time. Try again in {{count, number}} minutes.",
+    "limitedSoon": "You have asked for several letters in a short time. Try again in a few minutes.",
+    "failed": "Could not send the letter. Try again in a moment."
+  }
+}
