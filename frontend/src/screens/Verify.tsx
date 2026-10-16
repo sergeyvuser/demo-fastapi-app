@@ -3,6 +3,7 @@ import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { $api } from '../api/client'
 import { useSession } from '../api/session'
 import { usePageTitle } from '../i18n/documentTitle'
 import { ButtonLink } from '../shell/links'
@@ -57,6 +58,11 @@ export function Verify() {
 function Result({ outcome }: { outcome: Outcome }) {
   const { t } = useTranslation()
   const signedIn = useSession().status === 'authenticated'
+  // the same /me the banner and the user menu read; only asked with a session
+  const { data: me } = $api.useQuery('get', '/api/v1/users/me', undefined, {
+    enabled: signedIn,
+  })
+  const confirmed = signedIn && me?.is_verified === true
 
   // The way in, whichever side of a session the person is on.
   const wayIn = signedIn ? (
@@ -85,12 +91,19 @@ function Result({ outcome }: { outcome: Outcome }) {
 
   // Expired. Resend needs a session (impl 08), so it is offered right here only
   // to a person who has one; anyone else is told where it is once signed in.
+  // And not to a person whose address is confirmed already — an old letter
+  // opened after a newer one worked, where another letter cannot help.
   return (
     <>
       <Title order={1} size="h2">
         {t('verification.expired.title')}
       </Title>
-      {signedIn ? (
+      {confirmed ? (
+        <>
+          <Text>{t('verification.expired.bodyConfirmed')}</Text>
+          {wayIn}
+        </>
+      ) : signedIn ? (
         <>
           <Text>{t('verification.expired.bodySignedIn')}</Text>
           <Resend />

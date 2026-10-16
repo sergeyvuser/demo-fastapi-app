@@ -142,6 +142,29 @@ describe('the Verification landing', () => {
     expect(sent(RESEND)).toHaveLength(1)
   })
 
+  it('does not offer another letter on an old link to an address confirmed since', async () => {
+    startSession('access', 900)
+    answers[VERIFY] = () => problem(410)
+    answers['/api/v1/users/me'] = () =>
+      Response.json({
+        id: '00000000-0000-0000-0000-000000000001',
+        username: 'settled',
+        email: 'settled@example.com',
+        is_active: true,
+        is_verified: true,
+      })
+    const { i18n } = renderVerify()
+
+    expect(
+      await screen.findByText(i18n.t('verification.expired.bodyConfirmed')),
+    ).toBeInTheDocument()
+    expect(screen.getByText('This link has expired')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: i18n.t('verification.resend.action') })).toBeNull()
+    expect(
+      within(screen.getByRole('main')).getByRole('link', { name: i18n.t('verification.toAlerts') }),
+    ).toHaveAttribute('href', '/alerts')
+  })
+
   it('says a failed request is a failed request, not an answer about the link', async () => {
     answers[VERIFY] = () => problem(503)
     const { i18n } = renderVerify()
