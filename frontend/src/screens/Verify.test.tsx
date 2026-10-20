@@ -155,10 +155,9 @@ describe('the Verification landing', () => {
       })
     const { i18n } = renderVerify()
 
-    expect(
-      await screen.findByText(i18n.t('verification.expired.bodyConfirmed')),
-    ).toBeInTheDocument()
-    expect(screen.getByText('This link has expired')).toBeInTheDocument()
+    // one message, not "expired" beside "confirmed"
+    expect(await screen.findByText('Your address is already confirmed')).toBeInTheDocument()
+    expect(screen.queryByText('This link has expired')).toBeNull()
     expect(screen.queryByRole('button', { name: i18n.t('verification.resend.action') })).toBeNull()
     expect(
       within(screen.getByRole('main')).getByRole('link', { name: i18n.t('verification.toAlerts') }),

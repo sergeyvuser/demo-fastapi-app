@@ -73,17 +73,22 @@ function Result({ outcome }: { outcome: Outcome }) {
     </ButtonLink>
   )
 
-  if (outcome === 'verified' || outcome === 'used') {
-    // Two outcomes, one action, and still two wordings: a person who opened a
-    // spent link should hear that nothing went wrong, not that it worked now.
-    // Neither offers another letter — the address is confirmed, and a letter
-    // cannot help.
+  // An old letter opened after a newer one worked: the link has expired, and
+  // that no longer matters to anyone. What the person needs to hear is that
+  // the address is confirmed — said alone, not beside "expired". Known only
+  // with a session; without one, /me cannot be asked.
+  const shown = outcome === 'expired' && confirmed ? 'confirmed' : outcome
+
+  if (shown !== 'expired') {
+    // Three wordings, one action. A person who opened a spent link should hear
+    // that nothing went wrong, not that it worked now. None offers another
+    // letter — the address is confirmed, and a letter cannot help.
     return (
       <>
         <Title order={1} size="h2">
-          {t(`verification.${outcome}.title`)}
+          {t(`verification.${shown}.title`)}
         </Title>
-        <Text>{t(`verification.${outcome}.body`)}</Text>
+        <Text>{t(`verification.${shown}.body`)}</Text>
         {wayIn}
       </>
     )
@@ -91,19 +96,12 @@ function Result({ outcome }: { outcome: Outcome }) {
 
   // Expired. Resend needs a session (impl 08), so it is offered right here only
   // to a person who has one; anyone else is told where it is once signed in.
-  // And not to a person whose address is confirmed already — an old letter
-  // opened after a newer one worked, where another letter cannot help.
   return (
     <>
       <Title order={1} size="h2">
         {t('verification.expired.title')}
       </Title>
-      {confirmed ? (
-        <>
-          <Text>{t('verification.expired.bodyConfirmed')}</Text>
-          {wayIn}
-        </>
-      ) : signedIn ? (
+      {signedIn ? (
         <>
           <Text>{t('verification.expired.bodySignedIn')}</Text>
           <Resend />

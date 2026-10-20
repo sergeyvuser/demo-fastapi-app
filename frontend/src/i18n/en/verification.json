@@ -13,10 +13,13 @@
     "title": "This link has already been used",
     "body": "Your address is already confirmed, so there is nothing more to do here."
   },
+  "confirmed": {
+    "title": "Your address is already confirmed",
+    "body": "This link is no longer needed."
+  },
   "expired": {
     "title": "This link has expired",
     "bodySignedIn": "A link works for 24 hours. Ask for a new letter below.",
-    "bodyConfirmed": "Your address is confirmed already, so you need no new link.",
     "bodySignedOut": "A link works for 24 hours. Sign in, and ask for a new letter from the banner at the top of the screen."
   },
   "banner": {
