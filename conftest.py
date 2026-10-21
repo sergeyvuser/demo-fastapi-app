@@ -56,6 +56,10 @@ def redis_endpoint() -> Generator[tuple[str, int]]:
     # same tag as compose: Lua scripting and expiry semantics must match
     with RedisContainer("redis:8-alpine") as container:
         host = container.get_container_host_ip()
+        # Docker Desktop on Windows reports "localhost", which resolves to ::1
+        # first while the port is published on IPv4 only: the attempt on ::1
+        # hangs for the whole connect timeout (3 s) before any fallback.
+        host = "127.0.0.1" if host == "localhost" else host
         yield host, int(container.get_exposed_port(6379))
 
 
