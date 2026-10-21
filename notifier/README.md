@@ -21,8 +21,10 @@ exchange "alerts" ──► queue alerts.triggered ──► notifier ──► 
   `alert_id + triggered_at` suppresses redeliveries. Duplicates are narrowed,
   not eliminated — exactly-once delivery does not exist.
 - **Failure policy**: transient errors (network, 5xx, 429) are retried
-  in-process; permanent ones (bad chat id, blocked bot) are dead-lettered to
-  `alerts.triggered.dead` — never silently dropped.
+  in-process, honouring Telegram's `retry_after`; permanent ones (bad chat id,
+  blocked bot) are dead-lettered to `alerts.triggered.dead` — never silently
+  dropped. The Bot API client itself lives in `shared.telegram` (the API uses
+  it too); the retry policy is this service's own, in `delivery.py`.
 - **The bot token is redacted** from tracing span attributes before export:
   Telegram puts it in the URL path, so observability tooling would otherwise
   leak it into traces (and httpx request logging into logs). The redaction

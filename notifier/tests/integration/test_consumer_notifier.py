@@ -7,9 +7,9 @@ from faststream.rabbit import TestRabbitBroker
 from redis.asyncio import Redis
 
 from notifier import app as notifier
-from notifier.telegram import TelegramSendError
 from shared.broker import ALERTS_EXCHANGE, ALERTS_TRIGGERED_QUEUE
 from shared.events import AlertTriggeredEvent
+from shared.telegram import RefusalReason, TelegramRefused
 
 
 def make_event(**overrides) -> AlertTriggeredEvent:
@@ -35,9 +35,11 @@ class RecordingSender:
         self.sent.append((chat_id, text))
 
 
-class FailingSender:
+class RefusingSender:
+    # a refusal, not an outage: permanent, so delivery gives up without the
+    # retry pauses an unavailable Telegram would cost this test
     async def send_message(self, chat_id: int, text: str) -> None:
-        raise TelegramSendError("telegram is unreachable")
+        raise TelegramRefused(RefusalReason.BLOCKED, "bot was blocked by the user")
 
 
 async def test_redelivery_does_not_spam_the_user(
@@ -45,7 +47,7 @@ async def test_redelivery_does_not_spam_the_user(
 ) -> None:
     sender = RecordingSender()
     monkeypatch.setattr(notifier, "_redis", clean_redis)
-    monkeypatch.setattr(notifier, "_sender", sender)
+    monkeypatch.setattr(notifier, "_telegram", sender)
     payload = make_event().model_dump(mode="json")
 
     async with TestRabbitBroker(notifier.broker) as br:
@@ -64,7 +66,7 @@ async def test_failed_delivery_releases_the_dedup_key(
     clean_redis: Redis, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(notifier, "_redis", clean_redis)
-    monkeypatch.setattr(notifier, "_sender", FailingSender())
+    monkeypatch.setattr(notifier, "_telegram", RefusingSender())
     event = make_event()
 
     async with TestRabbitBroker(notifier.broker) as br:
@@ -87,7 +89,7 @@ async def test_user_without_telegram_is_skipped(
 ) -> None:
     sender = RecordingSender()
     monkeypatch.setattr(notifier, "_redis", clean_redis)
-    monkeypatch.setattr(notifier, "_sender", sender)
+    monkeypatch.setattr(notifier, "_telegram", sender)
 
     async with TestRabbitBroker(notifier.broker) as br:
         await br.publish(

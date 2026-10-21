@@ -1,10 +1,4 @@
-from pydantic import BaseModel, SecretStr
-
-from shared.config import BaseServiceSettings
-
-
-class TelegramConfig(BaseModel):
-    bot_token: SecretStr
+from shared.config import BaseServiceSettings, TelegramConfig
 
 
 class Settings(BaseServiceSettings):

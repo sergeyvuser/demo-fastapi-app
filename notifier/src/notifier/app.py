@@ -7,8 +7,8 @@ from prometheus_client import start_http_server
 from redis.asyncio import Redis
 
 from notifier.config import settings
+from notifier.delivery import deliver
 from notifier.redaction import redact_bot_token
-from notifier.telegram import TelegramSender, TelegramSendError
 from shared.broker import (
     ALERTS_EXCHANGE,
     ALERTS_TRIGGERED_QUEUE,
@@ -22,6 +22,7 @@ from shared.metrics import (
     notifications_sent,
 )
 from shared.service import configure_service
+from shared.telegram import TelegramClient, TelegramError
 
 configure_service(name="notifier", settings=settings)
 
@@ -42,14 +43,14 @@ HTTPXClientInstrumentor().instrument(async_request_hook=_redact_url)
 RedisInstrumentor().instrument()
 
 _redis: Redis | None = None
-_sender: TelegramSender | None = None
+_telegram: TelegramClient | None = None
 
 _DEDUP_TTL_SECONDS = 6 * 3600
 
 
 @app.on_startup
 async def startup() -> None:
-    global _redis, _sender
+    global _redis, _telegram
     _redis = Redis.from_url(
         url=settings.redis.url,
         decode_responses=True,
@@ -57,7 +58,7 @@ async def startup() -> None:
         socket_timeout=settings.redis.socket_timeout,
     )
     await _redis.ping()
-    _sender = TelegramSender(settings.telegram.bot_token.get_secret_value())
+    _telegram = TelegramClient(settings.telegram.bot_token.get_secret_value())
 
 
 @app.on_startup
@@ -73,15 +74,15 @@ async def declare_topology() -> None:
 
 @app.on_shutdown
 async def shutdown() -> None:
-    if _sender:
-        await _sender.aclose()
+    if _telegram:
+        await _telegram.aclose()
     if _redis:
         await _redis.aclose()
 
 
 @broker.subscriber(ALERTS_TRIGGERED_QUEUE, ALERTS_EXCHANGE)
 async def on_alert(event: AlertTriggeredEvent) -> None:
-    assert _redis is not None and _sender is not None
+    assert _redis is not None and _telegram is not None
 
     if event.telegram_chat_id is None:
         logger.bind(
@@ -107,13 +108,13 @@ async def on_alert(event: AlertTriggeredEvent) -> None:
         f"at {event.triggered_at:%Y-%m-%d %H:%M:%S %Z}"
     )
     try:
-        await _sender.send_message(chat_id=event.telegram_chat_id, text=text)
+        await deliver(_telegram, chat_id=event.telegram_chat_id, text=text)
         logger.bind(
             alert_id=str(event.alert_id),
             chat_id=event.telegram_chat_id,
         ).info("notification delivered")
         notifications_sent.inc()
-    except TelegramSendError as exc:
+    except TelegramError as exc:
         # We claimed the dedup key but failed to deliver — release it so
         # a redelivery attempt can try again, then dead-letter this one.
         await _redis.delete(dedup_key)
