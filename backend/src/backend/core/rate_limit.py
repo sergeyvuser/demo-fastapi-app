@@ -29,8 +29,31 @@ class FixedWindowRateLimiter:
         self.limit = limit
         self.window = window
 
+    def _redis_key(self, key: str) -> str:
+        return f"ratelimit:{self.prefix}:{key}"
+
+    async def _refuse(self, redis_key: str) -> None:
+        ttl = await self.redis.ttl(redis_key)
+
+        rate_limit_hits.labels(self.prefix).inc()
+        raise RateLimitExceededError(retry_after=max(ttl, 1))
+
+    async def check(self, key: str) -> None:
+        """Refuse if the budget is already spent; spend nothing.
+
+        For a limiter that counts only failures: `check` before the attempt,
+        `hit` after a failed one. Two concurrent attempts can both pass the
+        check — the same slack the fixed window already has at its edge.
+        """
+
+        redis_key = self._redis_key(key)
+        count = await self.redis.get(redis_key)
+
+        if count is not None and int(count) >= self.limit:
+            await self._refuse(redis_key)
+
     async def hit(self, key: str) -> None:
-        redis_key = f"ratelimit:{self.prefix}:{key}"
+        redis_key = self._redis_key(key)
         async with self.redis.pipeline(transaction=True) as pipe:
             # buffered pipeline commands return the pipeline itself, not a coroutine
             # noinspection PyAsyncCall
@@ -38,7 +61,5 @@ class FixedWindowRateLimiter:
             # noinspection PyAsyncCall
             pipe.expire(redis_key, self.window, nx=True)
             count, _ = await pipe.execute()
-            if count > self.limit:
-                ttl = await self.redis.ttl(redis_key)
-                rate_limit_hits.labels(self.prefix).inc()
-                raise RateLimitExceededError(retry_after=max(ttl, 1))
+        if count > self.limit:
+            await self._refuse(redis_key)

@@ -10,6 +10,7 @@ from backend.api.ws.stream import stream_router
 from backend.core.config import settings
 from backend.core.db import engine
 from backend.tasks.broker import broker as taskiq_broker
+from shared.telegram import TelegramClient
 from shared.tracing import configure_tracing
 
 
@@ -34,6 +35,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # a client per request would pay a TCP and TLS handshake to Bybit every time.
     bybit = httpx.AsyncClient(base_url=settings.candles.base_url)
     app.state.bybit = bybit
+    telegram = TelegramClient(settings.telegram.bot_token.get_secret_value())
+    app.state.telegram = telegram
 
     # API process is a taskiq CLIENT: it must connect to the broker to
     # enqueue tasks. The worker/scheduler processes call startup() on
@@ -57,6 +60,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # Shutdown
     if not taskiq_broker.is_worker_process:
         await taskiq_broker.shutdown()
+    await telegram.aclose()
     await bybit.aclose()
     await redis.aclose()
     await engine.dispose()

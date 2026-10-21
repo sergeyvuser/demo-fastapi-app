@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, SecretStr
 from sqlalchemy import URL
 
-from shared.config import BaseServiceSettings
+from shared.config import BaseServiceSettings, TelegramConfig
 
 
 class SQLAlchemyConfig(BaseModel):
@@ -124,6 +124,10 @@ class DemoConfig(BaseModel):
     email: str = "demo@example.com"
     password: str = "demo-password"
 
+    def is_demo(self, email: str) -> bool:
+        """Whether an account is the demo one. The only place that decides it."""
+        return self.enabled and email == self.email
+
 
 class CandlesConfig(BaseModel):
     """Price history, fetched from Bybit's public REST API."""
@@ -136,6 +140,17 @@ class CandlesConfig(BaseModel):
     rate_window_seconds: int = 60
 
 
+class LinkedChatConfig(BaseModel):
+    """Failed Linked chat saves, per User.
+
+    Failures only: a successful save is something a person does once, a run
+    of failures is either a typo storm or a probe for which chat ids exist.
+    """
+
+    failure_limit: int = 5
+    failure_window_seconds: int = 3600
+
+
 class Settings(BaseServiceSettings):
     run: RunConfig = RunConfig()
     api: APIPrefixConfig = APIPrefixConfig()
@@ -144,6 +159,9 @@ class Settings(BaseServiceSettings):
     smtp: SMTPConfig = SMTPConfig()
     demo: DemoConfig = DemoConfig()
     candles: CandlesConfig = CandlesConfig()
+    # the API proves a Linked chat by sending it a message
+    telegram: TelegramConfig
+    linked_chat: LinkedChatConfig = LinkedChatConfig()
 
 
 settings = Settings()

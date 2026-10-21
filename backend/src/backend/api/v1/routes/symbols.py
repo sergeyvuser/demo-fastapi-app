@@ -50,7 +50,7 @@ def _meter_key(user: User, request: Request) -> str:
     so per-account metering would let one visitor spend the minute for all.
     The prefixes keep an address and an id from ever meaning the same key.
     """
-    if settings.demo.enabled and user.email == settings.demo.email:
+    if settings.demo.is_demo(user.email):
         client_ip = request.client.host if request.client else "unknown"
         return f"ip:{client_ip}"
     return f"user:{user.id}"

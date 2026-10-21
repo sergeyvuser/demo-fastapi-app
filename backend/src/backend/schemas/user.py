@@ -28,6 +28,14 @@ class UserRead(UserBase):
     id: uuid.UUID
     is_active: bool
     is_verified: bool
+    telegram_chat_id: int | None
+
+
+class LinkedChatUpdate(BaseModel):
+    # Positive: private chats only (groups are negative). The ceiling is
+    # JavaScript's largest exact integer, not BIGINT's: the browser reads
+    # this number back as a double. Telegram promises at most 52 bits.
+    chat_id: int = Field(gt=0, le=2**53 - 1)
 
 
 class UserUpdate(BaseModel):

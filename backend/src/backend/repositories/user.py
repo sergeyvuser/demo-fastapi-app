@@ -14,3 +14,8 @@ class UserRepository(BaseRepository[User, UserCreateInternal, UserUpdate]):
         stmt = select(self.model).where(self.model.email == email)
         result = await self.session.scalars(stmt)
         return result.one_or_none()
+
+    async def get_by_telegram_chat_id(self, chat_id: int) -> User | None:
+        stmt = select(self.model).where(self.model.telegram_chat_id == chat_id)
+        result = await self.session.scalars(stmt)
+        return result.one_or_none()

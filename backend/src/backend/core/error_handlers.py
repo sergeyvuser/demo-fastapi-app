@@ -24,7 +24,7 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
         media_type="application/problem+json",
         headers=exc.headers,
         content={
-            "type": "about:blank",
+            "type": exc.problem_type,
             "title": exc.title,
             "status": exc.status_code,
             "detail": exc.detail,

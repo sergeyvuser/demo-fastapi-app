@@ -8,6 +8,7 @@ from redis.asyncio import Redis
 from backend.core.db import AsyncSessionDep
 from backend.models import User
 from backend.services.auth import AuthService, InvalidAccessTokenError
+from shared.telegram import TelegramClient
 
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/api/v1/auth/login",
@@ -59,3 +60,10 @@ def get_bybit(request: Request) -> httpx.AsyncClient:
 
 
 BybitDep = Annotated[httpx.AsyncClient, Depends(get_bybit)]
+
+
+def get_telegram(request: Request) -> TelegramClient:
+    return request.app.state.telegram
+
+
+TelegramDep = Annotated[TelegramClient, Depends(get_telegram)]

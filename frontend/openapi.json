@@ -31,6 +31,71 @@
         ]
       }
     },
+    "/api/v1/users/me/linked-chat": {
+      "put": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Link Chat",
+        "description": "Link the Telegram chat Notifications go to, proved by a test message.",
+        "operationId": "link_chat_api_v1_users_me_linked_chat_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkedChatUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Unlink Chat",
+        "description": "Stop Notifications without touching Alerts. Available at any time.",
+        "operationId": "unlink_chat_api_v1_users_me_linked_chat_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/auth/register": {
       "post": {
         "tags": [
@@ -1353,6 +1418,21 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "LinkedChatUpdate": {
+        "properties": {
+          "chat_id": {
+            "type": "integer",
+            "maximum": 9007199254740991.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Chat Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "chat_id"
+        ],
+        "title": "LinkedChatUpdate"
+      },
       "Page_AlertRead_": {
         "properties": {
           "items": {
@@ -1561,6 +1641,17 @@
           "is_verified": {
             "type": "boolean",
             "title": "Is Verified"
+          },
+          "telegram_chat_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram Chat Id"
           }
         },
         "type": "object",
@@ -1569,7 +1660,8 @@
           "email",
           "id",
           "is_active",
-          "is_verified"
+          "is_verified",
+          "telegram_chat_id"
         ],
         "title": "UserRead"
       },

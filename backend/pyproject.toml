@@ -20,7 +20,7 @@ dependencies = [
     "python-multipart>=0.0.32",
     "redis[hiredis]>=8.0.1",
     "sqlalchemy[asyncio]>=2.0.51",
-    "shared",
+    "shared[telegram]",
     "faststream[cli]>=0.7.2",
     "taskiq>=0.12.4",
     "taskiq-aio-pika>=0.6.0",

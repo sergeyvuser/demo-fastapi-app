@@ -6,6 +6,10 @@ class AppError(Exception):
 
     status_code: int = 500
     title: str = "Internal Server Error"
+    # RFC 9457 `type`: a machine-readable kind of problem, for a client
+    # that must tell two refusals with the same status apart. API texts
+    # are not localised, so the UI keys its own wording on this.
+    problem_type: str = "about:blank"
     default_detail: str | None = None
     metric_reason: str | None = None
 
@@ -30,6 +34,11 @@ class ConflictError(AppError):
 class BadRequestError(AppError):
     status_code = 400
     title = "Bad Request"
+
+
+class ForbiddenError(AppError):
+    status_code = 403
+    title = "Forbidden"
 
 
 class UnauthorizedError(AppError):
