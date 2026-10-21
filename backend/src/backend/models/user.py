@@ -16,7 +16,9 @@ class User(IdUuidPkMixin, TimestampsMixin, Base):
     is_superuser: Mapped[bool] = mapped_column(default=False, server_default="false")
     is_verified: Mapped[bool] = mapped_column(default=False, server_default="false")
 
-    telegram_chat_id: Mapped[int | None] = mapped_column(BigInteger)
+    # The Linked chat. UNIQUE: one conversation cannot receive two accounts'
+    # Notifications, and a reader could not tell which account a message is for.
+    telegram_chat_id: Mapped[int | None] = mapped_column(BigInteger, unique=True)
     # The User's token epoch: an access token issued before this instant is
     # refused, which is what makes a logout revoke the access tokens already
     # out there. NULL means the User never signed out — nothing is revoked.

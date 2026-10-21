@@ -236,7 +236,8 @@ async def other_user(session: AsyncSession) -> User:
 
 @pytest.fixture
 async def verified_user(session: AsyncSession) -> User:
-    return await _create_user(session, telegram_chat_id=424242, is_verified=True)
+    # a chat id of its own: the column is UNIQUE, and a test may want both
+    return await _create_user(session, telegram_chat_id=434343, is_verified=True)
 
 
 @pytest.fixture
@@ -313,7 +314,7 @@ async def committed_alert(db_engine: AsyncEngine, request):
             username=f"race-{suffix}",
             email=f"race-{suffix}@example.com",
             hashed_password="not-a-real-hash",
-            telegram_chat_id=424242,
+            telegram_chat_id=454545,  # committed for real: must not collide
         )
         setup.add(user)
         await setup.flush()  # assigns the id the Alert needs
