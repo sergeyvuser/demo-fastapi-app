@@ -65,6 +65,17 @@ class OtelConfig(BaseModel):
     sample_ratio: float = 1.0
 
 
+class TelegramConfig(BaseModel):
+    """The bot the system speaks as.
+
+    Not part of BaseServiceSettings: two services need it (the notifier
+    delivers, the API proves a Linked chat) and the ingestor must not
+    require a secret it never uses.
+    """
+
+    bot_token: SecretStr
+
+
 class SymbolConfig(BaseModel):
     """One Symbol the system streams, and how its price is written."""
 
