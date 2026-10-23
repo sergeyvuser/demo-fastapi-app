@@ -9,8 +9,9 @@ from backend.api.deps import (
 from backend.core.config import settings
 from backend.core.db import AsyncSessionDep
 from backend.core.rate_limit import FixedWindowRateLimiter
-from backend.schemas.user import LinkedChatUpdate, UserRead
+from backend.schemas.user import LinkedChatUpdate, PreferencesUpdate, UserRead
 from backend.services.linked_chat import LinkedChatRefusedError, LinkedChatService
+from backend.services.user import UserService
 
 router = APIRouter(
     prefix=settings.api.v1.users,
@@ -21,6 +22,25 @@ router = APIRouter(
 @router.get("/me", response_model=UserRead)
 async def get_me(current_user: CurrentUserDep):
     return current_user
+
+
+@router.put("/me/preferences", response_model=UserRead)
+async def update_preferences(
+    data: PreferencesUpdate,
+    current_user: CurrentVerifiedUserDep,
+    session: AsyncSessionDep,
+):
+    """Replace the User's preferences: today, whether the daily Digest is sent.
+    \f
+    PUT, not PATCH: one idempotent replacement has no partial-update semantics
+    to define. Not UserUpdate either — that schema carries `email`, and an
+    address change with no re-Verification must not ride in on a mailing-list
+    toggle.
+
+    No rate limiter, deliberately: one UPDATE of one row of the caller's own
+    account is nothing worth metering.
+    """
+    return await UserService(session).update_preferences(current_user, data)
 
 
 @router.put("/me/linked-chat", response_model=UserRead)

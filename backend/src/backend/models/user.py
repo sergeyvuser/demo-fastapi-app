@@ -15,6 +15,9 @@ class User(IdUuidPkMixin, TimestampsMixin, Base):
     is_active: Mapped[bool] = mapped_column(default=True, server_default="true")
     is_superuser: Mapped[bool] = mapped_column(default=False, server_default="false")
     is_verified: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # Opt-in: nobody is mailed who has not asked, and the server default
+    # covers the rows that existed before the column did.
+    digest_enabled: Mapped[bool] = mapped_column(default=False, server_default="false")
 
     # The Linked chat. UNIQUE: one conversation cannot receive two accounts'
     # Notifications, and a reader could not tell which account a message is for.

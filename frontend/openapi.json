@@ -31,6 +31,53 @@
         ]
       }
     },
+    "/api/v1/users/me/preferences": {
+      "put": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Update Preferences",
+        "description": "Replace the User's preferences: today, whether the daily Digest is sent.",
+        "operationId": "update_preferences_api_v1_users_me_preferences_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/users/me/linked-chat": {
       "put": {
         "tags": [
@@ -1464,6 +1511,20 @@
         ],
         "title": "Page[AlertRead]"
       },
+      "PreferencesUpdate": {
+        "properties": {
+          "digest_enabled": {
+            "type": "boolean",
+            "title": "Digest Enabled"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "digest_enabled"
+        ],
+        "title": "PreferencesUpdate"
+      },
       "SymbolList": {
         "properties": {
           "items": {
@@ -1652,6 +1713,10 @@
               }
             ],
             "title": "Telegram Chat Id"
+          },
+          "digest_enabled": {
+            "type": "boolean",
+            "title": "Digest Enabled"
           }
         },
         "type": "object",
@@ -1661,7 +1726,8 @@
           "id",
           "is_active",
           "is_verified",
-          "telegram_chat_id"
+          "telegram_chat_id",
+          "digest_enabled"
         ],
         "title": "UserRead"
       },

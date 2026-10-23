@@ -29,6 +29,7 @@ class UserRead(UserBase):
     is_active: bool
     is_verified: bool
     telegram_chat_id: int | None
+    digest_enabled: bool
 
 
 class LinkedChatUpdate(BaseModel):
@@ -36,6 +37,14 @@ class LinkedChatUpdate(BaseModel):
     # JavaScript's largest exact integer, not BIGINT's: the browser reads
     # this number back as a double. Telegram promises at most 52 bits.
     chat_id: int = Field(gt=0, le=2**53 - 1)
+
+
+class PreferencesUpdate(BaseModel):
+    # Forbid, not ignore: a body carrying `email` is a client that believes
+    # this endpoint changes it, and a silent 200 would confirm the mistake.
+    model_config = ConfigDict(extra="forbid")
+
+    digest_enabled: bool
 
 
 class UserUpdate(BaseModel):
