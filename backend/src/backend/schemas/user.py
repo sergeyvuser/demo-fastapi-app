@@ -1,7 +1,16 @@
 import uuid
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    StringConstraints,
+    computed_field,
+)
+
+from backend.core.config import settings
 
 Username = Annotated[
     str, StringConstraints(min_length=3, max_length=32, pattern=r"^[a-zA-Z0-9_-]+$")
@@ -30,6 +39,15 @@ class UserRead(UserBase):
     is_verified: bool
     telegram_chat_id: int | None
     digest_enabled: bool
+
+    # The ignore is pydantic's documented answer: mypy cannot type a
+    # decorator stacked on a property, and computed_field needs exactly that.
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def is_demo(self) -> bool:
+        # Derived on every read, never stored: a stored flag would be a second
+        # source of truth that disagrees the day the demo address changes.
+        return settings.demo.is_demo(self.email)
 
 
 class LinkedChatUpdate(BaseModel):

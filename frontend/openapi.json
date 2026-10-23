@@ -1717,6 +1717,11 @@
           "digest_enabled": {
             "type": "boolean",
             "title": "Digest Enabled"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -1727,7 +1732,8 @@
           "is_active",
           "is_verified",
           "telegram_chat_id",
-          "digest_enabled"
+          "digest_enabled",
+          "is_demo"
         ],
         "title": "UserRead"
       },
