@@ -915,6 +915,28 @@
         }
       }
     },
+    "/api/v1/demo": {
+      "get": {
+        "tags": [
+          "Demo"
+        ],
+        "summary": "Get Demo",
+        "description": "Whether this deployment has a demo account, and how to sign in to it.",
+        "operationId": "get_demo_api_v1_demo_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoRead"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [
@@ -1441,6 +1463,57 @@
           "next_cursor"
         ],
         "title": "CursorPage[TriggerRead]"
+      },
+      "DemoRead": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "resets_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resets At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled",
+          "email",
+          "password",
+          "resets_at"
+        ],
+        "title": "DemoRead",
+        "description": "The published demo account, as the Landing page needs it.\n\nThese four fields and nothing more: this is a public, unauthenticated\nanswer. The password is published on purpose (it is in the README too);\nanything added here is published with it.\n\nWhen the account is disabled the three details are null rather than\nabsent or invented: the shape stays the same, and no client is handed\ncredentials that open nothing."
       },
       "ExpiryPreset": {
         "type": "integer",

@@ -10,7 +10,7 @@ hold up the product: the demo account is a courtesy, not a precondition.
 """
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from loguru import logger
@@ -26,6 +26,23 @@ from backend.repositories.user import UserRepository
 from backend.schemas.alert import AlertCreate, AlertCreateInternal
 from backend.schemas.user import UserCreateInternal
 from shared.logging import configure_logging
+
+# The hour of the nightly reset, in UTC. Read by the reset's cron schedule and
+# by GET /demo, so the time a visitor is promised is the time it happens.
+#
+# UTC holds because taskiq's scheduler matches cron strings against
+# datetime.now(tz=UTC) unless a task sets `cron_offset` — the container's TZ
+# plays no part. Give the reset task a `cron_offset` and this stops being true.
+RESET_HOUR_UTC = 4
+
+
+def next_reset(now: datetime) -> datetime:
+    """The next reset strictly after `now`, which must be timezone-aware."""
+    today = now.astimezone(UTC).replace(
+        hour=RESET_HOUR_UTC, minute=0, second=0, microsecond=0
+    )
+    return today if today > now else today + timedelta(days=1)
+
 
 # Thresholds sit far from the market on purpose. The tempting alternative — one
 # example close enough to fire, so a visitor sees the whole pipeline work — cannot

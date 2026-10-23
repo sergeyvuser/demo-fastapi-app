@@ -8,7 +8,7 @@ from backend.core.db import AsyncSessionLocal, rows_affected
 from backend.models import RefreshToken
 from backend.repositories.alert import AlertRepository
 from backend.repositories.trigger import TriggerRepository
-from backend.seed_demo import reset_demo
+from backend.seed_demo import RESET_HOUR_UTC, reset_demo
 from backend.tasks.broker import broker
 
 RETENTION_TOKENS = timedelta(days=30)
@@ -50,7 +50,7 @@ async def cleanup_refresh_tokens() -> int:
     return purged
 
 
-@broker.task(schedule=[{"cron": "0 4 * * *"}])
+@broker.task(schedule=[{"cron": f"0 {RESET_HOUR_UTC} * * *"}])
 async def reset_demo_account() -> int:
     """Return the shared demo account to its seeded state, nightly.
 
