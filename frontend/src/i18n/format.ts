@@ -22,6 +22,30 @@ export function formatPrice(price: string | number, precision: number, language:
   }).format(price as Intl.StringNumericLiteral)
 }
 
+// A Threshold at its Symbol's precision — or at its own, when it was typed
+// with more digits than that: rounding what the person wrote would show them
+// a rule they did not make. The trailing zeros of `Numeric(20, 8)` are not
+// digits anyone typed and do not count.
+export function formatThreshold(
+  threshold: string,
+  precision: number | undefined,
+  language: string,
+): string {
+  const typed = threshold.includes('.') ? threshold.replace(/0+$/, '').split('.')[1].length : 0
+  return formatPrice(threshold, Math.max(precision ?? 0, typed), language)
+}
+
+// A Cooldown in the largest whole unit: `1 hr`, `90 min`, `1 ч`. The API
+// keeps it in seconds, between one minute and one day.
+export function formatDuration(seconds: number, language: string): string {
+  const hours = seconds % 3600 === 0
+  return new Intl.NumberFormat(language, {
+    style: 'unit',
+    unit: hours ? 'hour' : 'minute',
+    unitDisplay: 'short',
+  }).format(hours ? seconds / 3600 : Math.round(seconds / 60))
+}
+
 // A change as a signed percentage: `+1.23%`, `-0.40%`, `0.00%`. The sign is
 // always written, so a direction is legible without its colour; zero gets
 // none, because "+0.00%" claims a direction that is not there.
@@ -32,6 +56,16 @@ export function formatChange(ratio: number, language: string): string {
     maximumFractionDigits: 2,
     signDisplay: 'exceptZero',
   }).format(ratio)
+}
+
+// A distance as an unsigned percentage: `1.23%`. The side is said in words
+// beside it ("to go", "past"), so a sign would say it twice.
+export function formatDistance(ratio: number, language: string): string {
+  return new Intl.NumberFormat(language, {
+    style: 'percent',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Math.abs(ratio))
 }
 
 export type Separators = {

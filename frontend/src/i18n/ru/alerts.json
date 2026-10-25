@@ -1,8 +1,74 @@
 {
+  "newAlert": "Новый алерт",
+  "rule": {
+    "price_above": "выше {{threshold}}",
+    "price_below": "ниже {{threshold}}"
+  },
+  "status": {
+    "paused": "На паузе",
+    "completed": "Сработал",
+    "expired": "Истёк"
+  },
+  "withdrawn": {
+    "badge": "Больше не отслеживается",
+    "explained": "Этот символ убран из списка, который система получает с биржи, поэтому цены для алерта больше не приходят."
+  },
+  "distance": {
+    "toGo": "ещё {{distance}}",
+    "past": "за порогом на {{distance}}",
+    "none": "Расстояние неизвестно"
+  },
+  "repeat": {
+    "while_true": "Пока выполняется",
+    "once": "Один раз",
+    "on_cross": "При пересечении"
+  },
+  "cooldown": {
+    "some": "Интервал {{duration}}",
+    "none": "Без интервала"
+  },
+  "expiry": {
+    "future": "Истекает {{when}}",
+    "past": "Истёк {{when}}"
+  },
   "card": {
     "triggerCount_one": "{{count, number}} срабатывание",
     "triggerCount_few": "{{count, number}} срабатывания",
     "triggerCount_many": "{{count, number}} срабатываний",
-    "triggerCount_other": "{{count, number}} срабатывания"
+    "triggerCount_other": "{{count, number}} срабатывания",
+    "lastTriggered": "последнее {{when}}",
+    "neverTriggered": "Ещё не срабатывал"
+  },
+  "filter": {
+    "label": "Какие алерты показать",
+    "all": "Все",
+    "active": "Активные",
+    "paused": "Пауза",
+    "finished": "Завершены"
+  },
+  "group": {
+    "label": "Группировка",
+    "none": "Без группировки",
+    "symbol": "По символу",
+    "condition": "По условию"
+  },
+  "conditionGroup": {
+    "price_above": "Цена выше порога",
+    "price_below": "Цена ниже порога"
+  },
+  "symbols": {
+    "label": "Символы",
+    "any": "Любой символ",
+    "clear": "Сбросить символы"
+  },
+  "slots": "Занято {{used}} из {{limit}} алертов. Завершённые не считаются.",
+  "noMatch": "Под эти фильтры алертов нет.",
+  "showAll": "Показать все алерты",
+  "loadFailed": "Не удалось загрузить ваши алерты.",
+  "retry": "Повторить",
+  "empty": {
+    "title": "Алертов пока нет",
+    "body": "Алерт следит за одним символом и сообщает вам, когда его цена пересекает заданный вами порог.",
+    "action": "Создать первый алерт"
   }
 }

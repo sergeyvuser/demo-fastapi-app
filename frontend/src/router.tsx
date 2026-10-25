@@ -7,10 +7,12 @@ import {
   type RouterHistory,
 } from '@tanstack/react-router'
 
+import { validateAlertsSearch } from './alerts/list'
 import { bootSession, getSession, subscribeToSession, type Session } from './api/session'
 import { NotFound } from './NotFound'
+import { Alerts } from './screens/Alerts'
 import { Landing } from './screens/Landing'
-import { Account, Alerts, History } from './screens/placeholders'
+import { Account, History, NewAlert } from './screens/placeholders'
 import { SignIn } from './screens/SignIn'
 import { SignUp } from './screens/SignUp'
 import { Verify } from './screens/Verify'
@@ -123,7 +125,16 @@ function SignedInLayout() {
 const alertsRoute = createRoute({
   getParentRoute: () => signedInRoute,
   path: '/alerts',
+  // the list's filters, grouping and Symbol choice, so a reload, the back
+  // button and a pasted link all keep them
+  validateSearch: validateAlertsSearch,
   component: Alerts,
+})
+
+const newAlertRoute = createRoute({
+  getParentRoute: () => signedInRoute,
+  path: '/alerts/new',
+  component: NewAlert,
 })
 
 const historyRoute = createRoute({
@@ -143,7 +154,7 @@ const routeTree = rootRoute.addChildren([
   signInRoute,
   signUpRoute,
   verifyRoute,
-  signedInRoute.addChildren([alertsRoute, historyRoute, accountRoute]),
+  signedInRoute.addChildren([alertsRoute, newAlertRoute, historyRoute, accountRoute]),
 ])
 
 export function createAppRouter(context: RouterContext, history?: RouterHistory) {

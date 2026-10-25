@@ -1,6 +1,72 @@
 {
+  "newAlert": "New Alert",
+  "rule": {
+    "price_above": "above {{threshold}}",
+    "price_below": "below {{threshold}}"
+  },
+  "status": {
+    "paused": "Paused",
+    "completed": "Completed",
+    "expired": "Expired"
+  },
+  "withdrawn": {
+    "badge": "No longer streamed",
+    "explained": "This Symbol has left the list the system streams, so the Alert no longer gets prices."
+  },
+  "distance": {
+    "toGo": "{{distance}} to go",
+    "past": "{{distance}} past",
+    "none": "Distance unknown"
+  },
+  "repeat": {
+    "while_true": "While true",
+    "once": "Once",
+    "on_cross": "On cross"
+  },
+  "cooldown": {
+    "some": "Cooldown {{duration}}",
+    "none": "No cooldown"
+  },
+  "expiry": {
+    "future": "Expires {{when}}",
+    "past": "Expired {{when}}"
+  },
   "card": {
     "triggerCount_one": "{{count, number}} Trigger",
-    "triggerCount_other": "{{count, number}} Triggers"
+    "triggerCount_other": "{{count, number}} Triggers",
+    "lastTriggered": "last {{when}}",
+    "neverTriggered": "Never triggered"
+  },
+  "filter": {
+    "label": "Show Alerts",
+    "all": "All",
+    "active": "Active",
+    "paused": "Paused",
+    "finished": "Finished"
+  },
+  "group": {
+    "label": "Grouping",
+    "none": "No grouping",
+    "symbol": "Group by Symbol",
+    "condition": "Group by Condition"
+  },
+  "conditionGroup": {
+    "price_above": "Price above the Threshold",
+    "price_below": "Price below the Threshold"
+  },
+  "symbols": {
+    "label": "Symbols",
+    "any": "Any Symbol",
+    "clear": "Clear Symbols"
+  },
+  "slots": "{{used}} of {{limit}} Alerts used. Finished Alerts do not count.",
+  "noMatch": "No Alerts match these filters.",
+  "showAll": "Show all Alerts",
+  "loadFailed": "Your Alerts could not be loaded.",
+  "retry": "Try again",
+  "empty": {
+    "title": "No Alerts yet",
+    "body": "An Alert watches one Symbol and tells you when its price crosses a Threshold you set.",
+    "action": "Create your first Alert"
   }
 }

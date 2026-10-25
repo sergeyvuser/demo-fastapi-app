@@ -20,7 +20,9 @@ const FIGURES = { fontVariantNumeric: 'tabular-nums' } as const
 // A socket that should be live and is not. The number stays where it is —
 // blanking it would throw away what the person knew a second ago — but it is
 // greyed, because bright would claim it is still moving. The strip says why.
-function useStale(): boolean {
+// Exported for anything else coloured by a live price — the distance on an
+// Alert card goes grey on the same signal.
+export function useStale(): boolean {
   return useRealtimeStatus() === 'down'
 }
 
