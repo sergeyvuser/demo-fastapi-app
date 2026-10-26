@@ -2,17 +2,21 @@ import { Alert as MantineAlert, Stack, Text } from '@mantine/core'
 import { useTranslation } from 'react-i18next'
 
 import { $api } from '../api/client'
+import { DemoBanner } from '../demo/DemoBanner'
 import { Resend } from '../verification/Resend'
 
 // The one slot above every signed-in screen. It holds at most one banner by
-// construction — a single return, not two components that each decide for
-// themselves. Ticket 23's "this account is shared" joins as a second branch;
-// the demo account is always verified, so its branch never meets this one.
+// construction — one chain of returns, not two components that each decide
+// for themselves. The Demo account is permanently verified, so in practice its
+// branch never meets the verification one; should it ever, the account's
+// nature wins: the letter goes to a mailbox nobody signed in to it can read.
 export function BannerSlot() {
   // the same query the user menu runs; the cache answers both
   const { data: me } = $api.useQuery('get', '/api/v1/users/me')
 
-  if (me && !me.is_verified) return <VerificationBanner email={me.email} />
+  if (!me) return null
+  if (me.is_demo) return <DemoBanner />
+  if (!me.is_verified) return <VerificationBanner email={me.email} />
   return null
 }
 

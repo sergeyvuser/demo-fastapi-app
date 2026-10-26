@@ -1,0 +1,18 @@
+{
+  "entry": {
+    "title": "Look around first",
+    "body": "Sign in to the demo account without registering. It is shared: everyone who signs in sees and edits the same Alerts, and every day at {{time}} it goes back to its example Alerts.",
+    "credentials": "Sign-in details",
+    "copy": "Copy",
+    "copied": "Copied",
+    "signIn": "Sign in to the demo account"
+  },
+  "banner": {
+    "shared": "This is the shared demo account: every Alert on it belongs to everyone who signs in.",
+    "sharedResets": "This is the shared demo account: every Alert on it belongs to everyone who signs in, and it resets {{when}}.",
+    "more": "What this means",
+    "others": "Its password is published, so other people may be using it right now. Alerts can appear, change or disappear while you look — that is them, not a fault.",
+    "reset": "Every day at {{time}} the account goes back to its example Alerts, and everything else on it is deleted.",
+    "own": "To keep Alerts of your own, sign out and create an account."
+  }
+}

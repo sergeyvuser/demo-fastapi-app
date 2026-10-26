@@ -3,6 +3,7 @@ import { useDocumentTitle } from '@mantine/hooks'
 import { useTranslation } from 'react-i18next'
 
 import { useSession } from '../api/session'
+import { DemoEntry } from '../demo/DemoEntry'
 import { CoinMark } from '../prices/CoinMark'
 import { DayChange, Price } from '../prices/Price'
 import { usePricesUnavailable, useSymbols } from '../prices/store'
@@ -51,12 +52,15 @@ function Actions() {
   }
 
   return (
-    <Group>
-      <ButtonLink to="/register">{t('landing.register')}</ButtonLink>
-      <ButtonLink to="/login" variant="default">
-        {t('landing.signIn')}
-      </ButtonLink>
-    </Group>
+    <Stack gap="xl">
+      <Group>
+        <ButtonLink to="/register">{t('landing.register')}</ButtonLink>
+        <ButtonLink to="/login" variant="default">
+          {t('landing.signIn')}
+        </ButtonLink>
+      </Group>
+      <DemoEntry />
+    </Stack>
   )
 }
 

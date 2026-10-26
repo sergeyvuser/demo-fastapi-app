@@ -44,6 +44,12 @@ export function formatAbsolute(instant: number, language: string, timeZone?: str
   }).format(instant)
 }
 
+// A time of day without a date — `4:00 AM`, `04:00` — for something that
+// recurs daily at one instant, said in the reader's own zone.
+export function formatTimeOfDay(instant: number, language: string, timeZone?: string): string {
+  return new Intl.DateTimeFormat(language, { timeStyle: 'short', timeZone }).format(instant)
+}
+
 // What the Tooltip on a relative time shows: the whole instant, seconds and
 // zone included, so "3 minutes ago" is never the only answer available.
 export function formatExact(instant: number, language: string, timeZone?: string): string {
