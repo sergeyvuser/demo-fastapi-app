@@ -18,6 +18,9 @@ export function useServerError() {
   return {
     message,
     clear: () => setMessage(null),
+    // A refusal the screen words itself — one whose sentence is a decision,
+    // like the Alert limit — in the same place as the server's.
+    say: (sentence: string) => setMessage(sentence),
     show(error: unknown, form: FormLike, rename: Record<string, string> = {}) {
       if (!(error instanceof ApiError)) {
         // a network failure throws a TypeError from fetch, with no status

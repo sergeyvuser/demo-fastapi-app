@@ -1,3 +1,4 @@
+import enAlertForm from './en/alertForm.json'
 import enAlerts from './en/alerts.json'
 import enAuth from './en/auth.json'
 import enCommon from './en/common.json'
@@ -8,6 +9,7 @@ import enNotFound from './en/notFound.json'
 import enPrices from './en/prices.json'
 import enShell from './en/shell.json'
 import enVerification from './en/verification.json'
+import ruAlertForm from './ru/alertForm.json'
 import ruAlerts from './ru/alerts.json'
 import ruAuth from './ru/auth.json'
 import ruCommon from './ru/common.json'
@@ -24,6 +26,7 @@ import ruVerification from './ru/verification.json'
 // Lazy loading is out of scope for the stage, which removes the only thing
 // real namespaces buy and leaves their cost — a namespace in every call.
 export const en = {
+  alertForm: enAlertForm,
   alerts: enAlerts,
   auth: enAuth,
   common: enCommon,
@@ -42,6 +45,7 @@ export const en = {
 // and `_many` have nothing in English to correspond to, which is exactly the
 // hole the plural test closes.
 export const ru = {
+  alertForm: ruAlertForm,
   alerts: ruAlerts,
   auth: ruAuth,
   common: ruCommon,

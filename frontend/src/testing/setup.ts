@@ -2,7 +2,7 @@
 // `toBeInTheDocument`), and the types that come with them.
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { afterEach } from 'vitest'
 
 // Testing Library unmounts after each test by itself only when Vitest's
@@ -10,6 +10,13 @@ import { afterEach } from 'vitest'
 // Without this, a second render finds the first one's elements still in the
 // document and a query that should match once matches twice.
 afterEach(cleanup)
+
+// How long a `findBy` waits: three seconds, not the default one. The router
+// imports every screen, the Alert form among them, and with it the charting
+// library — under `vmThreads` each file loads it afresh, and the first render
+// of a file sometimes misses one second while the full suite runs. A wait is
+// not a slowdown: a passing query returns the moment its element appears.
+configure({ asyncUtilTimeout: 3000 })
 
 // Installed as plain properties, not with `vi.stubGlobal`: a test that stubs
 // `fetch` and calls `vi.unstubAllGlobals()` afterwards would remove these too,

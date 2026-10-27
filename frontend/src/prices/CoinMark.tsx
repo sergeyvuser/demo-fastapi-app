@@ -20,8 +20,15 @@ const ICONS = new Map(
 const QUOTES = ['USDT', 'USDC']
 
 export function baseAsset(symbol: string): string {
-  const quote = QUOTES.find((candidate) => symbol.endsWith(candidate) && symbol !== candidate)
+  const quote = quoteAsset(symbol)
   return quote ? symbol.slice(0, -quote.length) : symbol
+}
+
+// What a price of this Symbol is counted in — the Threshold field's suffix.
+// Undefined for a Symbol quoted in anything else, which then gets no suffix
+// rather than a wrong one.
+export function quoteAsset(symbol: string): string | undefined {
+  return QUOTES.find((candidate) => symbol.endsWith(candidate) && symbol !== candidate)
 }
 
 export function coinIcon(symbol: string): string | undefined {

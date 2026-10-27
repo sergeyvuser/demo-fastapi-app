@@ -1,0 +1,78 @@
+{
+  "title": {
+    "clone": "Clone Alert",
+    "edit": "Edit Alert"
+  },
+  "symbol": {
+    "label": "Symbol",
+    "placeholder": "Choose a Symbol",
+    "nothingFound": "The system does not stream this Symbol"
+  },
+  "condition": {
+    "label": "Condition",
+    "price_above": "Price above",
+    "price_below": "Price below"
+  },
+  "threshold": {
+    "label": "Threshold",
+    "hint": "Choose a Symbol to see its price",
+    "now": "Now:"
+  },
+  "chart": {
+    "pickSymbol": "Choose a Symbol to see its last 24 hours.",
+    "unavailable": "The chart could not be loaded. You can still save the Alert."
+  },
+  "repeat": {
+    "label": "Repeat",
+    "while_true": {
+      "label": "While the condition holds",
+      "description": "Goes off on every price past the Threshold, at most once per cooldown."
+    },
+    "once": {
+      "label": "Once",
+      "description": "Goes off the first time, then is completed."
+    },
+    "on_cross": {
+      "label": "Only when it crosses",
+      "description": "Goes off when the price crosses the Threshold; silent while it stays past it."
+    },
+    "alreadyHolds": "The condition already holds at the current price. This Alert will stay silent until the price leaves and crosses the Threshold again."
+  },
+  "cooldown": {
+    "label": "Cooldown",
+    "description": "The least time between two Triggers"
+  },
+  "expiry": {
+    "label": "Expiry",
+    "keep": "Keep the current deadline",
+    "none": "Never",
+    "preset": {
+      "86400": "In 24 hours",
+      "604800": "In 7 days",
+      "2592000": "In 30 days"
+    },
+    "until": "Stops watching on {{when}}",
+    "never": "Watches until you pause or delete it"
+  },
+  "fixedFields": "Symbol, Condition and Repeat cannot be changed. To watch differently, clone this Alert.",
+  "submit": {
+    "create": "Create Alert",
+    "edit": "Save changes"
+  },
+  "cancel": "Cancel",
+  "cloneMissing": "The Alert to copy no longer exists, so the form starts empty.",
+  "loadFailed": "This Alert could not be loaded.",
+  "finished": {
+    "title": "This Alert has finished",
+    "body": "A finished Alert cannot be returned to service. Clone it to watch this price again.",
+    "clone": "Clone Alert"
+  },
+  "errors": {
+    "symbolRequired": "Choose a Symbol",
+    "thresholdRequired": "Enter a price above zero",
+    "staleList": "The list of Symbols was out of date: {{symbol}} is no longer streamed. Choose another.",
+    "deleted": "This Alert was deleted while you were editing it.",
+    "limit": "You already have {{limit}} Alerts in use, the most an account can hold. Paused Alerts count; finished ones do not. Delete one to make room.",
+    "limitDemo": "This shared demo account already has {{limit}} Alerts in use, the most an account can hold — they belong to everyone signed in to it. Delete one to make room."
+  }
+}

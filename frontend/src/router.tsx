@@ -10,10 +10,11 @@ import {
 import { validateAlertsSearch } from './alerts/list'
 import { bootSession, getSession, subscribeToSession, type Session } from './api/session'
 import { NotFound } from './NotFound'
+import { EditAlert, NewAlert } from './screens/AlertForm'
 import { Alerts } from './screens/Alerts'
 import { History } from './screens/History'
 import { Landing } from './screens/Landing'
-import { Account, NewAlert } from './screens/placeholders'
+import { Account } from './screens/placeholders'
 import { SignIn } from './screens/SignIn'
 import { SignUp } from './screens/SignUp'
 import { Verify } from './screens/Verify'
@@ -132,10 +133,28 @@ const alertsRoute = createRoute({
   component: Alerts,
 })
 
+export type NewAlertSearch = {
+  // the Alert a clone starts from
+  from?: string
+}
+
+const ALERT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// A route rather than a modal, so a clone is a link: `/alerts/new?from=<id>`.
+// An id that is not shaped like one is dropped, and the form opens empty.
 const newAlertRoute = createRoute({
   getParentRoute: () => signedInRoute,
   path: '/alerts/new',
+  validateSearch: (search: Record<string, unknown>): NewAlertSearch => ({
+    from: typeof search.from === 'string' && ALERT_ID.test(search.from) ? search.from : undefined,
+  }),
   component: NewAlert,
+})
+
+const editAlertRoute = createRoute({
+  getParentRoute: () => signedInRoute,
+  path: '/alerts/$id/edit',
+  component: EditAlert,
 })
 
 const historyRoute = createRoute({
@@ -155,7 +174,13 @@ const routeTree = rootRoute.addChildren([
   signInRoute,
   signUpRoute,
   verifyRoute,
-  signedInRoute.addChildren([alertsRoute, newAlertRoute, historyRoute, accountRoute]),
+  signedInRoute.addChildren([
+    alertsRoute,
+    newAlertRoute,
+    editAlertRoute,
+    historyRoute,
+    accountRoute,
+  ]),
 ])
 
 export function createAppRouter(context: RouterContext, history?: RouterHistory) {
