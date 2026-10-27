@@ -1,0 +1,15 @@
+{
+  "firedAt": "at {{price}}",
+  "noChat": {
+    "badge": "Not delivered",
+    "explained": "It fired, but there was nowhere to send it: no Telegram chat is linked.",
+    "action": "Link a chat"
+  },
+  "loadOlder": "Load older",
+  "loadingOlder": "Loading older Triggers…",
+  "end": "That is everything from the last 30 days.",
+  "loadFailed": "Your History could not be loaded.",
+  "olderFailed": "Older Triggers could not be loaded.",
+  "retry": "Try again",
+  "empty": "Nothing has fired yet. When one of your Alerts goes off, it appears here — whether or not it reached Telegram."
+}

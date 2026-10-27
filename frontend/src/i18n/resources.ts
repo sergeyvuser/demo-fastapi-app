@@ -2,6 +2,7 @@ import enAlerts from './en/alerts.json'
 import enAuth from './en/auth.json'
 import enCommon from './en/common.json'
 import enDemo from './en/demo.json'
+import enHistory from './en/history.json'
 import enLanding from './en/landing.json'
 import enNotFound from './en/notFound.json'
 import enPrices from './en/prices.json'
@@ -11,6 +12,7 @@ import ruAlerts from './ru/alerts.json'
 import ruAuth from './ru/auth.json'
 import ruCommon from './ru/common.json'
 import ruDemo from './ru/demo.json'
+import ruHistory from './ru/history.json'
 import ruLanding from './ru/landing.json'
 import ruNotFound from './ru/notFound.json'
 import ruPrices from './ru/prices.json'
@@ -26,6 +28,7 @@ export const en = {
   auth: enAuth,
   common: enCommon,
   demo: enDemo,
+  history: enHistory,
   landing: enLanding,
   notFound: enNotFound,
   prices: enPrices,
@@ -43,6 +46,7 @@ export const ru = {
   auth: ruAuth,
   common: ruCommon,
   demo: ruDemo,
+  history: ruHistory,
   landing: ruLanding,
   notFound: ruNotFound,
   prices: ruPrices,
