@@ -15,6 +15,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mantine/charts": "^9.6.3",
     "@mantine/core": "^9.6.3",
     "@mantine/form": "^9.6.3",
     "@mantine/hooks": "^9.6.3",
@@ -27,7 +28,8 @@
     "openapi-react-query": "^0.5.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-i18next": "^17.0.16"
+    "react-i18next": "^17.0.16",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
