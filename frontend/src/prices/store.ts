@@ -137,3 +137,91 @@ export function useSymbols(): readonly string[] | null {
 export function useQuote(symbol: string): Quote | undefined {
   return useSyncExternalStore(subscribeToPrices, () => getQuote(symbol))
 }
+
+// How often a chart may redraw. A requirement measured in the prototype, not
+// a tuning knob: Recharts redraws the whole plot on any prop change, and at
+// the socket's four Ticks a second that froze the tab.
+export const CHART_INTERVAL_MS = 1000
+
+// The same store, heard at most once per interval: the first change at once,
+// the rest of the interval folded into one call at its end. Numbers keep the
+// full rate through `subscribeToPrices`; only what a chart reads goes through
+// here, so both show the same price and only the redraw is thinned.
+export function subscribeAtMost(intervalMs: number) {
+  return (listener: () => void): (() => void) => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let pending = false
+
+    const settle = () => {
+      timer = null
+      if (!pending) return
+      pending = false
+      listener()
+      timer = setTimeout(settle, intervalMs)
+    }
+    const unsubscribe = subscribeToPrices(() => {
+      if (timer !== null) {
+        pending = true
+        return
+      }
+      listener()
+      timer = setTimeout(settle, intervalMs)
+    })
+
+    return () => {
+      unsubscribe()
+      if (timer !== null) clearTimeout(timer)
+    }
+  }
+}
+
+// What the charts see: a copy of the prices taken at most once per interval.
+// Thinning the notification alone is not enough — a chart that re-renders for
+// any other reason would read the live store and redraw at socket speed
+// anyway, which is exactly what the first version of this did. The value
+// itself must lag.
+let sampled: ReadonlyMap<string, string | null> | null = null
+const chartListeners = new Set<() => void>()
+let stopSampling: (() => void) | null = null
+
+function takeSample(): void {
+  sampled = new Map([...snapshot.quotes].map(([symbol, quote]) => [symbol, quote.price]))
+}
+
+// One sampler for every chart on screen, started by the first and stopped by
+// the last, so all of them move on the same beat.
+export function subscribeToChartPrices(listener: () => void): () => void {
+  chartListeners.add(listener)
+  if (stopSampling === null) {
+    takeSample()
+    stopSampling = subscribeAtMost(CHART_INTERVAL_MS)(() => {
+      takeSample()
+      for (const each of chartListeners) each()
+    })
+  }
+  return () => {
+    chartListeners.delete(listener)
+    if (chartListeners.size > 0 || stopSampling === null) return
+    stopSampling()
+    stopSampling = null
+    sampled = null
+  }
+}
+
+export function getSampledPrice(symbol: string): string | null {
+  // before anything subscribed, the first render reads the store itself
+  if (sampled === null) return getQuote(symbol)?.price ?? null
+  return sampled.get(symbol) ?? null
+}
+
+// A price for something that must not redraw at socket speed.
+export function useSampledPrice(symbol: string): string | null {
+  return useSyncExternalStore(subscribeToChartPrices, () => getSampledPrice(symbol))
+}
+
+// A Symbol's precision alone: it changes with the Subscription, not with a
+// Tick, and a number is compared by value — so reading it costs no re-render
+// at socket speed, which reading the whole quote would.
+export function usePrecision(symbol: string): number | undefined {
+  return useSyncExternalStore(subscribeToPrices, () => getQuote(symbol)?.precision)
+}
