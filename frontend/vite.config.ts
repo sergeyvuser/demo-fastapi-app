@@ -28,6 +28,11 @@ export default defineConfig({
     // (fs, a native fetch) fails `instanceof Error` here, so a test that fails
     // only under this pool is worth suspecting of that first.
     pool: 'vmThreads',
+    // The router imports every screen, so every router test loads Recharts.
+    // Alone, the first test of such a file takes about 1.5 s; with seven of
+    // them running in parallel it reached 5–8 s and crossed the default 5 s
+    // at random. A hang is still caught — by `findBy`'s 3 s in setup.ts.
+    testTimeout: 15_000,
     // Time is rendered in the reader's own zone, so the output depends on the
     // machine. `test.env` cannot pin it — a documented hole: TZ set there does
     // not reach the threads pool — so it is set on the main process, which
