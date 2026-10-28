@@ -1,10 +1,14 @@
-import { Box, Button, Divider, Paper, Skeleton, Stack, Text, Title } from '@mantine/core'
+import { Box, Button, Divider, Group, Paper, Skeleton, Stack, Text, Title } from '@mantine/core'
+import { getRouteApi } from '@tanstack/react-router'
 import { Fragment, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useTriggerFeed, type Trigger } from '../history/feed'
 import { TriggerRow } from '../history/TriggerRow'
 import { usePageTitle } from '../i18n/documentTitle'
+import { AnchorLink } from '../shell/links'
+
+const route = getRouteApi('/signed-in/history')
 
 // How far below the window the next page is asked for: early enough that a
 // reader scrolling at a normal pace never waits at the bottom.
@@ -17,7 +21,9 @@ const PREFETCH_MARGIN = '600px'
 export function History() {
   const { t } = useTranslation()
   usePageTitle('shell.history')
-  const feed = useTriggerFeed()
+  // From an Alert's own screen: its Triggers only, older pages and all.
+  const { alert } = route.useSearch()
+  const feed = useTriggerFeed(alert)
 
   if (feed.isPending) return <FeedSkeleton />
   if (feed.isError) {
@@ -36,6 +42,7 @@ export function History() {
   return (
     <Stack gap="md" maw={720}>
       <PageTitle />
+      {alert !== undefined && <OneAlert />}
       {triggers.length === 0 ? (
         <Text c="dimmed">{t('history.empty')}</Text>
       ) : (
@@ -145,6 +152,23 @@ function useLoadOnSight(enabled: boolean, onSight: () => void) {
   }, [enabled])
 
   return element
+}
+
+// Said at the top, so a narrowed feed is never mistaken for the whole one,
+// with the way back to it beside the sentence.
+function OneAlert() {
+  const { t } = useTranslation()
+
+  return (
+    <Group gap="xs" wrap="wrap">
+      <Text size="sm" c="dimmed">
+        {t('history.oneAlert')}
+      </Text>
+      <AnchorLink to="/history" size="sm">
+        {t('history.showAll')}
+      </AnchorLink>
+    </Group>
+  )
 }
 
 function PageTitle() {

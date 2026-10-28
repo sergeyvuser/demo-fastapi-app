@@ -1,4 +1,6 @@
-import { Badge, Box, Card, Group, Stack, Text, Tooltip } from '@mantine/core'
+import { ActionIcon, Badge, Box, Card, Group, Menu, Stack, Text, Tooltip } from '@mantine/core'
+import { useNavigate } from '@tanstack/react-router'
+import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { formatDistance, formatDuration, formatThreshold } from '../i18n/format'
@@ -7,8 +9,23 @@ import { useInstant } from '../i18n/time'
 import { CoinMark } from '../prices/CoinMark'
 import { DayChange, Price, useStale } from '../prices/Price'
 import { useQuote, useSymbols } from '../prices/store'
+import { AnchorLink } from '../shell/links'
 import { distanceColor, distanceTo, type Distance } from './distance'
+import { CopyIcon, EditIcon, MoreIcon, PauseIcon, PlayIcon, TrashIcon } from './icons'
 import { isFinished, isWithdrawn, type Alert, type AlertStatus } from './list'
+
+// What a card can ask the screen to do. Delete only asks: the confirmation
+// belongs to the screen, which outlives the card it removes.
+export type CardActions = {
+  pause: (alert: Alert) => void
+  resume: (alert: Alert) => void
+  askDelete: (alert: Alert) => void
+}
+
+// A click inside one of these belongs to that control, not to the card.
+// The menu's items render in a portal, but React still bubbles their clicks
+// through the card, so they are listed too.
+const OWN_CLICKS = 'a, button, [role="menu"], [role="menuitem"]'
 
 // The colour of each Status that gets a badge. Active gets none: it is the
 // normal case, and a badge on every healthy card would be noise that hides
@@ -21,8 +38,19 @@ const STATUS_COLOR = {
 
 // One Alert, top to bottom: what it watches and its rule, the live price, how
 // far the price is from going off, how it behaves, and what it has done.
-export function AlertCard({ alert }: { alert: Alert }) {
+// Clicking it opens its own screen beside the list; the Symbol is the same
+// thing as a link, for the keyboard.
+export function AlertCard({
+  alert,
+  selected = false,
+  actions,
+}: {
+  alert: Alert
+  selected?: boolean
+  actions: CardActions
+}) {
   const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
   const language = resolvedLanguage(i18n)
   const quote = useQuote(alert.symbol)
   const withdrawn = isWithdrawn(alert.symbol, useSymbols())
@@ -33,20 +61,40 @@ export function AlertCard({ alert }: { alert: Alert }) {
   // still readable, visibly not working.
   const dimmed = alert.status !== 'active'
 
+  const open = (event: MouseEvent<HTMLElement>) => {
+    if ((event.target as HTMLElement).closest(OWN_CLICKS)) return
+    void navigate({ to: '/alerts/$id', params: { id: alert.id }, search: true })
+  }
+
   return (
     <Card
       withBorder
       radius="md"
       padding="sm"
-      style={{ opacity: dimmed ? 0.7 : undefined }}
+      onClick={open}
+      style={{
+        opacity: dimmed ? 0.7 : undefined,
+        cursor: 'pointer',
+        borderColor: selected ? 'var(--mantine-primary-color-filled)' : undefined,
+      }}
       data-testid="alert-card"
+      data-selected={selected || undefined}
     >
       <Group justify="space-between" align="flex-start" wrap="nowrap" gap="xs">
         <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
           <CoinMark symbol={alert.symbol} size={32} />
           <Box style={{ minWidth: 0 }}>
             <Group gap={6} wrap="wrap">
-              <Text fw={700}>{alert.symbol}</Text>
+              <AnchorLink
+                to="/alerts/$id"
+                params={{ id: alert.id }}
+                search
+                fw={700}
+                c="inherit"
+                underline="hover"
+              >
+                {alert.symbol}
+              </AnchorLink>
               {alert.status !== 'active' && (
                 <Badge size="xs" variant="light" color={STATUS_COLOR[alert.status]}>
                   {t(`alerts.status.${alert.status}`)}
@@ -65,10 +113,13 @@ export function AlertCard({ alert }: { alert: Alert }) {
             </Text>
           </Box>
         </Group>
-        <Stack gap={0} align="flex-end" style={{ flexShrink: 0 }}>
-          <Price symbol={alert.symbol} fw={700} ta="right" />
-          <DayChange symbol={alert.symbol} size="xs" caption />
-        </Stack>
+        <Group gap={4} align="flex-start" wrap="nowrap" style={{ flexShrink: 0 }}>
+          <Stack gap={0} align="flex-end">
+            <Price symbol={alert.symbol} fw={700} ta="right" />
+            <DayChange symbol={alert.symbol} size="xs" caption />
+          </Stack>
+          <Controls alert={alert} actions={actions} />
+        </Group>
       </Group>
 
       <DistanceAxis alert={alert} distance={distance} threshold={threshold} stale={stale} />
@@ -90,6 +141,63 @@ export function AlertCard({ alert }: { alert: Alert }) {
 
       <TriggerLine alert={alert} />
     </Card>
+  )
+}
+
+// One control in plain sight, the rest behind a menu. In plain sight is the
+// thing a person does most to a working Alert — pause it, or resume it — and,
+// on a Finished one, the only way back to watching that price: a copy
+// (ADR 0003). Edit is not offered on a Finished Alert; nothing could put it
+// back to work.
+function Controls({ alert, actions }: { alert: Alert; actions: CardActions }) {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const finished = isFinished(alert.status)
+  const paused = alert.status === 'paused'
+  const clone = () => void navigate({ to: '/alerts/new', search: { from: alert.id } })
+
+  const primary = finished
+    ? { label: t('alerts.actions.clone'), icon: <CopyIcon />, run: clone }
+    : paused
+      ? { label: t('alerts.actions.resume'), icon: <PlayIcon />, run: () => actions.resume(alert) }
+      : { label: t('alerts.actions.pause'), icon: <PauseIcon />, run: () => actions.pause(alert) }
+
+  return (
+    <Group gap={2} wrap="nowrap">
+      <Tooltip label={primary.label} withArrow>
+        <ActionIcon variant="subtle" color="gray" aria-label={primary.label} onClick={primary.run}>
+          {primary.icon}
+        </ActionIcon>
+      </Tooltip>
+      <Menu position="bottom-end" withinPortal>
+        <Menu.Target>
+          <ActionIcon variant="subtle" color="gray" aria-label={t('alerts.actions.more')}>
+            <MoreIcon />
+          </ActionIcon>
+        </Menu.Target>
+        <Menu.Dropdown>
+          {!finished && (
+            <Menu.Item
+              leftSection={<EditIcon size={14} />}
+              onClick={() => void navigate({ to: '/alerts/$id/edit', params: { id: alert.id } })}
+            >
+              {t('alerts.actions.edit')}
+            </Menu.Item>
+          )}
+          <Menu.Item leftSection={<CopyIcon size={14} />} onClick={clone}>
+            {t('alerts.actions.clone')}
+          </Menu.Item>
+          <Menu.Divider />
+          <Menu.Item
+            color="red"
+            leftSection={<TrashIcon size={14} />}
+            onClick={() => actions.askDelete(alert)}
+          >
+            {t('alerts.actions.delete')}
+          </Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    </Group>
   )
 }
 

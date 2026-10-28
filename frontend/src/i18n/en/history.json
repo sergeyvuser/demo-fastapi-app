@@ -5,6 +5,8 @@
     "explained": "It fired, but there was nowhere to send it: no Telegram chat is linked.",
     "action": "Link a chat"
   },
+  "oneAlert": "The Triggers of one Alert.",
+  "showAll": "Show all",
   "loadOlder": "Load older",
   "loadingOlder": "Loading older Triggers…",
   "end": "That is everything from the last 30 days.",

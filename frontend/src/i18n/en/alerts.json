@@ -68,5 +68,32 @@
     "title": "No Alerts yet",
     "body": "An Alert watches one Symbol and tells you when its price crosses a Threshold you set.",
     "action": "Create your first Alert"
+  },
+  "actions": {
+    "pause": "Pause Alert",
+    "resume": "Resume Alert",
+    "more": "More actions",
+    "edit": "Edit",
+    "clone": "Make a copy",
+    "delete": "Delete",
+    "pauseFailed": "{{symbol}} could not be paused",
+    "resumeFailed": "{{symbol}} could not be resumed",
+    "deleteFailed": "{{symbol}} could not be deleted",
+    "gone": "This Alert no longer exists — it was deleted elsewhere."
+  },
+  "confirm": {
+    "title": "Delete this Alert?",
+    "body": "{{symbol}} {{rule}} will be deleted with all its Triggers. This cannot be undone.",
+    "cancel": "Keep it",
+    "delete": "Delete"
+  },
+  "detail": {
+    "hint": "Pick an Alert to see its chart and its latest Triggers.",
+    "close": "Close",
+    "recent": "Latest Triggers",
+    "seeAll_one": "See it in History",
+    "seeAll_other": "See all {{count, number}} in History",
+    "noTriggers": "This Alert has not fired yet.",
+    "triggersFailed": "Its Triggers could not be loaded."
   }
 }

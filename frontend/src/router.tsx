@@ -7,7 +7,7 @@ import {
   type RouterHistory,
 } from '@tanstack/react-router'
 
-import { validateAlertsSearch } from './alerts/list'
+import { isAlertId, validateAlertsSearch } from './alerts/list'
 import { bootSession, getSession, subscribeToSession, type Session } from './api/session'
 import { NotFound } from './NotFound'
 import { EditAlert, NewAlert } from './screens/AlertForm'
@@ -133,20 +133,28 @@ const alertsRoute = createRoute({
   component: Alerts,
 })
 
+// One Alert, opened beside the list. A child of the list's route, so the
+// filters in the URL survive opening and closing it, and with no component of
+// its own: the list screen reads the id and decides where the panel goes —
+// beside the list on a wide screen, under the card on a phone.
+const alertRoute = createRoute({
+  getParentRoute: () => alertsRoute,
+  path: '$id',
+})
+
 export type NewAlertSearch = {
   // the Alert a clone starts from
   from?: string
 }
 
-const ALERT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
 // A route rather than a modal, so a clone is a link: `/alerts/new?from=<id>`.
 // An id that is not shaped like one is dropped, and the form opens empty.
+// Static, so it outranks `/alerts/$id` for the path `/alerts/new`.
 const newAlertRoute = createRoute({
   getParentRoute: () => signedInRoute,
   path: '/alerts/new',
   validateSearch: (search: Record<string, unknown>): NewAlertSearch => ({
-    from: typeof search.from === 'string' && ALERT_ID.test(search.from) ? search.from : undefined,
+    from: isAlertId(search.from) ? search.from : undefined,
   }),
   component: NewAlert,
 })
@@ -157,9 +165,17 @@ const editAlertRoute = createRoute({
   component: EditAlert,
 })
 
+export type HistorySearch = {
+  // narrowed to one Alert: "See all in History" from that Alert's screen
+  alert?: string
+}
+
 const historyRoute = createRoute({
   getParentRoute: () => signedInRoute,
   path: '/history',
+  validateSearch: (search: Record<string, unknown>): HistorySearch => ({
+    alert: isAlertId(search.alert) ? search.alert : undefined,
+  }),
   component: History,
 })
 
@@ -175,7 +191,7 @@ const routeTree = rootRoute.addChildren([
   signUpRoute,
   verifyRoute,
   signedInRoute.addChildren([
-    alertsRoute,
+    alertsRoute.addChildren([alertRoute]),
     newAlertRoute,
     editAlertRoute,
     historyRoute,

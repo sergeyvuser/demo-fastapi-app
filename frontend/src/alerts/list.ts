@@ -44,6 +44,14 @@ export type AlertsSearch = {
 
 const SYMBOL = /^[A-Z0-9]{5,20}$/
 
+const ALERT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// An Alert id as it may arrive in an address bar. Anything not shaped like one
+// is dropped by the route that reads it, never sent to the API.
+export function isAlertId(value: unknown): value is string {
+  return typeof value === 'string' && ALERT_ID.test(value)
+}
+
 // What the router accepts from an address bar, which anyone can type into.
 // Anything unknown is dropped rather than refused: a stale bookmark should
 // open the list, not an error.

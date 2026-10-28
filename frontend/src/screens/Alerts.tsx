@@ -1,8 +1,10 @@
 import {
+  Box,
   Button,
   Center,
   Grid,
   Group,
+  Modal,
   Paper,
   SegmentedControl,
   Select,
@@ -11,12 +13,16 @@ import {
   Text,
   ThemeIcon,
   Title,
+  useMantineTheme,
 } from '@mantine/core'
-import { useNavigate, useSearch } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useMediaQuery } from '@mantine/hooks'
+import { useMatch, useNavigate, useSearch } from '@tanstack/react-router'
+import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { AlertCard } from '../alerts/AlertCard'
+import { useAlertActions } from '../alerts/actions'
+import { AlertCard, type CardActions } from '../alerts/AlertCard'
+import { AlertDetail } from '../alerts/AlertDetail'
 import {
   countByState,
   filterByState,
@@ -37,20 +43,38 @@ import {
 import { useAlerts } from '../alerts/query'
 import { SymbolFilter } from '../alerts/SymbolFilter'
 import { usePageTitle } from '../i18n/documentTitle'
+import { formatThreshold } from '../i18n/format'
+import { resolvedLanguage } from '../i18n/language'
+import { NotFound } from '../NotFound'
+import { usePrecision } from '../prices/store'
 import { ButtonLink } from '../shell/links'
 
 // The signed-in home: the state of a person's own rules, each with its live
 // price and how close it is to going off. One list in one column; the state
 // control, the Symbol filter and the grouping only narrow and arrange it, and
-// all three live in the URL.
+// all three live in the URL. `/alerts/:id` is the same screen with one Alert
+// opened beside the list.
 export function Alerts() {
   const { t } = useTranslation()
   usePageTitle('shell.alerts')
+  const navigate = useNavigate()
   const { data: alerts, isPending, isError, refetch } = useAlerts()
+  const selectedId = useMatch({ from: '/signed-in/alerts/$id', shouldThrow: false })?.params.id
+  // Here, not on a card: the write must outlive the card it removes, and the
+  // list it lives in when the last card goes and the empty state replaces it.
+  const { pause, resume, remove } = useAlertActions()
+  const confirm = useDeleteConfirmation((alert) => {
+    // An open screen of an Alert that is going would flash "not found".
+    if (alert.id === selectedId) void navigate({ to: '/alerts', search: true })
+    remove(alert)
+  })
+  const actions: CardActions = { pause, resume, askDelete: confirm.ask }
 
-  if (isPending) return <ListSkeleton />
-  if (isError) {
-    return (
+  let content: ReactNode
+  if (isPending) {
+    content = <ListSkeleton />
+  } else if (isError) {
+    content = (
       <Stack align="flex-start" gap="xs">
         <PageTitle />
         <Text c="dimmed">{t('alerts.loadFailed')}</Text>
@@ -59,9 +83,82 @@ export function Alerts() {
         </Button>
       </Stack>
     )
+  } else if (alerts.length === 0) {
+    content = <EmptyState />
+  } else {
+    content = <AlertList alerts={alerts} selectedId={selectedId} actions={actions} />
   }
-  if (alerts.length === 0) return <EmptyState />
-  return <AlertList alerts={alerts} />
+
+  return (
+    <>
+      {content}
+      {confirm.dialog}
+    </>
+  )
+}
+
+// Asked before a delete, every time: one mis-click must not take a rule and
+// its history with it, and there is no Undo afterwards. Undo was rejected on
+// its mechanics — the history goes with the Alert, so an Undo would have to
+// delay the request, and a tab closed inside that delay silently un-deletes.
+function useDeleteConfirmation(onConfirm: (alert: Alert) => void) {
+  // Kept after closing, so the dialog's text does not empty while it fades.
+  const [target, setTarget] = useState<Alert | null>(null)
+  const [opened, setOpened] = useState(false)
+  const close = () => setOpened(false)
+
+  return {
+    ask: (alert: Alert) => {
+      setTarget(alert)
+      setOpened(true)
+    },
+    dialog: (
+      <DeleteDialog
+        alert={target}
+        opened={opened}
+        onCancel={close}
+        onConfirm={() => {
+          close()
+          if (target) onConfirm(target)
+        }}
+      />
+    ),
+  }
+}
+
+function DeleteDialog({
+  alert,
+  opened,
+  onCancel,
+  onConfirm,
+}: {
+  alert: Alert | null
+  opened: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const { t, i18n } = useTranslation()
+  const precision = usePrecision(alert?.symbol ?? '')
+  const rule = alert
+    ? t(`alerts.rule.${alert.condition}`, {
+        threshold: formatThreshold(alert.threshold, precision, resolvedLanguage(i18n)),
+      })
+    : ''
+
+  return (
+    <Modal opened={opened} onClose={onCancel} title={t('alerts.confirm.title')} centered>
+      <Text size="sm">{t('alerts.confirm.body', { symbol: alert?.symbol ?? '', rule })}</Text>
+      <Group justify="flex-end" gap="sm" mt="lg">
+        {/* the safe answer is the one a stray Enter gives */}
+        <Button variant="default" onClick={onCancel} data-autofocus>
+          {t('alerts.confirm.cancel')}
+        </Button>
+        <Button color="red" onClick={onConfirm}>
+          {t('alerts.confirm.delete')}
+        </Button>
+      </Group>
+    </Modal>
+  )
 }
 
 type ListSearch = {
@@ -80,15 +177,30 @@ function useListSearch(): ListSearch {
     symbols: parseSymbols(search.symbols),
     grouping: search.group ?? 'none',
     // Replaced, not pushed: ten clicks on a filter are not ten pages for the
-    // back button to walk through.
+    // back button to walk through. `.` keeps the path, so an open Alert stays
+    // open while the list beside it is narrowed.
     update: (next: (previous: AlertsSearch) => AlertsSearch) =>
-      void navigate({ search: next, replace: true }),
+      void navigate({ to: '.', search: next, replace: true }),
   }
 }
 
-function AlertList({ alerts }: { alerts: readonly Alert[] }) {
+function AlertList({
+  alerts,
+  selectedId,
+  actions,
+}: {
+  alerts: readonly Alert[]
+  selectedId: string | undefined
+  actions: CardActions
+}) {
   const { t } = useTranslation()
   const { state, symbols, grouping, update } = useListSearch()
+  const theme = useMantineTheme()
+  // Read at once, not after the first paint: on a desktop the panel would
+  // otherwise mount under the card, then move — and draw its chart twice.
+  const wide = useMediaQuery(`(min-width: ${theme.breakpoints.md})`, undefined, {
+    getInitialValueInEffect: false,
+  })
 
   const sorted = useMemo(() => sortAlerts(alerts), [alerts])
   // Offered: the Symbols this person has Alerts on, withdrawn ones included —
@@ -98,6 +210,24 @@ function AlertList({ alerts }: { alerts: readonly Alert[] }) {
   const counts = countByState(narrowed)
   const groups = groupAlerts(filterByState(narrowed, state), grouping)
   const used = slotsUsed(alerts)
+
+  // The opened Alert, from the list this screen already holds: one source, so
+  // a pause or a delete shows in the panel the moment it shows on the card.
+  // An id the list does not have — deleted, or never this person's — is the
+  // ordinary not-found state, in the panel's place.
+  const selected = alerts.find((alert) => alert.id === selectedId)
+  const panel =
+    selectedId === undefined ? null : selected ? (
+      <AlertDetail key={selected.id} alert={selected} />
+    ) : (
+      <NotFound />
+    )
+  // On a phone the panel opens under its card — or at the top, when no card
+  // is there to open under: not found, or filtered out of view.
+  const underCard =
+    !wide &&
+    selected !== undefined &&
+    groups.some((group) => group.alerts.some((alert) => alert.id === selected.id))
 
   return (
     <Stack gap="md">
@@ -121,12 +251,12 @@ function AlertList({ alerts }: { alerts: readonly Alert[] }) {
         }
       />
 
-      {/* The left column of the master–detail layout: ticket 27 opens the
-          picked Alert's chart beside it. Until then the column stands alone,
-          at the width a card reads best at. */}
+      {/* Master–detail: the cards on the left at the width a card reads best
+          at, the opened Alert on the right. */}
       <Grid gap="lg" align="flex-start">
         <Grid.Col span={{ base: 12, md: 6, lg: 5 }}>
           <Stack gap="sm">
+            {!wide && !underCard && panel}
             {groups.every((group) => group.alerts.length === 0) ? (
               <Stack align="center" gap="xs" py="lg">
                 <Text c="dimmed" size="sm">
@@ -147,7 +277,14 @@ function AlertList({ alerts }: { alerts: readonly Alert[] }) {
                     />
                   )}
                   {group.alerts.map((alert) => (
-                    <AlertCard key={alert.id} alert={alert} />
+                    <Fragment key={alert.id}>
+                      <AlertCard
+                        alert={alert}
+                        selected={alert.id === selectedId}
+                        actions={actions}
+                      />
+                      {underCard && alert.id === selectedId && panel}
+                    </Fragment>
                   ))}
                 </Stack>
               ))
@@ -160,6 +297,23 @@ function AlertList({ alerts }: { alerts: readonly Alert[] }) {
             )}
           </Stack>
         </Grid.Col>
+        {wide && (
+          <Grid.Col span={{ md: 6, lg: 7 }}>
+            {/* level with the first card, and in view while the list scrolls */}
+            <Box
+              style={{
+                position: 'sticky',
+                top: 'calc(var(--app-shell-header-offset, 0rem) + var(--mantine-spacing-md))',
+              }}
+            >
+              {panel ?? (
+                <Text size="sm" c="dimmed" ta="center" py="xl">
+                  {t('alerts.detail.hint')}
+                </Text>
+              )}
+            </Box>
+          </Grid.Col>
+        )}
       </Grid>
     </Stack>
   )
