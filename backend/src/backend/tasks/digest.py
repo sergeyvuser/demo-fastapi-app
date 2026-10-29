@@ -17,13 +17,20 @@ if TYPE_CHECKING:
     from backend.models import User
 
 
+# The hour the Digest is sent, in UTC. Read by the schedule below and by
+# GET /notifications, so the hour the Account screen names is the hour the
+# mail leaves. UTC for the same reason as seed_demo.RESET_HOUR_UTC: taskiq
+# matches cron against datetime.now(tz=UTC) unless a task sets `cron_offset`.
+DIGEST_HOUR_UTC = 8
+
+
 def _group_by_user(alerts: Iterable[Alert]) -> Iterator[tuple[User, list[Alert]]]:
     for _, group in groupby(alerts, key=lambda alert: alert.user_id):
         items = list(group)
         yield items[0].user, items
 
 
-@broker.task(schedule=[{"cron": "0 8 * * *"}])
+@broker.task(schedule=[{"cron": f"0 {DIGEST_HOUR_UTC} * * *"}])
 async def send_daily_digest() -> int:
     cutoff = datetime.now(UTC) - timedelta(hours=24)
     async with AsyncSessionLocal() as session:

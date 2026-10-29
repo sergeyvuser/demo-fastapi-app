@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta, timezone
 import pytest
 
 from backend.seed_demo import RESET_HOUR_UTC, next_reset
+from backend.tasks.digest import DIGEST_HOUR_UTC, send_daily_digest
 from backend.tasks.maintenance import reset_demo_account
 
 
@@ -46,4 +47,13 @@ def test_the_schedule_and_the_promise_read_one_hour() -> None:
 
     assert schedule["cron"] == f"0 {RESET_HOUR_UTC} * * *"
     # A cron_offset moves the reset out of UTC, and next_reset with it.
+    assert "cron_offset" not in schedule
+
+
+def test_the_digest_schedule_and_the_account_screen_read_one_hour() -> None:
+    """GET /notifications names the hour the Digest leaves; the schedule
+    sends it. Same pairing as the reset above."""
+    [schedule] = send_daily_digest.labels["schedule"]
+
+    assert schedule["cron"] == f"0 {DIGEST_HOUR_UTC} * * *"
     assert "cron_offset" not in schedule

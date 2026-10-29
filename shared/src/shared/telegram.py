@@ -71,6 +71,7 @@ class TelegramClient:
             timeout=10.0,
             transport=transport,
         )
+        self._username: str | None = None
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -88,6 +89,25 @@ class TelegramClient:
         if response.is_success:
             return
         raise _classify(response)
+
+    async def bot_username(self) -> str:
+        """The bot's @username, without the @, asked of Telegram once.
+
+        Read from the token rather than configured beside it: a configured
+        name can disagree with the token (a development token, a production
+        name), and the person would press Start on a bot that is not ours.
+        Cached for the life of the client after the first answer — a failure
+        is not cached, so the next caller asks again.
+        """
+        if self._username is None:
+            try:
+                response = await self._client.get("/getMe")
+            except httpx.TransportError as exc:
+                raise TelegramUnavailable(f"{type(exc).__name__}: {exc}") from None
+            if not response.is_success:
+                raise _classify(response)
+            self._username = str(response.json()["result"]["username"])
+        return self._username
 
 
 def _classify(response: httpx.Response) -> TelegramError:

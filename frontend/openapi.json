@@ -937,6 +937,33 @@
         }
       }
     },
+    "/api/v1/notifications": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Get Notifications",
+        "description": "The bot a Linked chat must start, and the hour the Digest is sent.",
+        "operationId": "get_notifications_api_v1_notifications_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationsRead"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [
@@ -1552,6 +1579,32 @@
           "chat_id"
         ],
         "title": "LinkedChatUpdate"
+      },
+      "NotificationsRead": {
+        "properties": {
+          "telegram_bot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram Bot"
+          },
+          "digest_hour_utc": {
+            "type": "integer",
+            "title": "Digest Hour Utc"
+          }
+        },
+        "type": "object",
+        "required": [
+          "telegram_bot",
+          "digest_hour_utc"
+        ],
+        "title": "NotificationsRead",
+        "description": "Where this deployment's messages come from, as the Account screen says it.\n\nFacts of the deployment, not of the User: the bot a Linked chat must start,\nand the hour the Digest is sent."
       },
       "Page_AlertRead_": {
         "properties": {

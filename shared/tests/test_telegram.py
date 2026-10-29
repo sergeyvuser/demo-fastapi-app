@@ -118,3 +118,34 @@ async def test_a_rejected_token_is_not_blamed_on_the_chat() -> None:
         await client.send_message(42, "hi")
 
     assert not isinstance(failed.value, TelegramRefused | TelegramUnavailable)
+
+
+async def test_the_bot_names_itself_once() -> None:
+    asked: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        asked.append(request.url.path)
+        body = {"ok": True, "result": {"id": 123, "is_bot": True, "username": "a_bot"}}
+        return httpx.Response(200, json=body)
+
+    client = TelegramClient("123:token", transport=httpx.MockTransport(handler))
+
+    assert await client.bot_username() == "a_bot"
+    assert await client.bot_username() == "a_bot"
+    assert asked == ["/bot123:token/getMe"]  # the second answer came from memory
+
+
+async def test_a_failed_name_is_asked_again() -> None:
+    answers = iter(
+        [
+            httpx.Response(502, text="<html>Bad Gateway</html>"),
+            httpx.Response(200, json={"ok": True, "result": {"username": "a_bot"}}),
+        ]
+    )
+    client = TelegramClient(
+        "123:token", transport=httpx.MockTransport(lambda _: next(answers))
+    )
+
+    with pytest.raises(TelegramUnavailable):
+        await client.bot_username()
+    assert await client.bot_username() == "a_bot"
