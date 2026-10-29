@@ -7,6 +7,7 @@ import {
   subscribeToSession,
 } from '../api/session'
 import type { ClientFrame, ServerMessage } from '../api/socket'
+import { applyTrigger, recoverTriggers } from '../history/live'
 import { applyTick, getSymbols, subscribeToPrices } from '../prices/store'
 import { reconnectDelay } from './backoff'
 import { setRealtimeStatus } from './status'
@@ -226,10 +227,13 @@ class RealtimeClient {
       // word is the acceptance of the token.
       this.attempt = 0
       this.enter('live')
-      // Whatever moved while the socket was away, and the Subscription as it
-      // is now: a Symbol that has not ticked since would otherwise stay at
-      // the price it had before the gap.
+      // The gap, closed by asking: the server kept nothing for this tab while
+      // it was away, and replays nothing now. Both sides of it — whatever
+      // moved, with the Subscription as it is now (a Symbol that has not
+      // ticked since would otherwise stay at its price from before), and
+      // whatever went off.
       void queryClient.invalidateQueries({ queryKey: SYMBOLS_QUERY })
+      recoverTriggers()
     }
 
     switch (message.type) {
@@ -252,8 +256,12 @@ class RealtimeClient {
         // invalid_frame is a bug on this side, and the socket stays open:
         // there is nothing to do here that a reload would not do better.
         break
+      case 'trigger':
+        // Every socket of the User hears it, whatever it watches: a Trigger
+        // is the User's, not the Symbol's.
+        applyTrigger(message)
+        break
       case 'heartbeat':
-      case 'trigger': // ticket 28
         break
     }
   }

@@ -1,8 +1,17 @@
+import { InfiniteQueryObserver, type InfiniteData } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 
+import { ALERTS_QUERY_KEY } from '../alerts/query'
 import { queryClient } from '../api/client'
 import { endSession, getSession, startSession } from '../api/session'
 import type { ClientFrame, ServerMessage } from '../api/socket'
+import {
+  feedQuery,
+  flattenFeed,
+  TRIGGERS_QUERY_KEY,
+  type Trigger,
+  type TriggerPage,
+} from '../history/feed'
 import { getQuote, resetPrices, seedPrices } from '../prices/store'
 import {
   HIDDEN_RELEASE_MS,
@@ -69,6 +78,30 @@ function tick(symbol: string, price: string): ServerMessage {
   return { type: 'tick', symbol, price, reference_price: '80000', ts: '2026-10-15T12:00:00Z' }
 }
 
+// A Trigger as the History feed serves it, and as the socket says it.
+function row(id: string): Trigger {
+  return {
+    id,
+    alert_id: 'alert-1',
+    symbol: 'BTCUSDT',
+    condition: 'price_above',
+    threshold: '80000',
+    price: '80012.5',
+    triggered_at: '2026-10-29T10:00:00Z',
+    delivery: 'queued',
+  }
+}
+
+function fired(t: Trigger): ServerMessage {
+  const { id, ...rest } = t
+  return { type: 'trigger', trigger_id: id, ...rest }
+}
+
+function historyIds(): string[] | undefined {
+  const feed = queryClient.getQueryData<InfiniteData<TriggerPage>>(TRIGGERS_QUERY_KEY)
+  return feed && flattenFeed(feed.pages).map((t) => t.id)
+}
+
 function sockets(): number {
   return FakeSocket.all.length
 }
@@ -133,6 +166,7 @@ afterEach(() => {
   stop()
   endSession()
   resetPrices()
+  queryClient.clear()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
   vi.useRealTimers()
@@ -169,13 +203,92 @@ describe('opening the socket', () => {
     expect(getRealtimeStatus()).toBe('live')
   })
 
-  it('refetches the symbols list once the socket is back', () => {
+  it('asks again for both sides of the gap once the socket is back', () => {
     startSession('access-1', 900)
     goLive()
 
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ['get', '/api/v1/symbols'],
     })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['triggers'] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ALERTS_QUERY_KEY })
+  })
+})
+
+describe('Triggers', () => {
+  it('writes one into History as it happens, and asks for the Alerts again', () => {
+    queryClient.setQueryData(TRIGGERS_QUERY_KEY, {
+      pages: [{ items: [row('a')], next_cursor: null }],
+      pageParams: [null],
+    })
+    startSession('access-1', 900)
+    const socket = goLive()
+    invalidate.mockClear()
+
+    socket.say(fired(row('b')))
+
+    expect(historyIds()).toEqual(['b', 'a'])
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ALERTS_QUERY_KEY })
+    // written, not refetched
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['triggers'] })
+  })
+
+  it('never lets watching, heartbeat or error touch the query cache', () => {
+    queryClient.setQueryData(TRIGGERS_QUERY_KEY, {
+      pages: [{ items: [row('a')], next_cursor: null }],
+      pageParams: [null],
+    })
+    startSession('access-1', 900)
+    const socket = goLive()
+    invalidate.mockClear()
+    const changes: string[] = []
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => changes.push(event.type))
+
+    socket.say({ type: 'watching', symbols: ['BTCUSDT'] })
+    socket.say({ type: 'heartbeat' })
+    socket.say({ type: 'error', code: 'unknown_symbols', symbols: ['FOOUSDT'] })
+    socket.say({ type: 'error', code: 'invalid_frame', symbols: [] })
+    unsubscribe()
+
+    expect(changes).toEqual([])
+    expect(invalidate).not.toHaveBeenCalled()
+  })
+
+  // Nothing is buffered for a socket that is away and nothing is replayed:
+  // the gap is closed by the feed, refetched after the next successful auth.
+  it('shows one that fired while the socket was away, exactly once', async () => {
+    // the real thing this time: the refetch is what is under test
+    invalidate.mockRestore()
+    let server = [row('a')]
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(Response.json({ items: server, next_cursor: null })),
+    )
+    const shown = () => {
+      const triggers = observer.getCurrentResult().data
+      return triggers?.map((t) => t.id)
+    }
+    const observer = new InfiniteQueryObserver(queryClient, feedQuery())
+    const unsubscribe = observer.subscribe(() => {})
+
+    startSession('access-1', 900)
+    goLive()
+    await vi.waitFor(() => expect(shown()).toEqual(['a']))
+
+    latest().drop(ABNORMAL)
+    // b goes off now; the socket that would have carried it is gone
+    server = [row('b'), row('a')]
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(shown()).toEqual(['a'])
+
+    // the next socket is answered — and the feed is asked again
+    const socket = goLive()
+    await vi.waitFor(() => expect(shown()).toEqual(['b', 'a']))
+
+    // A Trigger in the instant of reconnecting reaches both ways: the new
+    // socket is registered, and the refetch already has the row.
+    socket.say(fired(row('b')))
+    expect(shown()).toEqual(['b', 'a'])
+    unsubscribe()
   })
 })
 

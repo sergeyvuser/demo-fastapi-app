@@ -5,8 +5,9 @@ import { useTranslation } from 'react-i18next'
 
 import { api } from '../api/client'
 import { ApiError } from '../api/problem'
+import { ALL_TRIGGERS_KEY } from '../history/feed'
 import type { Alert } from './list'
-import { ALERTS_QUERY_KEY } from './query'
+import { ALERTS_QUERY_KEY, ALERTS_WRITE_KEY as WRITE_KEY } from './query'
 
 // Pause, resume and delete: the only writes the list makes optimistically.
 // Each is one field the client already knows the answer to — unlike create
@@ -16,13 +17,6 @@ import { ALERTS_QUERY_KEY } from './query'
 // One Alert as openapi-react-query keys it, without its parameters, so it
 // matches every Alert at once (the edit screen's copy).
 const ONE_ALERT_KEY = ['get', '/api/v1/alerts/{alert_id}'] as const
-
-// Every query that lists Triggers: the History feed, a filtered feed, and the
-// five on an Alert's own screen. A deleted Alert takes its Triggers with it.
-const TRIGGERS_KEY = ['triggers'] as const
-
-// Shared by every write here, so the last one to settle can tell it is last.
-const WRITE_KEY = ['alerts', 'write'] as const
 
 export type Switchable = 'active' | 'paused'
 
@@ -140,7 +134,8 @@ export function useAlertActions() {
       queryClient.removeQueries({
         queryKey: [...ONE_ALERT_KEY, { params: { path: { alert_id: alert.id } } }],
       })
-      void queryClient.invalidateQueries({ queryKey: TRIGGERS_KEY })
+      // a deleted Alert takes its Triggers with it, from every list of them
+      void queryClient.invalidateQueries({ queryKey: ALL_TRIGGERS_KEY })
     },
     onSettled: () => settle(queryClient),
   })
