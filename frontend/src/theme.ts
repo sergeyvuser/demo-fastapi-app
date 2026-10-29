@@ -1,4 +1,4 @@
-import { createTheme, localStorageColorSchemeManager } from '@mantine/core'
+import { createTheme, localStorageColorSchemeManager, Select } from '@mantine/core'
 
 // The accent of vorobev.dev (palette "Aurora", oklch(0.48 0.1 175)), spread
 // into Mantine's ten shades at the same hue. Not the built-in `teal`: that one
@@ -23,6 +23,20 @@ const aurora = [
 export const theme = createTheme({
   primaryColor: 'aurora',
   colors: { aurora },
+  components: {
+    Select: Select.extend({
+      defaultProps: {
+        // Anchored at the field's left edge, never centred under it. Centring
+        // needs the dropdown's own width, which is not measured on the first
+        // frame: the dropdown then starts at mid-screen at full width, sticks
+        // out past the right edge, and a phone answers the wider page by
+        // jumping to the top — taking the field off screen, so the dropdown
+        // that follows it hides. Aligned to the start it needs no width, and
+        // at full field width it lands in the same place.
+        comboboxProps: { position: 'bottom-start' },
+      },
+    }),
+  },
 })
 
 // Beside `alerts.language`, under the same prefix: both are choices that
