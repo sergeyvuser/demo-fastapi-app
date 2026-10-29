@@ -67,7 +67,7 @@ function CloseDetail() {
       right={0}
       style={{ zIndex: 1 }}
       aria-label={t('alerts.detail.close')}
-      onClick={() => void navigate({ to: '/alerts', search: true })}
+      onClick={() => void navigate({ to: '/alerts', search: true, resetScroll: false })}
     />
   )
 }

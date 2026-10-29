@@ -61,9 +61,12 @@ export function AlertCard({
   // still readable, visibly not working.
   const dimmed = alert.status !== 'active'
 
+  // `resetScroll: false` on every move between the list and an Alert's panel:
+  // they are one screen, and the router's default — scroll to the top, as for
+  // a new page — would throw the reader away from the card they just tapped.
   const open = (event: MouseEvent<HTMLElement>) => {
     if ((event.target as HTMLElement).closest(OWN_CLICKS)) return
-    void navigate({ to: '/alerts/$id', params: { id: alert.id }, search: true })
+    void navigate({ to: '/alerts/$id', params: { id: alert.id }, search: true, resetScroll: false })
   }
 
   return (
@@ -89,6 +92,7 @@ export function AlertCard({
                 to="/alerts/$id"
                 params={{ id: alert.id }}
                 search
+                resetScroll={false}
                 fw={700}
                 c="inherit"
                 underline="hover"

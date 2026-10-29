@@ -302,6 +302,22 @@ describe('the Alert’s own screen', () => {
     expect(opened.nextElementSibling).toBe(detail)
   })
 
+  // The router scrolls a new page to the top. The list and its panel are one
+  // screen: on a phone the jump threw the reader away from the card tapped.
+  it('opens and closes where the reader is, without scrolling to the top', async () => {
+    alerts = [alert()]
+    const { i18n, router } = renderAt('/alerts')
+    const first = (await screen.findAllByTestId('alert-card'))[0]
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+
+    fireEvent.click(first)
+    const detail = within(await screen.findByTestId('alert-detail'))
+    fireEvent.click(detail.getByRole('button', { name: i18n.t('alerts.detail.close') }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/alerts'))
+
+    expect(scrollTo).not.toHaveBeenCalled()
+  })
+
   it('renders the ordinary not-found state for an Alert that no longer exists', async () => {
     alerts = [alert()]
     const { i18n } = renderAt('/alerts/00000000-0000-4000-8000-0000000000ff')

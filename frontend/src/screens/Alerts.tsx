@@ -65,7 +65,7 @@ export function Alerts() {
   const { pause, resume, remove } = useAlertActions()
   const confirm = useDeleteConfirmation((alert) => {
     // An open screen of an Alert that is going would flash "not found".
-    if (alert.id === selectedId) void navigate({ to: '/alerts', search: true })
+    if (alert.id === selectedId) void navigate({ to: '/alerts', search: true, resetScroll: false })
     remove(alert)
   })
   const actions: CardActions = { pause, resume, askDelete: confirm.ask }
