@@ -91,6 +91,9 @@ async def seed_demo(session: AsyncSession) -> None:
     # registration contract, and registration must never be able to mark itself
     # verified. This account has no mailbox to verify against.
     user.is_verified = True
+    # The Digest switch is live here and anyone may turn it on; the reset
+    # turns it back off, so the shared account starts every day silent.
+    user.digest_enabled = False
 
     alerts = AlertRepository(session=session)
     _, existing = await alerts.list_for_user(

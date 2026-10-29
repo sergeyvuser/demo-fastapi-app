@@ -93,3 +93,15 @@ async def test_reset_returns_the_account_to_its_seeded_state(
 
     assert removed == len(EXAMPLE_ALERTS) + 1
     assert await alert_count(session, user.id) == len(EXAMPLE_ALERTS)
+
+
+async def test_reset_turns_the_digest_back_off(session) -> None:
+    """The switch is live on the shared account; the reset silences it."""
+    await seed_demo(session)
+    user = await demo_user(session)
+    user.digest_enabled = True
+    await session.commit()
+
+    await reset_demo(session)
+
+    assert (await demo_user(session)).digest_enabled is False
