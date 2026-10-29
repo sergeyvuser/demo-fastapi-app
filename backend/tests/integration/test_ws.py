@@ -245,7 +245,8 @@ async def test_a_trigger_reaches_its_owner_and_no_one_else(
         message = await mine.receive_json(timeout=2)
         assert message["type"] == "trigger"
         assert message["trigger_id"] == str(event.trigger_id)
-        # routing and the notifier's chat id stay on the server
+        # routing and the notifier's chat id stay on the server; what the chat
+        # id means for this Trigger travels, as the history row has it
         assert set(message) == {
             "type",
             "trigger_id",
@@ -255,7 +256,9 @@ async def test_a_trigger_reaches_its_owner_and_no_one_else(
             "threshold",
             "price",
             "triggered_at",
+            "delivery",
         }
+        assert message["delivery"] == "queued"
         with pytest.raises(TimeoutError):
             await theirs.receive_json(timeout=0.3)
 

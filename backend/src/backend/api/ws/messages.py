@@ -17,6 +17,9 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter
 
+from backend.models.alert import AlertCondition
+from backend.models.trigger import TriggerDelivery
+
 # -- client -> server ---------------------------------------------------------
 
 
@@ -54,6 +57,9 @@ class TickMessage(BaseModel):
 
 
 class TriggerMessage(BaseModel):
+    """The stored row, field for field as the history feed serves it, so the
+    client writes it into the feed without asking for the row."""
+
     type: Literal["trigger"] = "trigger"
     # the stored row: the client dedupes against the history feed by it
     trigger_id: uuid.UUID
@@ -63,6 +69,7 @@ class TriggerMessage(BaseModel):
     threshold: Decimal
     price: Decimal
     triggered_at: datetime
+    delivery: TriggerDelivery
 
 
 class WatchingMessage(BaseModel):

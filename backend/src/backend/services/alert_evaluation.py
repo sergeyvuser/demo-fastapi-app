@@ -84,11 +84,7 @@ class AlertEvaluationService:
                 threshold=alert.threshold,
                 price=tick.price,
                 triggered_at=now,
-                delivery=(
-                    TriggerDelivery.QUEUED
-                    if chat_id is not None
-                    else TriggerDelivery.NO_CHAT
-                ),
+                delivery=TriggerDelivery.for_chat(chat_id),
             )
             self.triggers.add(trigger)
 

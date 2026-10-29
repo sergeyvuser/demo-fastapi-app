@@ -113,7 +113,17 @@
         "title": "TickMessage",
         "type": "object"
       },
+      "TriggerDelivery": {
+        "description": "What the evaluator knows about the Notification when it writes the row.\n\nNot sent/failed: that would need the notifier reporting back, and the\nnotifier has no database. An enum rather than a boolean so a second\nchannel adds a value instead of renaming a column.",
+        "enum": [
+          "queued",
+          "no_chat"
+        ],
+        "title": "TriggerDelivery",
+        "type": "string"
+      },
       "TriggerMessage": {
+        "description": "The stored row, field for field as the history feed serves it, so the\nclient writes it into the feed without asking for the row.",
         "properties": {
           "type": {
             "const": "trigger",
@@ -153,6 +163,9 @@
             "format": "date-time",
             "title": "Triggered At",
             "type": "string"
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/TriggerDelivery"
           }
         },
         "required": [
@@ -162,7 +175,8 @@
           "condition",
           "threshold",
           "price",
-          "triggered_at"
+          "triggered_at",
+          "delivery"
         ],
         "title": "TriggerMessage",
         "type": "object"

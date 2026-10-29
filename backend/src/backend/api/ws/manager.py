@@ -8,6 +8,7 @@ from typing import Any, TypedDict
 from fastapi import status
 
 from backend.api.ws.messages import CLOSE_REPLACED, TickMessage, TriggerMessage
+from backend.models.trigger import TriggerDelivery
 from shared.events import AlertTriggeredEvent, TickEvent
 from shared.metrics import ws_connections, ws_ticks_dropped
 
@@ -173,6 +174,8 @@ class ConnectionManager:
             threshold=event.threshold,
             price=event.price,
             triggered_at=event.triggered_at,
+            # not the chat id itself: only what the history row says about it
+            delivery=TriggerDelivery.for_chat(event.telegram_chat_id),
         ).model_dump(mode="json")
         # every socket of the owner, whatever it watches: a Trigger is the
         # User's, not the Symbol's

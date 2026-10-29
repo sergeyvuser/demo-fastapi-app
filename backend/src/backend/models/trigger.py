@@ -22,6 +22,13 @@ class TriggerDelivery(StrEnum):
     QUEUED = "queued"
     NO_CHAT = "no_chat"
 
+    @classmethod
+    def for_chat(cls, chat_id: int | None) -> TriggerDelivery:
+        # The one rule, for the stored row and the socket frame alike: both
+        # are built from the chat id the evaluator read once, so the feed and
+        # a Trigger pushed live cannot tell two different stories.
+        return cls.QUEUED if chat_id is not None else cls.NO_CHAT
+
 
 class Trigger(IdUuidPkMixin, Base):
     """One occasion on which an Alert went off. Immutable once written.
