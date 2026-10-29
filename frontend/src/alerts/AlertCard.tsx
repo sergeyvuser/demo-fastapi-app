@@ -267,7 +267,7 @@ function TriggerLine({ alert }: { alert: Alert }) {
 
 function LastTriggered({ instant }: { instant: string }) {
   const { t } = useTranslation()
-  const { text, exact } = useInstant(instant)
+  const { text, exact } = useInstant(instant, { past: true })
 
   return (
     <Tooltip label={exact} withArrow>

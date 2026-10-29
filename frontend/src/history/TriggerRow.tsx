@@ -64,7 +64,7 @@ export function TriggerRow({ trigger }: { trigger: Trigger }) {
 }
 
 function FiredAt({ instant }: { instant: string }) {
-  const { text, exact } = useInstant(instant)
+  const { text, exact } = useInstant(instant, { past: true })
 
   return (
     <Tooltip label={exact} withArrow>

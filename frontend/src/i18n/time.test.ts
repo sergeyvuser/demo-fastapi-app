@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatAbsolute, formatExact, formatInstant, formatRelative } from './time'
+import {
+  formatAbsolute,
+  formatExact,
+  formatInstant,
+  formatPastInstant,
+  formatRelative,
+} from './time'
 
 const NOW = Date.parse('2026-10-12T12:00:00Z')
 const MINUTE = 60_000
@@ -35,6 +41,17 @@ describe('formatInstant', () => {
 
   it('turns absolute above a day', () => {
     expect(formatInstant(NOW - 25 * HOUR, NOW, 'en')).toBe(formatAbsolute(NOW - 25 * HOUR, 'en'))
+  })
+})
+
+describe('formatPastInstant', () => {
+  // A Trigger pushed over the socket is newer than the 30-second clock.
+  it('says "now" for an event the clock has not caught up with', () => {
+    expect(formatPastInstant(NOW + 20_000, NOW, 'en')).toBe('now')
+  })
+
+  it('reads an ordinary past instant as formatInstant does', () => {
+    expect(formatPastInstant(NOW - 37 * MINUTE, NOW, 'en')).toBe('37 minutes ago')
   })
 })
 

@@ -72,6 +72,20 @@ export function formatInstant(
     : formatAbsolute(instant, language, timeZone)
 }
 
+// For something that has already happened: never "in 30 seconds". The shared
+// clock ticks every 30 s, so it can be up to that far behind an instant that
+// arrived since — a Trigger pushed over the socket, or a list refetched
+// because of one — and a slightly fast server clock does the same. Such an
+// instant reads as "now" until the clock catches up.
+export function formatPastInstant(
+  instant: number,
+  now: number,
+  language: string,
+  timeZone?: string,
+): string {
+  return formatInstant(Math.min(instant, now), now, language, timeZone)
+}
+
 export type RenderedInstant = {
   text: string
   exact: string
@@ -79,7 +93,8 @@ export type RenderedInstant = {
 
 // The hook every card uses: one clock drives all of them, and both strings
 // come back together because the exact one always rides along in a Tooltip.
-export function useInstant(instant: string): RenderedInstant {
+// `past` for an event that has happened; the exact string is never clamped.
+export function useInstant(instant: string, { past = false } = {}): RenderedInstant {
   const { i18n } = useTranslation()
   const now = useNow()
 
@@ -87,7 +102,7 @@ export function useInstant(instant: string): RenderedInstant {
   const at = new Date(instant).getTime()
 
   return {
-    text: formatInstant(at, now, language),
+    text: (past ? formatPastInstant : formatInstant)(at, now, language),
     exact: formatExact(at, language),
   }
 }
