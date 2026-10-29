@@ -61,11 +61,11 @@ class TriggerMessage(BaseModel):
     client writes it into the feed without asking for the row."""
 
     type: Literal["trigger"] = "trigger"
-    # the stored row: the client dedupes against the history feed by it
+    # the row's id: the client dedupes against the history feed by it
     trigger_id: uuid.UUID
     alert_id: uuid.UUID
     symbol: str
-    condition: str
+    condition: AlertCondition
     threshold: Decimal
     price: Decimal
     triggered_at: datetime

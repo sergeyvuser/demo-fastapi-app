@@ -7,6 +7,14 @@
   "paths": {},
   "components": {
     "schemas": {
+      "AlertCondition": {
+        "enum": [
+          "price_above",
+          "price_below"
+        ],
+        "title": "AlertCondition",
+        "type": "string"
+      },
       "AuthFrame": {
         "properties": {
           "action": {
@@ -146,8 +154,7 @@
             "type": "string"
           },
           "condition": {
-            "title": "Condition",
-            "type": "string"
+            "$ref": "#/components/schemas/AlertCondition"
           },
           "threshold": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
