@@ -56,7 +56,7 @@ function FooterFrame({ children }: { children?: ReactNode }) {
 
 // A new tab with no opener: the page we link to cannot reach back into this
 // one through `window.opener`, and learns nothing from a Referer header.
-function ExternalLink({ href, children }: { href: string; children: ReactNode }) {
+export function ExternalLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Anchor href={href} target="_blank" rel="noopener noreferrer" size="sm">
       {children}

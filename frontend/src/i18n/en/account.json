@@ -1,0 +1,58 @@
+{
+  "loadFailed": "Could not load your account. Check your connection and try again.",
+  "retry": "Try again",
+  "address": {
+    "title": "E-mail address",
+    "verified": "Confirmed",
+    "unverified": "Not confirmed",
+    "unverifiedBody": "Until you follow the link in the letter you can look around, but not create Alerts or link a chat."
+  },
+  "chat": {
+    "title": "Telegram",
+    "purpose": "Notifications are sent to the Telegram chat you link here. Without one your Alerts still go off and appear in History, but nothing is sent anywhere.",
+    "linked": "Linked to chat {{id}}. Notifications go there.",
+    "notLinked": "No chat is linked.",
+    "stepsLabel": "How to link your chat",
+    "stepStart": "Open {{bot}} in Telegram and press Start. Do this first: until you do, our bot is not allowed to write to you, and saving is refused.",
+    "stepStartUnnamed": "Open our bot in Telegram and press Start. Its name could not be loaded just now — reload the page in a minute.",
+    "openBot": "Open {{bot}}",
+    "stepNumber": "Then get your chat's number from a third-party bot such as @userinfobot: write it anything, and it answers with your id. Type that number below.",
+    "warningTitle": "What the third-party bot sees",
+    "warning": "It is not ours. The moment you write to it, it sees your Telegram account — your name, username and id — and we cannot tell what it does with them. If that is too much, skip Telegram: your Alerts still go off and appear in History.",
+    "field": "Chat number",
+    "fieldHint": "Digits only. Saving sends a test message to that chat, and the number is kept only if it arrives.",
+    "save": "Save and send a test message",
+    "saved": "Saved: the test message has been delivered to that chat.",
+    "unlink": "Unlink the chat",
+    "unlinked": "Unlinked. Your Alerts keep working; Notifications stop.",
+    "unlinkFailed": "Could not unlink the chat. Try again in a moment.",
+    "demo": "The demo account cannot link a Telegram chat. It is shared, so a chat linked here would receive the Notifications of everyone who signs in. To try Notifications, create an account of your own and link your chat there.",
+    "errors": {
+      "invalid": "Enter the number only: digits, with no spaces or minus sign. Group chats are not supported.",
+      "notStarted": "Telegram would not deliver to this chat: it has not pressed Start on our bot yet, or the number is wrong. Do the first step, then save again.",
+      "blocked": "This chat has blocked our bot. Unblock it in Telegram, then save again.",
+      "taken": "This chat is already linked to another account.",
+      "unverified": "Confirm your e-mail address first — the banner at the top of the screen can send the letter again.",
+      "limited_one": "Too many refused attempts. Try again in {{count, number}} minute.",
+      "limited_other": "Too many refused attempts. Try again in {{count, number}} minutes.",
+      "limitedSoon": "Too many refused attempts. Try again later.",
+      "unavailable": "Telegram is not answering right now. Nothing was saved; try again in a minute."
+    }
+  },
+  "digest": {
+    "title": "Daily Digest",
+    "switch": "Send me the Daily Digest by e-mail",
+    "contents": "Once a day at {{time}} your time, to {{email}}: every Trigger of the last 24 hours, grouped by Alert, and the Alerts that finished in that time.",
+    "contentsNoTime": "Once a day, to {{email}}: every Trigger of the last 24 hours, grouped by Alert, and the Alerts that finished in that time.",
+    "quiet": "A day with nothing to report sends no mail.",
+    "off": "Off until you turn it on.",
+    "demo": "On the demo account the Digest goes to the project's own mailbox, which nobody signed in here can read, and the switch is turned back off every day at {{time}}.",
+    "demoNoTime": "On the demo account the Digest goes to the project's own mailbox, which nobody signed in here can read, and the switch is turned back off every night.",
+    "unverified": "Confirm your e-mail address first: the Digest is sent to it.",
+    "failed": "Could not change the setting. Try again in a moment."
+  },
+  "language": {
+    "title": "Language",
+    "body": "Remembered in this browser."
+  }
+}
