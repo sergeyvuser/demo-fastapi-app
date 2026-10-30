@@ -42,8 +42,8 @@
   "digest": {
     "title": "Daily Digest",
     "switch": "Send me the Daily Digest by e-mail",
-    "contents": "Once a day at {{time}} your time, to {{email}}: every Trigger of the last 24 hours, grouped by Alert, and the Alerts that finished in that time.",
-    "contentsNoTime": "Once a day, to {{email}}: every Trigger of the last 24 hours, grouped by Alert, and the Alerts that finished in that time.",
+    "contents": "Once a day at {{time}} your time, to {{email}}: the Triggers of the last 24 hours, newest first (up to 50, the rest in History), and the Alerts that finished in that time.",
+    "contentsNoTime": "Once a day, to {{email}}: the Triggers of the last 24 hours, newest first (up to 50, the rest in History), and the Alerts that finished in that time.",
     "quiet": "A day with nothing to report sends no mail.",
     "off": "Off until you turn it on.",
     "demo": "On the demo account the Digest goes to the project's own mailbox, which nobody signed in here can read, and the switch is turned back off every day at {{time}}.",
