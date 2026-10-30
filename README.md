@@ -231,7 +231,7 @@ server → {"type": "error",     "code": "unknown_symbols" | "invalid_frame", "s
 Taskiq worker + scheduler over RabbitMQ, Redis result backend:
 
 - **verification email** — enqueued on register, one-time token in Redis
-- **daily digest** (cron) — email summary of alerts triggered in the last 24h
+- **daily Digest** (cron, 08:00 UTC, opt-in) — email of the last 24h: every Trigger, and the Alerts that became Finished
 - **refresh-token cleanup** (cron) — purge tokens expired/revoked > 30 days ago
 
 ## Observability (implemented)
