@@ -6,7 +6,8 @@ from sqlalchemy import delete, literal, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.db import rows_affected
-from backend.models import Trigger
+from backend.models import Trigger, User
+from backend.models.user import receives_digest
 
 
 class TriggerRepository:
@@ -68,6 +69,29 @@ class TriggerRepository:
             .limit(limit + 1)
         )
         return (await self.session.scalars(stmt)).all()
+
+    async def for_digest(
+        self, since: datetime, until: datetime
+    ) -> Sequence[tuple[User, Trigger]]:
+        """Every Trigger in [since, until) of a User who receives the Digest,
+        with that User.
+
+        Grouped by User and newest first inside each, as History reads. The
+        join is for the predicates — `user_id` alone would mail Users who
+        never asked, and deactivated ones — and the User comes back with the
+        row because the mail needs its address.
+        """
+        stmt = (
+            select(User, Trigger)
+            .join(Trigger, Trigger.user_id == User.id)
+            .where(
+                receives_digest(),
+                Trigger.triggered_at >= since,
+                Trigger.triggered_at < until,
+            )
+            .order_by(Trigger.user_id, Trigger.triggered_at.desc(), Trigger.id.desc())
+        )
+        return (await self.session.execute(stmt)).tuples().all()
 
     async def delete_older_than(self, cutoff: datetime) -> int:
         """Bulk delete, returning how many rows went. The caller commits."""

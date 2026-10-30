@@ -192,3 +192,33 @@ def current_status_is(status: AlertStatus, now: datetime) -> ColumnElement[bool]
             or_(Alert.expires_at.is_(None), Alert.expires_at > now),
         )
     return Alert.status == status
+
+
+def finished_between(since: datetime, until: datetime) -> ColumnElement[bool]:
+    """The Alerts that became Finished in [since, until).
+
+    Two halves, because the row may not have caught up (see current_status()).
+    A recorded Finish is read from `finished_at`. An unrecorded one is an
+    Expiry that has passed while the row still says `active` or `paused`, and
+    its Expiry is the instant it stopped — the same value the sweep will copy
+    into `finished_at` later.
+
+    Reading `finished_at` alone loses an Alert for good: Paused, its Expiry
+    falling after the night's sweep, it has no `finished_at` when this runs,
+    and by the next run the one it is given lies before that window opens.
+
+    Half-open, so consecutive windows share a boundary and an Alert lands in
+    exactly one. An Expiry equal to `until` has passed, and belongs to the
+    window that starts there.
+    """
+    recorded = and_(
+        Alert.status.in_(FINISHED_STATUSES),
+        Alert.finished_at >= since,
+        Alert.finished_at < until,
+    )
+    unrecorded = and_(
+        Alert.status.in_(OCCUPYING_STATUSES),
+        Alert.expires_at >= since,
+        Alert.expires_at < until,
+    )
+    return or_(recorded, unrecorded)

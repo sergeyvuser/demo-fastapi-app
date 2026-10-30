@@ -13,7 +13,9 @@ from backend.models.alert import (
     OCCUPYING_STATUSES,
     AlertStatus,
     current_status_is,
+    finished_between,
 )
+from backend.models.user import receives_digest
 from backend.repositories.base import BaseRepository
 from backend.schemas.alert import AlertCreateInternal, AlertUpdateInternal
 
@@ -189,6 +191,18 @@ class AlertRepository(BaseRepository[Alert, AlertCreateInternal, AlertUpdateInte
             .execution_options(synchronize_session=False)
         )
         return await rows_affected(self.session, stmt)
+
+    async def finished_for_digest(
+        self, since: datetime, until: datetime
+    ) -> Sequence[Alert]:
+        """The Alerts that became Finished in [since, until), of Users who
+        receive the Digest. `Alert.user` comes loaded (selectin)."""
+        stmt = (
+            select(Alert)
+            .join(Alert.user)
+            .where(receives_digest(), finished_between(since, until))
+        )
+        return (await self.session.scalars(stmt)).all()
 
     async def delete_finished_before(self, cutoff: datetime) -> int:
         """Bulk delete of Alerts Finished before `cutoff`. The caller commits.

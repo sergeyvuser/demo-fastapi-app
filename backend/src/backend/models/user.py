@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, String
+from sqlalchemy import BigInteger, ColumnElement, DateTime, String, and_
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -30,3 +30,13 @@ class User(IdUuidPkMixin, TimestampsMixin, Base):
 
     def __repr__(self) -> str:
         return f"User(id={self.id!r}, username={self.username!r})"
+
+
+def receives_digest() -> ColumnElement[bool]:
+    """The Users the Digest is sent to: those who asked for it, while their
+    account is active.
+
+    One clause for both of the Digest's selects, so the Triggers and the
+    Finished Alerts cannot disagree about who is mailed.
+    """
+    return and_(User.digest_enabled.is_(True), User.is_active.is_(True))
