@@ -21,7 +21,7 @@
     "warning": "It is not ours. The moment you write to it, it sees your Telegram account — your name, username and id — and we cannot tell what it does with them. If that is too much, skip Telegram: your Alerts still go off and appear in History.",
     "field": "Chat number",
     "fieldHint": "Digits only. Saving sends a test message to that chat, and the number is kept only if it arrives.",
-    "save": "Save and send a test message",
+    "save": "Save",
     "saved": "Saved: the test message has been delivered to that chat.",
     "unlink": "Unlink the chat",
     "unlinked": "Unlinked. Your Alerts keep working; Notifications stop.",
