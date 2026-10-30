@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseProblem, parseRetryAfter } from './problem'
+import { ApiError, parseProblem, parseRetryAfter } from './problem'
 
 // The bodies are what the API sends today, copied rather than invented.
 describe('parseProblem', () => {
@@ -13,7 +13,31 @@ describe('parseProblem', () => {
       instance: '/api/v1/auth/register',
     })
 
-    expect(problem).toEqual({ status: 409, detail: 'Email already registered', fieldErrors: [] })
+    expect(problem).toEqual({
+      status: 409,
+      type: 'about:blank',
+      detail: 'Email already registered',
+      fieldErrors: [],
+    })
+  })
+
+  it('keeps the type a refusal is told apart by', () => {
+    const problem = parseProblem(400, {
+      type: 'urn:alerts:linked-chat:not-started',
+      title: 'Bad Request',
+      status: 400,
+      detail: 'This chat has not started the bot',
+      instance: '/api/v1/users/me/linked-chat',
+    })
+
+    expect(problem.type).toBe('urn:alerts:linked-chat:not-started')
+  })
+
+  it('leaves the type out where the body has none, which the error reads as about:blank', () => {
+    const problem = parseProblem(404, { detail: 'Not Found' })
+
+    expect(problem).not.toHaveProperty('type')
+    expect(new ApiError(problem).type).toBe('about:blank')
   })
 
   it('reads the plain detail of a framework exception', () => {
