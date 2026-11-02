@@ -74,6 +74,13 @@ class TelegramConfig(BaseModel):
     """
 
     bot_token: SecretStr
+    # The local address connections to Telegram bind to; None leaves the
+    # choice to the system. Production sets "::": its IPv4 path to
+    # api.telegram.org is blocked while IPv6 is open, and httpx tries the
+    # resolved addresses in order — IPv4 first, for the whole connect timeout.
+    # Bound to "::", only the IPv6 addresses are tried (checked on the server
+    # 2026-11-02: 0.2 s, against a ConnectTimeout without it).
+    local_address: str | None = None
 
 
 class SymbolConfig(BaseModel):

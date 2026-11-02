@@ -34,6 +34,11 @@ x-prod-env: &prod-env
   APP_CONFIG__SMTP__USERNAME: resend        # a literal, not the account name
   APP_CONFIG__SMTP__SENDER: "Crypto Alerts <alerts@vorobev.dev>"
   APP_CONFIG__RUN__PUBLIC_URL: https://alerts.vorobev.dev
+  # Telegram over IPv6 only: from this host IPv4 to api.telegram.org is
+  # blocked, and httpx would wait out the connect timeout on it before trying
+  # IPv6 (see TelegramConfig.local_address). Read by api and notifier; the
+  # services without Telegram settings ignore it (extra="ignore").
+  APP_CONFIG__TELEGRAM__LOCAL_ADDRESS: "::"
   # The demo account, quoted verbatim in the README. In the shared block on
   # purpose: the seeder creates it, the scheduler and the worker run its nightly
   # reset, and a value pinned in one service cannot drift from another.

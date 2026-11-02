@@ -64,8 +64,13 @@ class TelegramClient:
         self,
         bot_token: str,
         *,
+        local_address: str | None = None,
         transport: httpx.AsyncBaseTransport | None = None,  # tests only
     ):
+        # Built only when asked for: a default AsyncClient makes the same
+        # transport itself, and a test's MockTransport must win over both.
+        if transport is None and local_address is not None:
+            transport = httpx.AsyncHTTPTransport(local_address=local_address)
         self._client = httpx.AsyncClient(
             base_url=f"{_API_URL}/bot{bot_token}",
             timeout=10.0,

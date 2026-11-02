@@ -58,7 +58,10 @@ async def startup() -> None:
         socket_timeout=settings.redis.socket_timeout,
     )
     await _redis.ping()
-    _telegram = TelegramClient(settings.telegram.bot_token.get_secret_value())
+    _telegram = TelegramClient(
+        settings.telegram.bot_token.get_secret_value(),
+        local_address=settings.telegram.local_address,
+    )
 
 
 @app.on_startup

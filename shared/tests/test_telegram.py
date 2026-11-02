@@ -149,3 +149,25 @@ async def test_a_failed_name_is_asked_again() -> None:
     with pytest.raises(TelegramUnavailable):
         await client.bot_username()
     assert await client.bot_username() == "a_bot"
+
+
+@pytest.mark.parametrize(
+    ("local_address", "built"),
+    [("::", [{"local_address": "::"}]), (None, [])],
+)
+def test_a_local_address_is_handed_to_the_transport(
+    monkeypatch: pytest.MonkeyPatch, local_address: str | None, built: list[dict]
+) -> None:
+    # Production binds to "::" so only IPv6 is tried (see TelegramConfig);
+    # without an address the client keeps httpx's own default transport.
+    seen: list[dict] = []
+    real = httpx.AsyncHTTPTransport
+
+    def recording(**kwargs: str) -> httpx.AsyncHTTPTransport:
+        seen.append(kwargs)
+        return real(**kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", recording)
+    TelegramClient("123:token", local_address=local_address)
+
+    assert seen == built

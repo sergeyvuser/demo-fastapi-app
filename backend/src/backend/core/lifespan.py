@@ -35,7 +35,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # a client per request would pay a TCP and TLS handshake to Bybit every time.
     bybit = httpx.AsyncClient(base_url=settings.candles.base_url)
     app.state.bybit = bybit
-    telegram = TelegramClient(settings.telegram.bot_token.get_secret_value())
+    telegram = TelegramClient(
+        settings.telegram.bot_token.get_secret_value(),
+        local_address=settings.telegram.local_address,
+    )
     app.state.telegram = telegram
 
     # API process is a taskiq CLIENT: it must connect to the broker to

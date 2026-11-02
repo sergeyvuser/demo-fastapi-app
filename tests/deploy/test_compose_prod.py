@@ -425,3 +425,11 @@ def test_the_stack_reaches_out_over_ipv6(rendered: dict[str, Any]) -> None:
     # this, every call to it fails as "Network is unreachable" and nothing
     # fails loudly — the bot goes unnamed and Notifications are not delivered.
     assert rendered["networks"]["default"]["enable_ipv6"] is True
+
+
+@pytest.mark.parametrize("service", ["api", "notifier"])
+def test_telegram_is_reached_over_ipv6(
+    rendered_services: dict[str, Any], service: str
+) -> None:
+    environment = rendered_services[service]["environment"]
+    assert environment["APP_CONFIG__TELEGRAM__LOCAL_ADDRESS"] == "::"
