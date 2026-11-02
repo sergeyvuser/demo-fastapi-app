@@ -494,3 +494,14 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+
+
+networks:
+  default:
+    # The host's IPv4 path to api.telegram.org is blocked; IPv6 is open
+    # (checked 2026-11-02: curl -4 times out, curl -6 answers 302). Containers
+    # on an IPv4-only network get "Network is unreachable", so the bot cannot
+    # be named, a Linked chat cannot be proved and no Notification leaves.
+    # No subnet given: Docker allocates a ULA /64 and NATs it out through
+    # ip6tables, which is on by default since Docker 27.
+    enable_ipv6: true

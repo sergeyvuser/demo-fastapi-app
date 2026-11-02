@@ -71,15 +71,21 @@ def _render(project_dir: Path) -> dict[str, Any]:
         check=False,
     )
     assert result.returncode == 0, result.stderr
-    services: dict[str, Any] = json.loads(result.stdout)["services"]
-    return services
+    config: dict[str, Any] = json.loads(result.stdout)
+    return config
 
 
 @pytest.fixture(scope="module")
-def rendered_services(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
+def rendered(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     # an empty project directory: neither env file exists, which is what CI
     # sees and what keeps the developer's real .env out of the render
     return _render(tmp_path_factory.mktemp("prod"))
+
+
+@pytest.fixture(scope="module")
+def rendered_services(rendered: dict[str, Any]) -> dict[str, Any]:
+    services: dict[str, Any] = rendered["services"]
+    return services
 
 
 @pytest.fixture(scope="module")
@@ -90,7 +96,7 @@ def services_reading_env_files(
     project_dir = tmp_path_factory.mktemp("prod-env")
     (project_dir / ".env").write_text(f"{ENV_MARKER}=1\n", encoding="utf-8")
     (project_dir / ".env.secrets").write_text(f"{SECRETS_MARKER}=1\n", encoding="utf-8")
-    return _render(project_dir)
+    return _render(project_dir)["services"]
 
 
 @pytest.fixture(scope="module")
@@ -412,3 +418,10 @@ def test_the_frontend_ships_at_the_tag_and_reads_no_configuration(
     """
     assert rendered_services["frontend"]["image"] == f"{REGISTRY}/frontend:{IMAGE_TAG}"
     assert "environment" not in services_reading_env_files["frontend"]
+
+
+def test_the_stack_reaches_out_over_ipv6(rendered: dict[str, Any]) -> None:
+    # Telegram is reachable from the production host over IPv6 only; without
+    # this, every call to it fails as "Network is unreachable" and nothing
+    # fails loudly — the bot goes unnamed and Notifications are not delivered.
+    assert rendered["networks"]["default"]["enable_ipv6"] is True
