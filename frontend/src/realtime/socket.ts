@@ -145,6 +145,13 @@ class RealtimeClient {
       if (document.hidden) this.onVisibility()
       return
     }
+    // Closed with 1008 and waiting for exactly this. It comes here rather
+    // than as the answer to the refresh that was asked for: that one may have
+    // gone unanswered, and the session's own retry is what brought the token.
+    if (this.phase === 'refreshing') {
+      this.backOff()
+      return
+    }
     // A new token. On an open socket it is volunteered at once, so the server
     // never has to close a connection whose token quietly expired; a socket
     // not open yet will send the current one when it opens.
@@ -302,12 +309,11 @@ class RealtimeClient {
     if (code === CLOSE_AUTH) {
       // Never a sign-out by itself: logout is per User, so a sign-out on the
       // phone closes this laptop's socket too, and the laptop's own cookie is
-      // still good. Only a refresh that fails ends the session — and
-      // session.ts does that, not this module.
+      // still good. Only a refresh the server refuses ends the session — and
+      // session.ts does that, not this module. A new token reconnects through
+      // onSession, however many retries it took.
       this.enter('refreshing')
-      void refreshSession().then((token) => {
-        if (this.phase === 'refreshing' && token !== null) this.backOff()
-      })
+      void refreshSession()
       return
     }
     this.backOff()

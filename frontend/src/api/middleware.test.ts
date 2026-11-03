@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { paths } from './generated/http'
 import { authMiddleware } from './middleware'
 import { ApiError } from './problem'
-import { endSession, getAccessToken, startSession } from './session'
+import { endSession, getAccessToken, getSession, startSession } from './session'
 
 // Node has no page to resolve a relative URL against, so this client gets a
 // base; the middleware under test is the same object the application uses.
@@ -41,7 +41,11 @@ const unauthorized = () =>
   json(401, { type: 'about:blank', title: 'Unauthorized', status: 401, detail: 'Token expired' })
 
 beforeEach(() => endSession())
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  // an unanswered refresh leaves a retry scheduled; ending the session drops it
+  endSession()
+  vi.unstubAllGlobals()
+})
 
 describe('authMiddleware', () => {
   it('attaches the bearer token', async () => {
@@ -114,6 +118,24 @@ describe('authMiddleware', () => {
     await expect(api.GET('/api/v1/symbols')).rejects.toBeInstanceOf(ApiError)
     expect(getAccessToken()).toBeNull()
   })
+
+  it.each([
+    ['a network error', () => Promise.reject(new TypeError('Failed to fetch'))],
+    ['a 502 from the edge', () => Promise.resolve(new Response(null, { status: 502 }))],
+  ])(
+    'fails as an unreachable server, not a lapsed session, when the refresh meets %s',
+    async (_case, refresh) => {
+      startSession('old', 900)
+      const seen = network((request) => (pathOf(request) === REFRESH ? refresh() : unauthorized()))
+
+      // the TypeError fetch throws for a network failure, which screens word
+      // as "could not reach the server" — never the 401 behind it
+      await expect(api.GET('/api/v1/symbols')).rejects.toBeInstanceOf(TypeError)
+      expect(getSession()).toEqual({ status: 'authenticated', expired: false })
+      // not repeated with a token that was never renewed
+      expect(seen.map(pathOf)).toEqual(['/api/v1/symbols', REFRESH])
+    },
+  )
 
   it('does not refresh for a request that carried no token', async () => {
     const seen = network(() => unauthorized())

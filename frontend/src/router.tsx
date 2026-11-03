@@ -20,7 +20,7 @@ import { SignUp } from './screens/SignUp'
 import { Verify } from './screens/Verify'
 import { AppShell } from './shell/AppShell'
 import { BannerSlot } from './shell/BannerSlot'
-import { ContentSkeleton } from './shell/ContentSkeleton'
+import { SessionPending } from './shell/SessionPending'
 
 // What the guards read. Passed in rather than imported, so a test can hand
 // the router a boot that never settles and see what renders meanwhile.
@@ -111,7 +111,7 @@ const signedInRoute = createRoute({
   // The router's default is a second's grace before showing anything, which
   // here would be a second of an empty main area under a live header.
   pendingMs: 0,
-  pendingComponent: ContentSkeleton,
+  pendingComponent: SessionPending,
   component: SignedInLayout,
 })
 

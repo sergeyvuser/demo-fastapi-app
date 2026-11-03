@@ -2,7 +2,7 @@ import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { act, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { endSession, getSession, startSession } from './api/session'
+import { endSession, getSession, refreshSession, startSession } from './api/session'
 import { createAppRouter, safeRedirect } from './router'
 import { renderWithProviders } from './testing/render'
 
@@ -45,6 +45,19 @@ describe('the router', () => {
 
     expect(await screen.findByTestId('content-skeleton')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: i18n.t('shell.alerts') })).toBeNull()
+  })
+
+  // A reload while `api` restarts: the skeleton would be a promise of content
+  // that is not coming, so once an attempt goes unanswered the screen says so.
+  it('says the server is not answering instead of loading forever', async () => {
+    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
+    await refreshSession()
+    const { router, i18n } = renderAt('/alerts', () => new Promise(() => {}))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(i18n.t('shell.unreachable'))
+    expect(screen.queryByTestId('content-skeleton')).toBeNull()
+    // not sent to sign in: nothing has refused the session
+    expect(router.state.location.pathname).toBe('/alerts')
   })
 
   it('opens the signed-in route once the boot finds a session', async () => {

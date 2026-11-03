@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 
+import { reconnectDelay } from '../realtime/backoff'
 import type { components, paths } from './generated/http'
 
 type AccessToken = components['schemas']['AccessToken']
@@ -39,6 +40,20 @@ const listeners = new Set<() => void>()
 let inFlight: Promise<string | null> | null = null
 let boot: Promise<void> | null = null
 
+// Whether the last refresh got no answer — the network failed, or the edge
+// answered for an `api` that was restarting — and another is on its way. The
+// session's status is left as it was meanwhile: only the server can end a
+// session, by refusing it.
+let unanswered = false
+const unansweredListeners = new Set<() => void>()
+let attempt = 0
+let retry: ReturnType<typeof setTimeout> | undefined
+
+// Bumped by every sign-in and sign-out. A refresh that left before one of
+// them answers a question nobody is asking any more, and its answer is
+// dropped: a retry landing after a sign-out must not sign the person back in.
+let epoch = 0
+
 export function getAccessToken(): string | null {
   return accessToken
 }
@@ -62,13 +77,40 @@ export function useSession(): Session {
   return useSyncExternalStore(subscribeToSession, getSession)
 }
 
+// True while the boot screen should say the server is not answering rather
+// than keep drawing the outline of content that is not coming.
+export function isRefreshUnanswered(): boolean {
+  return unanswered
+}
+
+export function subscribeToRefreshUnanswered(listener: () => void): () => void {
+  unansweredListeners.add(listener)
+  return () => unansweredListeners.delete(listener)
+}
+
+export function useRefreshUnanswered(): boolean {
+  return useSyncExternalStore(subscribeToRefreshUnanswered, isRefreshUnanswered)
+}
+
 export function startSession(token: string, expiresIn: number): void {
+  epoch += 1
+  grant(token, expiresIn)
+}
+
+export function endSession(expired = false): void {
+  epoch += 1
+  revoke(expired)
+}
+
+function grant(token: string, expiresIn: number): void {
+  answered()
   accessToken = token
   lifetime = expiresIn
   publish({ status: 'authenticated', expired: false })
 }
 
-export function endSession(expired = false): void {
+function revoke(expired: boolean): void {
+  answered()
   accessToken = null
   lifetime = null
   publish({ status: 'anonymous', expired })
@@ -83,10 +125,33 @@ function publish(next: Session): void {
 
 // The first thing every page load does. The refresh cookie is httpOnly, so
 // the only way to learn whether a session exists is to ask. Started once and
-// shared: the guard of every signed-in route awaits this same promise.
+// shared: the guard of every signed-in route awaits this same promise. It
+// settles on an answer, not on an attempt — a boot into a restarting `api`
+// keeps retrying, and the guard keeps waiting, until the server says yes or no.
 export function bootSession(): Promise<void> {
-  boot ??= refreshSession().then(() => undefined)
+  boot ??= refreshSession().then(leftPending)
   return boot
+}
+
+// Whatever refresh is in the air, landed — but not the boot's answer. Sign-in
+// waits for this: a boot refresh whose 401 lands after the sign-in would end
+// the session just started, while waiting for an answer from a server that
+// is not giving one would keep the sign-in button spinning with it.
+export async function refreshLanded(): Promise<void> {
+  void bootSession()
+  await inFlight
+}
+
+function leftPending(): Promise<void> {
+  return new Promise((resolve) => {
+    const settled = () => session.status !== 'pending'
+    if (settled()) return resolve()
+    const unsubscribe = subscribeToSession(() => {
+      if (!settled()) return
+      unsubscribe()
+      resolve()
+    })
+  })
 }
 
 // Single-flight: however many requests discover an expired token at once,
@@ -111,23 +176,84 @@ function acrossTabs<T>(task: () => Promise<T>): Promise<T> {
   return navigator.locks.request(REFRESH_LOCK, task)
 }
 
-// Plain fetch, not the API client: the refresh must not pass through the
-// middleware that calls it.
+// Resolves to the new token, or to null when there is none: the refresh was
+// refused (the session is over) or got no answer (the session stands, and a
+// retry is on its way). The status tells the two apart.
 async function requestToken(): Promise<string | null> {
-  const wasSignedIn = session.status === 'authenticated'
+  const asked = epoch
+  const answer = await askForToken()
+  // signed in or out meanwhile: whatever is current now is the answer
+  if (asked !== epoch) return accessToken
+
+  if (answer === 'refused') {
+    // `expired` only for a session that existed: a first visit with no
+    // cookie is refused too, and has nothing to explain.
+    revoke(session.status === 'authenticated')
+  } else if (answer === 'unanswered') {
+    // Not a sign-out. The old token stays — it may still be good for a
+    // minute, and it is the session's, not this refresh's — but it is not
+    // handed out as if it were new.
+    stall()
+    return null
+  } else {
+    grant(answer.access_token, answer.expires_in)
+  }
+  return accessToken
+}
+
+// Plain fetch, not the API client: the refresh must not pass through the
+// middleware that calls it. Only a 401 is a refusal (RFC 6749 §5.2 gives it
+// its own error, `invalid_grant`); anything else — a network error, a 502
+// from the edge while `api` restarts, a 429 — says nothing about the session.
+async function askForToken(): Promise<AccessToken | 'refused' | 'unanswered'> {
   try {
     // no body and no header: the httpOnly cookie is the credential
     const response = await fetch(REFRESH, { method: 'POST' })
-    if (response.ok) {
-      const token = (await response.json()) as AccessToken
-      startSession(token.access_token, token.expires_in)
-    } else {
-      endSession(wasSignedIn)
-    }
+    if (response.status === 401) return 'refused'
+    if (!response.ok) return 'unanswered'
+    return (await response.json()) as AccessToken
   } catch {
-    // The network failed. Signed out all the same: a session that cannot be
-    // renewed cannot be used, and whoever asked gets their 401 back.
-    endSession(wasSignedIn)
+    return 'unanswered'
   }
-  return accessToken
+}
+
+// Ask again later, with the socket's backoff: a deploy leaves every open tab
+// unanswered at once, and full jitter spreads them over the seconds after.
+// The network coming back, or the person looking at the tab, cuts the wait
+// short. Every retry is an ordinary refreshSession(): single-flight, and under
+// the cross-tab lock.
+function stall(): void {
+  clearTimeout(retry)
+  retry = setTimeout(retryNow, reconnectDelay(attempt))
+  attempt += 1
+  if (unanswered) return
+  window.addEventListener('online', retryNow)
+  document.addEventListener('visibilitychange', retryIfVisible)
+  setUnanswered(true)
+}
+
+// The server spoke — yes or no — or a sign-in or sign-out made the question
+// moot. Either way nothing is retried any more.
+function answered(): void {
+  clearTimeout(retry)
+  retry = undefined
+  attempt = 0
+  if (!unanswered) return
+  window.removeEventListener('online', retryNow)
+  document.removeEventListener('visibilitychange', retryIfVisible)
+  setUnanswered(false)
+}
+
+function retryNow(): void {
+  clearTimeout(retry)
+  void refreshSession()
+}
+
+function retryIfVisible(): void {
+  if (!document.hidden) retryNow()
+}
+
+function setUnanswered(value: boolean): void {
+  unanswered = value
+  for (const listener of unansweredListeners) listener()
 }

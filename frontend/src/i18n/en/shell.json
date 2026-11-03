@@ -6,6 +6,7 @@
   "userMenu": "Account menu",
   "signIn": "Sign in",
   "signOut": "Sign out",
+  "unreachable": "Could not reach the server. Trying again…",
   "footer": {
     "author": "Author: {{name}}",
     "source": "Source code"

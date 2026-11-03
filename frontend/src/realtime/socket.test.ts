@@ -472,7 +472,35 @@ describe('close codes', () => {
     expect(latest().sent[0]).toEqual({ action: 'auth', token: 'access-2' })
   })
 
-  it('signs out after 1008 only when the refresh fails', async () => {
+  // 1008 because the token lapsed during a deploy: the refresh it answers
+  // with meets the restart, and the session's own retry brings the token.
+  it('reconnects after 1008 once an unanswered refresh is answered', async () => {
+    let refreshes = 0
+    vi.stubGlobal('fetch', () => {
+      refreshes += 1
+      return refreshes === 1
+        ? Promise.reject(new TypeError('Failed to fetch'))
+        : Promise.resolve(
+            Response.json({ access_token: 'access-2', token_type: 'bearer', expires_in: 900 }),
+          )
+    })
+    startSession('access-1', 900)
+    goLive().drop(1008)
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(getSession()).toEqual({ status: 'authenticated', expired: false })
+    expect(getRealtimeStatus()).toBe('down')
+
+    // the session's retry, then the socket's own backoff
+    await vi.advanceTimersByTimeAsync(500 + 500)
+
+    expect(refreshes).toBe(2)
+    expect(sockets()).toBe(2)
+    latest().open()
+    expect(latest().sent[0]).toEqual({ action: 'auth', token: 'access-2' })
+  })
+
+  it('signs out after 1008 only when the refresh is refused', async () => {
     refreshAnswers(false)
     startSession('access-1', 900)
     goLive().drop(1008)

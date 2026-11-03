@@ -1,7 +1,7 @@
 import type { Middleware } from 'openapi-fetch'
 
 import { ApiError, parseProblem, parseRetryAfter } from './problem'
-import { getAccessToken, refreshSession } from './session'
+import { getAccessToken, getSession, refreshSession } from './session'
 
 // A Request's body is a stream and can be read once, so the request that was
 // sent cannot be sent again. A copy is taken before it leaves, keyed by the
@@ -32,6 +32,12 @@ export const authMiddleware: Middleware = {
         spare.headers.set('Authorization', bearer(token))
         // Once. A second 401 falls through and is thrown like any error.
         response = await fetch(spare)
+      } else if (getSession().status !== 'anonymous') {
+        // The refresh got no answer, so the session stands and the server is
+        // what failed. Thrown the way fetch throws a network failure, which
+        // every screen already words as "could not reach the server"; the
+        // 401 itself would read as a lapsed session.
+        throw new TypeError('The session could not be renewed: the server did not answer')
       }
     }
 
