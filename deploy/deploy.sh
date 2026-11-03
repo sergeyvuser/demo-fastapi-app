@@ -99,6 +99,18 @@ LAST_DEPLOY_STATUS=$3
 EOF
 }
 
+# The rendered top-level `networks:` block, hashed. Compose cannot apply a
+# change to a network under a running stack: it recreates the network and
+# reconnects the running containers without their service names, and every
+# lookup of `db`, `redis`, `rabbitmq` fails (2026-11-02, deploy of 27efd15).
+# Compose's own record of the network (a config-hash label) is not reachable
+# from here, so the deploy keeps its own: the fingerprint of the last network
+# configuration that came up healthy, in .deploy.networks.
+networks_fingerprint() {
+  dc config | awk '/^networks:/ { inside = 1; print; next } /^[^ ]/ { inside = 0 } inside' \
+    | sha256sum | cut -d ' ' -f 1
+}
+
 # One line per container: service, status, health, exit code, restarts, OOM.
 # `docker inspect` rather than `compose ps --format json` — the JSON shape
 # changed between compose versions, the inspect template did not, and it needs
@@ -246,6 +258,19 @@ done <<< "$app_images"
 
 phase "4/5  up"
 
+# A changed network takes the whole stack down first, so that `up` creates the
+# network and every container on it from scratch, names included. A minute of
+# downtime, on the rare deploy that changes a network. Volumes are untouched:
+# `down` without -v removes containers and networks only. No record yet (the
+# first deploy with this check) means no comparison: the network running now is
+# the one the previous commit asked for.
+networks_now="$(networks_fingerprint)"
+networks_last="$(cat .deploy.networks 2>/dev/null || true)"
+if [[ -n "$networks_last" && "$networks_now" != "$networks_last" ]]; then
+  log "  network configuration changed — taking the stack down so it is recreated whole"
+  dc down
+fi
+
 # The two services whose configuration can change without their image changing.
 # Recreated before the main `up` rather than after, so the single wait below
 # covers them too. --no-deps: this is a targeted recreation, not a restart of
@@ -287,5 +312,9 @@ if [[ -n "$running_tag" && "$running_tag" != "$tag" ]]; then
   previous_tag="$running_tag"
 fi
 write_env "$tag" "$previous_tag" ok
+
+# Only now, with the stack healthy: a failed deploy must leave the old record,
+# so the next attempt still sees the network as changed.
+printf '%s\n' "$networks_now" > .deploy.networks
 
 log "deployed $tag — rollback target is ${previous_tag:-none}"
