@@ -300,6 +300,18 @@ applied migration is worse than the outage it would be fixing. Pick the target f
 Deployments panel or the published image tags rather than from `PREVIOUS_IMAGE_TAG` on the server:
 that field is one step of undo, so after a manual deploy of an old commit it names that old commit.
 
+**A change to a network takes the stack down.** Compose cannot change a network under running
+containers: it recreates the network and reconnects them without their service names, so `db` stops
+resolving and the deploy fails — it did, on 2026-11-02. `deploy.sh` therefore keeps a fingerprint of
+the rendered `networks:` block in `/opt/alerts/.deploy.networks`, and a deploy that changes it runs
+`down` before `up`: about a minute of downtime, volumes untouched. By hand it is the same pair —
+`down`, then `up -d --wait` — never `up` alone.
+
+**Telegram is reached over IPv6 only.** From the VPS, IPv4 to `api.telegram.org` is blocked while IPv6
+is open, so the production network has IPv6 enabled and the Telegram client binds to `"::"`
+(`APP_CONFIG__TELEGRAM__LOCAL_ADDRESS`). A host-side `curl` prefers IPv6 and proves nothing about the
+containers; check from inside one with `docker exec`.
+
 **Backups.** The database is dumped nightly on the host (custom format, seven-day rotation, in
 `/var/backups/alerts`) and the newest dump is copied to private object storage every Sunday. Both are
 systemd timers, so their last run has a recorded outcome:
