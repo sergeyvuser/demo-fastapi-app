@@ -3,13 +3,25 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pydantic import ValidationError
 
-from backend.models.alert import AlertCondition, AlertRepeatPolicy
-from backend.schemas.alert import AlertCreate, AlertUpdate, ExpiryPreset
+from backend.models.alert import AlertCondition, AlertRepeatPolicy, AlertStatus
+from backend.schemas.alert import AlertCreate, AlertRead, AlertUpdate, ExpiryPreset
 
 PAYLOAD = {
     "symbol": "BTCUSDT",
     "condition": AlertCondition.PRICE_ABOVE,
     "threshold": "64000.5",
+}
+# PAYLOAD plus everything a read-back carries: AlertRead reports a row, so
+# every field it reads has to be present, including the ones this file's
+# subject does not touch.
+READ_PAYLOAD = PAYLOAD | {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "status": AlertStatus.ACTIVE,
+    "last_triggered_at": None,
+    "finished_at": None,
+    "expires_at": None,
+    "trigger_count": 0,
+    "created_at": datetime(2026, 10, 20, 10, 0, tzinfo=UTC),
 }
 
 
@@ -78,3 +90,32 @@ def test_an_edit_tells_an_omitted_expiry_from_a_removed_one() -> None:
 
     assert "expires_in_seconds" not in omitted.model_fields_set
     assert "expires_in_seconds" in removed.model_fields_set
+
+
+def test_a_running_cooldown_is_reported_as_the_instant_it_ends() -> None:
+    fired_at = datetime.now(UTC) - timedelta(minutes=10)
+    alert = AlertRead(
+        **(READ_PAYLOAD | {"last_triggered_at": fired_at, "cooldown_seconds": 3600})
+    )
+
+    assert alert.cooldown_ends_at == fired_at + timedelta(hours=1)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        pytest.param({"cooldown_seconds": None}, id="no cooldown"),
+        pytest.param({"cooldown_seconds": 3600}, id="never fired"),
+        pytest.param(
+            {
+                "cooldown_seconds": 3600,
+                "last_triggered_at": datetime.now(UTC) - timedelta(hours=2),
+            },
+            id="elapsed",
+        ),
+    ],
+)
+def test_nothing_to_wait_for_is_reported_as_null(overrides: dict[str, object]) -> None:
+    alert = AlertRead(**(READ_PAYLOAD | overrides))
+
+    assert alert.cooldown_ends_at is None

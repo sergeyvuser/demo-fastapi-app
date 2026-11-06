@@ -2,7 +2,12 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from backend.models.alert import AlertStatus, current_status, expiry_has_passed
+from backend.models.alert import (
+    AlertStatus,
+    cooldown_ends_at,
+    current_status,
+    expiry_has_passed,
+)
 
 NOW = datetime(2026, 10, 2, 12, 0, tzinfo=UTC)
 SECOND = timedelta(seconds=1)
@@ -40,3 +45,21 @@ def test_a_completed_alert_keeps_its_reason_after_its_expiry() -> None:
     assert current_status(AlertStatus.COMPLETED, NOW - SECOND, NOW) is (
         AlertStatus.COMPLETED
     )
+
+
+@pytest.mark.parametrize(
+    ("cooldown_seconds", "last_triggered_at", "ends_at"),
+    [
+        (None, NOW, None),  # no Cooldown: nothing to space Triggers out
+        (3600, None, None),  # never gone off: nothing to count from
+        (3600, NOW, NOW + timedelta(hours=1)),
+        # elapsed is still an instant here; hiding it is AlertRead's job
+        (3600, NOW - timedelta(hours=2), NOW - timedelta(hours=1)),
+    ],
+)
+def test_cooldown_ends_at(
+    cooldown_seconds: int | None,
+    last_triggered_at: datetime | None,
+    ends_at: datetime | None,
+) -> None:
+    assert cooldown_ends_at(cooldown_seconds, last_triggered_at) == ends_at

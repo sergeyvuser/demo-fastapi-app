@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING
@@ -105,6 +105,23 @@ def current_status(
     if status in OCCUPYING_STATUSES and expiry_has_passed(expires_at, now):
         return AlertStatus.EXPIRED
     return status
+
+
+def cooldown_ends_at(
+    cooldown_seconds: int | None, last_triggered_at: datetime | None
+) -> datetime | None:
+    """The instant from which the Cooldown no longer bars a Trigger.
+
+    None when there is nothing to wait for: an Alert with no Cooldown, or one
+    that has never gone off. One function for the evaluator, which refuses a
+    firing before this instant, and for AlertRead, which tells a browser when
+    the waiting ends — so a card cannot disagree with the rule it explains.
+    The boundary is the Cooldown's own: an end equal to `now` has elapsed,
+    and a Trigger is legal again.
+    """
+    if cooldown_seconds is None or last_triggered_at is None:
+        return None
+    return last_triggered_at + timedelta(seconds=cooldown_seconds)
 
 
 class Alert(IdUuidPkMixin, TimestampsMixin, Base):

@@ -4,7 +4,12 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Alert, Trigger
-from backend.models.alert import AlertRepeatPolicy, condition_holds, expiry_has_passed
+from backend.models.alert import (
+    AlertRepeatPolicy,
+    condition_holds,
+    cooldown_ends_at,
+    expiry_has_passed,
+)
 from backend.models.trigger import TriggerDelivery
 from backend.repositories.alert import AlertRepository
 from backend.repositories.trigger import TriggerRepository
@@ -124,6 +129,13 @@ class AlertEvaluationService:
     def _cooldown_cutoff(alert: Alert, now: datetime) -> datetime | None:
         """The newest `last_triggered_at` that no longer bars a firing.
 
+        The same rule as cooldown_ends_at(), moved to the other side of the
+        comparison so it can be a WHERE on a column instead of a value in
+        Python: `last_triggered_at <= now - cooldown` is exactly
+        `cooldown_ends_at(...) <= now`. Two spellings, because the row
+        claim_firing reads may be newer than the one loaded here — pinned to
+        agree by a test.
+
         None when the Alert has no Cooldown at all: there is nothing to
         compare against, and therefore nothing to wait for.
         """
@@ -133,7 +145,5 @@ class AlertEvaluationService:
 
     @staticmethod
     def _in_cooldown(alert: Alert, now: datetime) -> bool:
-        cutoff = AlertEvaluationService._cooldown_cutoff(alert, now)
-        if cutoff is None or alert.last_triggered_at is None:
-            return False
-        return alert.last_triggered_at > cutoff
+        ends_at = cooldown_ends_at(alert.cooldown_seconds, alert.last_triggered_at)
+        return ends_at is not None and ends_at > now

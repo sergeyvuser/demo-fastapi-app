@@ -9,6 +9,7 @@ from pydantic import (
     ConfigDict,
     Field,
     StringConstraints,
+    computed_field,
     field_validator,
     model_validator,
 )
@@ -17,6 +18,7 @@ from backend.models.alert import (
     AlertCondition,
     AlertRepeatPolicy,
     AlertStatus,
+    cooldown_ends_at,
     current_status,
 )
 
@@ -93,6 +95,32 @@ class AlertRead(AlertBase):
     expires_at: datetime | None
     trigger_count: int
     created_at: datetime
+
+    # An instant, not a flag: the client hides its badge itself once its own
+    # 30-second clock passes this, with no refetch — comparing a server
+    # instant to now is displaying the rule, not re-deriving it. Already
+    # elapsed is reported as null, because "no Cooldown", "never fired" and
+    # "long since over" are one answer to a reader: nothing is being waited
+    # for. The description is given here rather than as a docstring: pydantic
+    # would publish the docstring into the contract verbatim.
+    #
+    # The ignore is pydantic's documented answer: mypy cannot type a
+    # decorator stacked on a property, and computed_field needs exactly that.
+    @computed_field(  # type: ignore[prop-decorator]
+        description=(
+            "The instant from which the Cooldown no longer bars a Trigger, "
+            "or null when nothing is being waited for: no Cooldown, never "
+            "fired, or already elapsed when this was answered."
+        )
+    )
+    @property
+    def cooldown_ends_at(self) -> datetime | None:
+        # The call is the module-level function imported above, not this
+        # property: a method body never sees its own class's attributes.
+        ends_at = cooldown_ends_at(self.cooldown_seconds, self.last_triggered_at)
+        if ends_at is None or ends_at <= datetime.now(UTC):
+            return None
+        return ends_at
 
     @model_validator(mode="after")
     def _report_the_status_in_force_now(self) -> Self:

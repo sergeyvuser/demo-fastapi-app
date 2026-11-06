@@ -78,3 +78,20 @@ def test_cooldown_expires() -> None:
     )
 
     assert AlertEvaluationService._in_cooldown(alert, now) is False
+
+
+@pytest.mark.parametrize("age", [0, 3599, 3600, 3601])
+def test_the_cooldown_cutoff_is_the_same_rule_as_its_end(age: int) -> None:
+    now = datetime.now(UTC)
+    alert = make_alert(
+        AlertCondition.PRICE_ABOVE,
+        "100",
+        last_triggered_at=now - timedelta(seconds=age),
+    )
+    cutoff = AlertEvaluationService._cooldown_cutoff(alert, now)
+    assert cutoff is not None and alert.last_triggered_at is not None
+
+    # the predicate claim_firing puts in its WHERE, read against this row
+    claim_refuses = alert.last_triggered_at > cutoff
+
+    assert claim_refuses is AlertEvaluationService._in_cooldown(alert, now)

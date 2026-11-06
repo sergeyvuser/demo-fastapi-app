@@ -1239,6 +1239,20 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "cooldown_ends_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cooldown Ends At",
+            "description": "The instant from which the Cooldown no longer bars a Trigger, or null when nothing is being waited for: no Cooldown, never fired, or already elapsed when this was answered.",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -1252,7 +1266,8 @@
           "finished_at",
           "expires_at",
           "trigger_count",
-          "created_at"
+          "created_at",
+          "cooldown_ends_at"
         ],
         "title": "AlertRead"
       },
