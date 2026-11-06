@@ -62,6 +62,10 @@ export default tseslint.config(
               'height',
               // Ours: an identifier a test queries by is not prose.
               'data-testid',
+              // Mantine's `styles` is `style` for a component's inner parts:
+              // CSS values keyed by part name, with no more prose in them
+              // than the `style` above.
+              'styles',
               // On a DOM element the rule checks only the attributes that
               // carry text; on a component it checks them all — and Mantine
               // takes its design tokens as props. `size="xs"` and

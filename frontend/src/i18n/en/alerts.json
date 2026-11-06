@@ -25,7 +25,8 @@
   },
   "cooldown": {
     "some": "Cooldown {{duration}}",
-    "none": "No cooldown"
+    "none": "No cooldown",
+    "until": "Cooldown until {{when}}"
   },
   "expiry": {
     "future": "Expires {{when}}",

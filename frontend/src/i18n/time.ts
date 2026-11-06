@@ -50,6 +50,38 @@ export function formatTimeOfDay(instant: number, language: string, timeZone?: st
   return new Intl.DateTimeFormat(language, { timeStyle: 'short', timeZone }).format(instant)
 }
 
+// Whether two instants fall on one calendar day in the reader's zone. Asked
+// of `Intl` rather than of `Date.getDate()`, which can only answer for the
+// browser's own zone — the one thing a test here pins to something else.
+function onTheSameDay(a: number, b: number, language: string, timeZone?: string): boolean {
+  const day = new Intl.DateTimeFormat(language, { dateStyle: 'short', timeZone })
+  return day.format(a) === day.format(b)
+}
+
+// A time of day while the instant is still on the reader's own today, the day
+// and month in front of it once it is not — where a bare "1:30 AM" would read
+// as an hour that has already gone by. No year, and no `formatAbsolute`: this
+// is for a deadline at most a day out (a Cooldown ends within 24 h of its
+// Trigger), so "tomorrow" is as far as it ever has to say, and the badge it
+// goes in has a card's width to live in.
+export function formatTimeOfDayOrDate(
+  instant: number,
+  now: number,
+  language: string,
+  timeZone?: string,
+): string {
+  const time = formatTimeOfDay(instant, language, timeZone)
+  if (onTheSameDay(instant, now, language, timeZone)) return time
+
+  // The day in front of the same time string, never a second way of writing
+  // the hour: asking one `Intl` call for both would decide the leading zero
+  // by its own rules and print "8:00" where every other time on the screen
+  // says "08:00". The comma is the separator both locales already use
+  // between a date and a time.
+  const day = new Intl.DateTimeFormat(language, { month: 'short', day: 'numeric', timeZone })
+  return `${day.format(instant)}, ${time}`
+}
+
 // What the Tooltip on a relative time shows: the whole instant, seconds and
 // zone included, so "3 minutes ago" is never the only answer available.
 export function formatExact(instant: number, language: string, timeZone?: string): string {

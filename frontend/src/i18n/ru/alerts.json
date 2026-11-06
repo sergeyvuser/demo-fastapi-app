@@ -25,7 +25,8 @@
   },
   "cooldown": {
     "some": "Интервал {{duration}}",
-    "none": "Без интервала"
+    "none": "Без интервала",
+    "until": "Интервал до {{when}}"
   },
   "expiry": {
     "future": "Истекает {{when}}",

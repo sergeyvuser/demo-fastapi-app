@@ -1,12 +1,17 @@
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import type { i18n as i18nType } from 'i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Alert } from '../alerts/list'
 import { endSession, getSession, startSession } from '../api/session'
+import { formatDuration } from '../i18n/format'
+import { formatTimeOfDayOrDate } from '../i18n/time'
 import { resetPrices } from '../prices/store'
 import { createAppRouter } from '../router'
 import { renderWithProviders } from '../testing/render'
+
+const MINUTE = 60_000
 
 const SYMBOLS = [
   { symbol: 'BTCUSDT', price: '71000.0', reference_price: '70000.0', precision: 1 },
@@ -37,6 +42,7 @@ function alert(overrides: Partial<Alert> = {}): Alert {
     cooldown_seconds: 3600,
     status: 'active',
     last_triggered_at: null,
+    cooldown_ends_at: null,
     finished_at: null,
     expires_at: null,
     trigger_count: 0,
@@ -46,14 +52,19 @@ function alert(overrides: Partial<Alert> = {}): Alert {
 }
 
 let alerts: Alert[] = []
+// How many times the list itself was asked for — the subject of a test that
+// claims a card changed without one.
+let listRequests = 0
 
 beforeEach(() => {
   alerts = []
+  listRequests = 0
   vi.stubGlobal('fetch', (request: Request) => {
     const { pathname } = new URL(request.url)
     if (pathname === '/api/v1/symbols') return Promise.resolve(Response.json({ items: SYMBOLS }))
     if (pathname === '/api/v1/users/me') return Promise.resolve(Response.json(ME))
     if (pathname === '/api/v1/alerts') {
+      listRequests += 1
       return Promise.resolve(
         Response.json({ items: alerts, total: alerts.length, skip: 0, limit: 100 }),
       )
@@ -65,6 +76,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   resetPrices()
   endSession()
@@ -81,6 +93,14 @@ function renderAlerts(path = '/alerts') {
 
 async function cards(): Promise<HTMLElement[]> {
   return screen.findAllByTestId('alert-card')
+}
+
+// The Cooldown badge's wording, built the way the card builds it: the zone and
+// the clock are the environment's, and neither is the subject here.
+function cooldownBadge(i18n: i18nType, endsAt: string): string {
+  return i18n.t('alerts.cooldown.until', {
+    when: formatTimeOfDayOrDate(Date.parse(endsAt), Date.now(), 'en'),
+  })
 }
 
 describe('the Alerts list', () => {
@@ -144,6 +164,51 @@ describe('the Alerts list', () => {
 
     await cards()
     expect(screen.getAllByText(i18n.t('alerts.cooldown.none'))).toHaveLength(1)
+  })
+
+  it('says until when a running Cooldown ends, on a working Alert and no other', async () => {
+    const endsAt = new Date(Date.now() + 10 * MINUTE).toISOString()
+    alerts = [
+      alert({ status: 'active', cooldown_ends_at: endsAt }),
+      // each of these already carries a Status badge that says more
+      alert({ status: 'paused', cooldown_ends_at: endsAt }),
+      alert({ status: 'completed', cooldown_ends_at: endsAt }),
+      alert({ status: 'expired', cooldown_ends_at: endsAt }),
+      // working, with nothing to wait for: no Cooldown, or one long elapsed —
+      // the server tells the two apart from a running one and this card from
+      // the first, by sending null
+      alert({ status: 'active', cooldown_ends_at: null }),
+    ]
+    const { i18n } = renderAlerts()
+
+    expect(await cards()).toHaveLength(5)
+    expect(screen.getAllByText(cooldownBadge(i18n, endsAt))).toHaveLength(1)
+    // the setting is still said, on every card that has one
+    expect(
+      screen.getAllByText(i18n.t('alerts.cooldown.some', { duration: formatDuration(3600, 'en') })),
+    ).toHaveLength(5)
+  })
+
+  it('drops the badge when the shared clock passes the instant, asking nothing', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const endsAt = new Date(Date.now() + 10 * MINUTE).toISOString()
+    alerts = [alert({ status: 'active', cooldown_ends_at: endsAt })]
+    const { i18n } = renderAlerts()
+    await cards()
+
+    const badge = cooldownBadge(i18n, endsAt)
+    expect(screen.getByText(badge)).toBeInTheDocument()
+
+    const asked = listRequests
+    await act(() => vi.advanceTimersByTimeAsync(11 * MINUTE))
+
+    // the Cooldown is over by the clock alone: no refetch, and the card still
+    // carries the Alert the server last sent
+    expect(screen.queryByText(badge)).toBeNull()
+    expect(listRequests).toBe(asked)
+    expect(
+      screen.getByText(i18n.t('alerts.cooldown.some', { duration: formatDuration(3600, 'en') })),
+    ).toBeInTheDocument()
   })
 })
 

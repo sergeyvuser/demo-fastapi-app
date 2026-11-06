@@ -6,6 +6,7 @@ import {
   formatInstant,
   formatPastInstant,
   formatRelative,
+  formatTimeOfDayOrDate,
 } from './time'
 
 const NOW = Date.parse('2026-10-12T12:00:00Z')
@@ -52,6 +53,28 @@ describe('formatPastInstant', () => {
 
   it('reads an ordinary past instant as formatInstant does', () => {
     expect(formatPastInstant(NOW - 37 * MINUTE, NOW, 'en')).toBe('37 minutes ago')
+  })
+})
+
+describe('formatTimeOfDayOrDate', () => {
+  it('says the time alone while the instant is still today', () => {
+    expect(formatTimeOfDayOrDate(NOW + 2 * HOUR, NOW, 'en', 'UTC')).toBe('2:00 PM')
+    expect(formatTimeOfDayOrDate(NOW + 2 * HOUR, NOW, 'ru', 'UTC')).toBe('14:00')
+  })
+
+  it('adds the day and month once it is not — and never a year', () => {
+    // a Cooldown ends within a day; "Oct 13, 2026" would be saying it twice
+    expect(formatTimeOfDayOrDate(NOW + 20 * HOUR, NOW, 'en', 'UTC')).toBe('Oct 13, 8:00 AM')
+    expect(formatTimeOfDayOrDate(NOW + 20 * HOUR, NOW, 'ru', 'UTC')).toBe('13 окт., 08:00')
+  })
+
+  it('decides "today" in the reader’s zone, not in UTC', () => {
+    // 22:30 UTC is still the 12th there and already the 13th in Moscow: one
+    // instant, needing no date for one reader and a date for the other
+    const instant = Date.parse('2026-10-12T22:30:00Z')
+
+    expect(formatTimeOfDayOrDate(instant, NOW, 'en', 'UTC')).toBe('10:30 PM')
+    expect(formatTimeOfDayOrDate(instant, NOW, 'en', 'Europe/Moscow')).toBe('Oct 13, 1:30 AM')
   })
 })
 

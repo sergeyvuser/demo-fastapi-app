@@ -50,6 +50,7 @@ function alert(overrides: Partial<Alert> = {}): Alert {
     cooldown_seconds: 3600,
     status: 'active',
     last_triggered_at: null,
+    cooldown_ends_at: null,
     finished_at: null,
     expires_at: null,
     trigger_count: 0,

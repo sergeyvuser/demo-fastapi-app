@@ -5,7 +5,8 @@ import { useTranslation } from 'react-i18next'
 
 import { formatDistance, formatDuration, formatThreshold } from '../i18n/format'
 import { resolvedLanguage } from '../i18n/language'
-import { useInstant } from '../i18n/time'
+import { useNow } from '../i18n/now'
+import { formatExact, formatTimeOfDayOrDate, useInstant } from '../i18n/time'
 import { CoinMark } from '../prices/CoinMark'
 import { DayChange, Price, useStale } from '../prices/Price'
 import { useQuote, useSymbols } from '../prices/store'
@@ -111,6 +112,7 @@ export function AlertCard({
                   </Badge>
                 </Tooltip>
               )}
+              <CooldownUntilBadge alert={alert} />
             </Group>
             <Text size="xs" c="dimmed">
               {t(`alerts.rule.${alert.condition}`, { threshold })}
@@ -221,6 +223,57 @@ function CooldownBadge({ alert }: { alert: Alert }) {
             duration: formatDuration(seconds, resolvedLanguage(i18n)),
           })}
     </Badge>
+  )
+}
+
+// Right after a Trigger, a `while_true` Alert standing past its Threshold
+// looks exactly like one about to go off; an `on_cross` one that has just
+// crossed looks exactly like one whose crossing was missed. This badge says
+// which: nothing can fire before this instant. It sits in the Status slot,
+// because that is where a reader looks to find out why nothing is happening —
+// while the setting badge below ("Cooldown 1 h") still says what was chosen.
+//
+// Shown only on a working Alert: a Paused, Completed or Expired card already
+// carries a Status badge that says more than "it is waiting", and the card is
+// not dimmed for this — the Alert is working, it is waiting.
+//
+// The instant is the server's, because whether a Cooldown bars a Trigger is
+// the evaluator's rule and lives in one place. The card only compares it to
+// the shared clock, so the badge leaves on its own within 30 s of the
+// Cooldown ending, with no request; a fresh instant arrives with the refetch
+// a `trigger` frame already causes (ticket 28).
+function CooldownUntilBadge({ alert }: { alert: Alert }) {
+  const { t, i18n } = useTranslation()
+  const now = useNow()
+
+  const endsAt = alert.cooldown_ends_at === null ? null : Date.parse(alert.cooldown_ends_at)
+  if (endsAt === null || alert.status !== 'active' || endsAt <= now) return null
+
+  const language = resolvedLanguage(i18n)
+  // Non-breaking spaces inside the time, so a badge narrow enough to wrap
+  // breaks after the words and not in the middle of "11:05 AM". Everything
+  // this holds is one short value; nothing in it is a sentence.
+  const when = formatTimeOfDayOrDate(endsAt, now, language).replaceAll(' ', '\u00a0')
+
+  return (
+    <Tooltip label={formatExact(endsAt, language)} withArrow>
+      <Badge
+        size="xs"
+        variant="light"
+        color="grape"
+        // Wrapping, not Mantine's default ellipsis: the time is the whole
+        // badge, so it is the one thing that must not be cut. The Status slot
+        // is as wide as the card minus the price and the controls — about
+        // 138 px on a 375 px screen, where this text wants 145 — and an end
+        // on the next day is longer still on any screen.
+        styles={{
+          root: { height: 'auto', paddingTop: 2, paddingBottom: 2 },
+          label: { whiteSpace: 'normal', overflow: 'visible', lineHeight: 1.3 },
+        }}
+      >
+        {t('alerts.cooldown.until', { when })}
+      </Badge>
+    </Tooltip>
   )
 }
 
