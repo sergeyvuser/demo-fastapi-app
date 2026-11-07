@@ -86,6 +86,7 @@ class APIV1PrefixConfig(BaseModel):
     triggers: str = "/triggers"
     demo: str = "/demo"
     notifications: str = "/notifications"
+    traces: str = "/traces"
 
 
 class APIPrefixConfig(BaseModel):
@@ -153,6 +154,26 @@ class LinkedChatConfig(BaseModel):
     failure_window_seconds: int = 3600
 
 
+class TracesConfig(BaseModel):
+    """Browser spans, forwarded to the trace store's OTLP/HTTP receiver.
+
+    Port 4318 (OTLP over HTTP), not the gRPC 4317 the services export to: the
+    browser speaks OTLP/HTTP, and forwarding its body unchanged is what lets
+    this side stay ignorant of the format.
+    """
+
+    # 127.0.0.1, not localhost: on Windows the name resolves to ::1 while
+    # Docker publishes on IPv4. The compose file points it at `jaeger`.
+    forward_url: str = "http://127.0.0.1:4318/v1/traces"
+    # Bounds the background work only; the browser never waits for it.
+    forward_timeout_seconds: float = 2.0
+    # One batch of the closed action list is a few KB, ~10 with a stack trace.
+    max_body_bytes: int = 64 * 1024
+    # Per IP per minute: an active tab exports at most every few seconds.
+    rate_limit: int = 30
+    rate_window_seconds: int = 60
+
+
 class Settings(BaseServiceSettings):
     run: RunConfig = RunConfig()
     api: APIPrefixConfig = APIPrefixConfig()
@@ -164,6 +185,7 @@ class Settings(BaseServiceSettings):
     # the API proves a Linked chat by sending it a message
     telegram: TelegramConfig
     linked_chat: LinkedChatConfig = LinkedChatConfig()
+    traces: TracesConfig = TracesConfig()
 
 
 settings = Settings()

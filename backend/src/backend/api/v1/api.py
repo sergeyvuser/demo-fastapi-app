@@ -9,6 +9,7 @@ from .routes.demo import router as demo_router
 from .routes.notifications import router as notifications_router
 from .routes.prices import router as prices_router
 from .routes.symbols import router as symbols_router
+from .routes.traces import router as traces_router
 from .routes.triggers import router as triggers_router
 from .routes.users import router as users_router
 
@@ -22,3 +23,4 @@ router.include_router(triggers_router)
 router.include_router(ws_router)
 router.include_router(demo_router)
 router.include_router(notifications_router)
+router.include_router(traces_router)

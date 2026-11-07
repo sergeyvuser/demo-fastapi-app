@@ -964,6 +964,42 @@
         ]
       }
     },
+    "/api/v1/traces": {
+      "post": {
+        "tags": [
+          "Traces"
+        ],
+        "summary": "Export Traces",
+        "description": "Accept OTLP spans from a signed-in browser and pass them to the trace store.",
+        "operationId": "export_traces_api_v1_traces_post",
+        "requestBody": {
+          "content": {
+            "application/x-protobuf": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [

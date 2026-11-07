@@ -67,3 +67,10 @@ def get_telegram(request: Request) -> TelegramClient:
 
 
 TelegramDep = Annotated[TelegramClient, Depends(get_telegram)]
+
+
+def get_trace_store(request: Request) -> httpx.AsyncClient:
+    return request.app.state.trace_store
+
+
+TraceStoreDep = Annotated[httpx.AsyncClient, Depends(get_trace_store)]

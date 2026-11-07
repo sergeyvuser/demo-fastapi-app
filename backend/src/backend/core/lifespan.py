@@ -40,6 +40,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         local_address=settings.telegram.local_address,
     )
     app.state.telegram = telegram
+    # No base_url: httpx appends "/" to a base path, and the receiver
+    # answers 404 on "/v1/traces/". The route passes the full URL instead.
+    trace_store = httpx.AsyncClient(timeout=settings.traces.forward_timeout_seconds)
+    app.state.trace_store = trace_store
 
     # API process is a taskiq CLIENT: it must connect to the broker to
     # enqueue tasks. The worker/scheduler processes call startup() on
@@ -64,6 +68,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     if not taskiq_broker.is_worker_process:
         await taskiq_broker.shutdown()
     await telegram.aclose()
+    await trace_store.aclose()
     await bybit.aclose()
     await redis.aclose()
     await engine.dispose()

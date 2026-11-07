@@ -62,3 +62,15 @@ class ServiceUnavailableError(AppError):
 
     def __init__(self, detail: str | None = None, *, retry_after: int):
         super().__init__(detail, headers={"Retry-After": str(retry_after)})
+
+
+class ContentTooLargeError(AppError):
+    """RFC 9110 renamed 413 from "Payload Too Large"; the meaning is the same."""
+
+    status_code = 413
+    title = "Content Too Large"
+
+
+class UnsupportedMediaTypeError(AppError):
+    status_code = 415
+    title = "Unsupported Media Type"

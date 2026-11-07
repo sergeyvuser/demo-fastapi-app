@@ -121,6 +121,7 @@ services:
     ports:
       - "127.0.0.1:16686:16686"   # UI
       - "127.0.0.1:4317:4317"     # OTLP gRPC receiver
+      - "127.0.0.1:4318:4318"     # OTLP HTTP receiver: browser spans, via the API
 
   # Per-container metrics: memory split into anonymous and cache, CPU, and the
   # moment each container last started. This is the answer to "why did that
@@ -239,6 +240,8 @@ services:
       <<: *app-env                                        # merge shared block
       APP_CONFIG__RUN__HOST: 0.0.0.0                      # plus service-specific
       APP_CONFIG__RUN__RELOAD: "0"
+      # browser spans go on to the OTLP/HTTP receiver, not the gRPC one
+      APP_CONFIG__TRACES__FORWARD_URL: "http://jaeger:4318/v1/traces"
     ports:
       - "127.0.0.1:8000:8080"
     restart: unless-stopped
