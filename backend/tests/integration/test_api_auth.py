@@ -370,6 +370,61 @@ async def test_a_malformed_correlation_id_is_replaced(
     assert len(used) == 32  # uuid4().hex — minted, not propagated
 
 
+TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736"
+
+
+async def test_the_correlation_id_is_the_incoming_trace_id(
+    api_client: AsyncClient,
+) -> None:
+    # the browser sends a trace and no id of its own: the server names the id
+    response = await api_client.get(
+        "/healthz", headers={"traceparent": f"00-{TRACE_ID}-00f067aa0ba902b7-01"}
+    )
+
+    assert response.headers["x-request-id"] == TRACE_ID
+
+
+async def test_a_trace_wins_over_a_request_id(api_client: AsyncClient) -> None:
+    response = await api_client.get(
+        "/healthz",
+        headers={
+            "traceparent": f"00-{TRACE_ID}-00f067aa0ba902b7-01",
+            "X-Request-ID": "given-by-caller",
+        },
+    )
+
+    assert response.headers["x-request-id"] == TRACE_ID
+
+
+@pytest.mark.parametrize(
+    "traceparent",
+    [
+        b"00-00000000000000000000000000000000-00f067aa0ba902b7-01",
+        b"00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01",
+        b"00-not-a-trace-01",
+        b"ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+        b"\xff\xfe-not-text",
+    ],
+    ids=[
+        "zero-trace-id",
+        "zero-span-id",
+        "malformed",
+        "forbidden-version",
+        "not-decodable",
+    ],
+)
+async def test_an_invalid_trace_is_not_used_as_the_correlation_id(
+    api_client: AsyncClient, traceparent: bytes
+) -> None:
+    response = await api_client.get(
+        "/healthz",
+        headers={b"traceparent": traceparent, b"X-Request-ID": b"given-by-caller"},
+    )
+
+    # falls through to the next rule, not to a half-parsed trace
+    assert response.headers["x-request-id"] == "given-by-caller"
+
+
 async def test_resend_requires_a_session(api_client: AsyncClient) -> None:
     assert (await api_client.post(RESEND)).status_code == 401
 

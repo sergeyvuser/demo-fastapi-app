@@ -3,6 +3,8 @@ import time
 import uuid
 
 from loguru import logger
+from opentelemetry import trace
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from shared.logging import correlation_id
@@ -27,8 +29,36 @@ def _accept_or_mint(incoming: bytes | None) -> str:
     return uuid.uuid4().hex
 
 
+_TRACE_CONTEXT = TraceContextTextMapPropagator()
+
+
+def _trace_id_from(traceparent: bytes | None) -> str | None:
+    """The trace id of a valid incoming `traceparent`, as Jaeger prints it.
+
+    The propagator is the validator: it rejects a wrong version, a malformed
+    field and an all-zero id, and what it rejects yields no valid context.
+    Then the caller's trace id is also the id of its log lines, so a trace
+    found in Jaeger pastes straight into a log search.
+    """
+    if traceparent is None:
+        return None
+    try:
+        value = traceparent.decode("ascii")
+    except UnicodeDecodeError:
+        return None
+    context = _TRACE_CONTEXT.extract({"traceparent": value})
+    span_context = trace.get_current_span(context).get_span_context()
+    if not span_context.is_valid:
+        return None
+    return trace.format_trace_id(span_context.trace_id)
+
+
 class CorrelationIdMiddleware:
-    """Set a correlation id per request: reuse incoming X-Request-ID or mint one."""
+    """Set a correlation id per request.
+
+    In order: the trace id of a valid `traceparent`, an incoming X-Request-ID
+    of the pinned shape, or a fresh one.
+    """
 
     def __init__(self, app: ASGIApp):
         self.app = app
@@ -39,8 +69,9 @@ class CorrelationIdMiddleware:
             return
 
         headers = dict(scope["headers"])
-        incoming = headers.get(b"x-request-id")
-        rid = _accept_or_mint(incoming)
+        rid = _trace_id_from(headers.get(b"traceparent")) or _accept_or_mint(
+            headers.get(b"x-request-id")
+        )
         token = correlation_id.set(rid)
 
         start = time.perf_counter()
