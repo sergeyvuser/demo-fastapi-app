@@ -1,25 +1,29 @@
 import { holdRealtime } from '../realtime/socket'
+import { traced } from '../telemetry/tracing'
 import { api, queryClient } from './client'
 import { endSession, refreshLanded, startSession } from './session'
 
 // Sign-in is an OAuth2 password form, not JSON: the backend takes FastAPI's
 // OAuth2PasswordRequestForm, which is what keeps /docs' "Authorize" button
 // working. The field is called `username` and carries the e-mail address.
-export async function signIn(email: string, password: string): Promise<void> {
-  // The boot refresh may still be in the air. Signing in first and letting
-  // its 401 land afterwards would end the session that was just started.
-  // A retry that leaves later is dropped by the session itself.
-  await refreshLanded()
-  const { data } = await api.POST('/api/v1/auth/login', {
-    // `scope` has a server default, and openapi-typescript types a field
-    // with a default as present; empty is what the default is.
-    body: { username: email, password, scope: '' },
-    // openapi-fetch's default serializer switches to URL encoding on this
-    // header alone; without it the body goes out as JSON and the API says 422.
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+// The wait for the boot refresh is inside the span: the person waits for it too.
+export function signIn(email: string, password: string): Promise<void> {
+  return traced('auth.sign_in', async (trace) => {
+    // The boot refresh may still be in the air. Signing in first and letting
+    // its 401 land afterwards would end the session that was just started.
+    // A retry that leaves later is dropped by the session itself.
+    await refreshLanded()
+    const { data } = await api.POST('/api/v1/auth/login', {
+      // `scope` has a server default, and openapi-typescript types a field
+      // with a default as present; empty is what the default is.
+      body: { username: email, password, scope: '' },
+      // openapi-fetch's default serializer switches to URL encoding on this
+      // header alone; without it the body goes out as JSON and the API says 422.
+      headers: { ...trace, 'Content-Type': 'application/x-www-form-urlencoded' },
+    })
+    // Every non-2xx is thrown by the middleware, so here the body is there.
+    startSession(data!.access_token, data!.expires_in)
   })
-  // Every non-2xx is thrown by the middleware, so here the body is there.
-  startSession(data!.access_token, data!.expires_in)
 }
 
 // The server is told first, while the bearer token is still in hand — logout

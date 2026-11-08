@@ -56,6 +56,7 @@ import { quoteAsset } from '../prices/CoinMark'
 import { Price } from '../prices/Price'
 import { usePrecision, useQuote, useSymbols } from '../prices/store'
 import { ButtonLink } from '../shell/links'
+import { traced } from '../telemetry/tracing'
 import { ServerError, useServerError } from './ServerError'
 
 const newRoute = getRouteApi('/signed-in/alerts/new')
@@ -212,7 +213,9 @@ function AlertForm({ mode, title, initial, original, cloneMissing = false }: For
         // one to open the Alert should load the copy the server now holds.
         queryClient.removeQueries({ queryKey: ONE_ALERT_KEY })
       } else {
-        await api.POST('/api/v1/alerts', { body: toCreateBody(submitted) })
+        await traced('alert.create', (trace) =>
+          api.POST('/api/v1/alerts', { body: toCreateBody(submitted), headers: trace }),
+        )
       }
       await leave()
     } catch (error) {

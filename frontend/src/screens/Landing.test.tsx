@@ -1,3 +1,4 @@
+import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { act, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,6 +8,7 @@ import { formatTimeOfDay } from '../i18n/time'
 import { resetPrices } from '../prices/store'
 import { createAppRouter } from '../router'
 import { AUTHOR } from '../shell/Footer'
+import { installTracing, uninstallTracing } from '../telemetry/tracing'
 import { renderWithProviders } from '../testing/render'
 
 type Item = {
@@ -20,6 +22,8 @@ const BTC: Item = { symbol: 'BTCUSDT', price: '81794.5', reference_price: '80000
 const ETH: Item = { symbol: 'ETHUSDT', price: null, reference_price: '2514.57', precision: 2 }
 
 let symbolRequests = 0
+// symbols requests that went out carrying a trace
+let tracedSymbolRequests = 0
 let items: Item[] = [BTC, ETH]
 // the API not answering the symbols list at all
 let symbolsDown = false
@@ -29,6 +33,7 @@ let answers: Record<string, (request: Request) => Response | Promise<Response>>
 
 beforeEach(() => {
   symbolRequests = 0
+  tracedSymbolRequests = 0
   items = [BTC, ETH]
   symbolsDown = false
   answers = {}
@@ -39,6 +44,7 @@ beforeEach(() => {
     const { pathname } = new URL(request.url)
     if (pathname === '/api/v1/symbols') {
       symbolRequests += 1
+      if (request.headers.has('traceparent')) tracedSymbolRequests += 1
       if (symbolsDown) return Promise.resolve(new Response(null, { status: 503 }))
       return Promise.resolve(Response.json({ items }))
     }
@@ -79,6 +85,23 @@ describe('the Landing', () => {
     await act(() => vi.advanceTimersByTimeAsync(10_000))
     expect(symbolRequests).toBe(3)
     expect(sockets).not.toHaveBeenCalled()
+  })
+
+  // The poll is the flood the hand-written list of traced actions exists to
+  // keep out: one span every ten seconds per open tab, forever.
+  it('polls without tracing: no span, no trace on the request', async () => {
+    const spans = new InMemorySpanExporter()
+    installTracing(new SimpleSpanProcessor({ exporter: spans }))
+    try {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      renderLanding()
+      await act(() => vi.advanceTimersByTimeAsync(30_100))
+      expect(symbolRequests).toBe(4)
+      expect(tracedSymbolRequests).toBe(0)
+      expect(spans.getFinishedSpans()).toEqual([])
+    } finally {
+      await uninstallTracing()
+    }
   })
 
   it('shows a moved price after the next poll, in the strip and the card alike', async () => {

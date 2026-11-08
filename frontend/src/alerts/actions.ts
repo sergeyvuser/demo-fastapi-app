@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../api/client'
 import { ApiError } from '../api/problem'
 import { ALL_TRIGGERS_KEY } from '../history/feed'
+import { traced } from '../telemetry/tracing'
 import type { Alert } from './list'
 import { ALERTS_QUERY_KEY, ALERTS_WRITE_KEY as WRITE_KEY } from './query'
 
@@ -39,19 +40,28 @@ export function restoreAlert(alerts: readonly Alert[], alert: Alert): Alert[] {
 // person on the demo account. That is the outcome the person asked for, so
 // it is a success: arguing with reality would put back a card for an Alert
 // that no longer exists.
-export async function deleteAlert(id: string): Promise<void> {
-  try {
-    await api.DELETE('/api/v1/alerts/{alert_id}', { params: { path: { alert_id: id } } })
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) return
-    throw error
-  }
+// The 404 is settled inside the span, so the trace records a success too.
+export function deleteAlert(id: string): Promise<void> {
+  return traced('alert.delete', async (trace) => {
+    try {
+      await api.DELETE('/api/v1/alerts/{alert_id}', {
+        params: { path: { alert_id: id } },
+        headers: trace,
+      })
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) return
+      throw error
+    }
+  })
 }
 
-export async function setAlertStatus(id: string, status: Switchable): Promise<void> {
-  await api.PATCH('/api/v1/alerts/{alert_id}', {
-    params: { path: { alert_id: id } },
-    body: { status },
+export function setAlertStatus(id: string, status: Switchable): Promise<void> {
+  return traced(status === 'paused' ? 'alert.pause' : 'alert.resume', async (trace) => {
+    await api.PATCH('/api/v1/alerts/{alert_id}', {
+      params: { path: { alert_id: id } },
+      body: { status },
+      headers: trace,
+    })
   })
 }
 

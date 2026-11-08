@@ -21,6 +21,7 @@ import { Verify } from './screens/Verify'
 import { AppShell } from './shell/AppShell'
 import { BannerSlot } from './shell/BannerSlot'
 import { SessionPending } from './shell/SessionPending'
+import { reportError } from './telemetry/tracing'
 
 // What the guards read. Passed in rather than imported, so a test can hand
 // the router a boot that never settles and see what renders meanwhile.
@@ -200,7 +201,9 @@ const routeTree = rootRoute.addChildren([
 ])
 
 export function createAppRouter(context: RouterContext, history?: RouterHistory) {
-  return createRouter({ routeTree, context, history })
+  // A render crash is caught by the router's own error boundary and never
+  // reaches `window`, so it is reported from here.
+  return createRouter({ routeTree, context, history, defaultOnCatch: reportError })
 }
 
 // The application's own, wired to the real session. A test builds its own

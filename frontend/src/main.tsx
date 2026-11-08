@@ -14,11 +14,14 @@ import { bootSession } from './api/session'
 import { i18n } from './i18n'
 import { startRealtime } from './realtime/socket'
 import { createSessionRouter } from './router'
+import { startTracing } from './telemetry/tracing'
 import { colorSchemeManager, theme } from './theme'
 
 // Before the first render, not from inside it: every page load starts with a
 // refresh, and the Landing has no reason to be the one that triggers it. The
 // signed-in guard awaits this same promise; nothing else waits for it.
+// First of all, so an error thrown by anything below is already reported.
+startTracing()
 void bootSession()
 // Beside it, for the same reason: the socket follows the session, not a
 // screen, and opens once the boot finds one.
