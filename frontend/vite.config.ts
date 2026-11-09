@@ -1,5 +1,5 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -19,6 +19,9 @@ export default defineConfig({
     // The application is a browser one: the language switch is storage plus a
     // re-render, and the one clock listens for `visibilitychange`.
     environment: 'jsdom',
+    // e2e/ is Playwright's, and its *.spec.ts match Vitest's default pattern:
+    // left in, Vitest would run them under jsdom and fail on the first import.
+    exclude: [...configDefaults.exclude, 'e2e/**'],
     // jsdom costs a few hundred milliseconds to create, and the default pool
     // creates it again for every file — over half of the run. vmThreads builds
     // it once per worker and still gives every file a fresh window and fresh

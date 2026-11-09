@@ -95,10 +95,11 @@ export default tseslint.config(
   },
 
   {
-    // Configuration and Node-side files at the root: they need the
+    // Configuration and Node-side files at the root, and the e2e specs, which
+    // run in Node and drive the browser from outside: they need the
     // TypeScript parser, but none of the rules that ask the type checker —
     // they belong to the Node tsconfig, not to the application's.
-    files: ['*.{js,ts}'],
+    files: ['*.{js,ts}', 'e2e/**/*.ts'],
     extends: [js.configs.recommended, tseslint.configs.base],
     languageOptions: { globals: globals.node },
   },

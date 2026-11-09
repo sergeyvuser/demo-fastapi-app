@@ -23,5 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 
+# Playwright's output: the HTML report and the traces of a failed run
+playwright-report/
+test-results/
+
 # Derived from openapi.json and ws.openapi.json by `npm run generate`
 src/api/generated/
