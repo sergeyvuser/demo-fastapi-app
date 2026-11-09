@@ -94,8 +94,14 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: docker/setup-buildx-action@v4.2.0
 
+      # Images are pushed on pull requests too: the e2e job below runs the
+      # pushed images, and on a PR there would otherwise be none anywhere —
+      # buildx would build and discard. What keeps a PR away from production
+      # is the deploy job's own condition, not the absence of images.
+      #
+      # A PR from a fork gets a read-only GITHUB_TOKEN and fails here; this
+      # repository takes none, and the failure would be loud, not silent.
       - uses: docker/login-action@v4.6.0
-        if: github.event_name == 'push'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -105,8 +111,18 @@ jobs:
         uses: docker/metadata-action@v6.2.0
         with:
           images: ghcr.io/${{ github.repository }}/${{ matrix.service }}
+          # The e2e job pulls by `sha-${GITHUB_SHA:0:7}`, and that only works
+          # because of a detail that reads backwards: on a pull request
+          # `type=sha` is the MERGE commit's SHA — the same value as
+          # github.sha in every job of the run — not the head of the branch.
+          # Setting DOCKER_METADATA_PR_HEAD_SHA=true would flip it and break
+          # the e2e pull; it is deliberately not set.
+          #
+          # `pr-<n>` names a PR's latest images for a human; `latest` stays
+          # on the default branch only.
           tags: |
             type=sha,format=short,prefix=sha-
+            type=ref,event=pr
             type=raw,value=latest,enable={{is_default_branch}}
 
       - uses: docker/build-push-action@v7.3.0
@@ -114,19 +130,67 @@ jobs:
           context: .
           file: ${{ matrix.service }}/Dockerfile
           platforms: linux/amd64
-          push: ${{ github.event_name == 'push' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
+  # The gate: the images just pushed, composed by deploy/compose.ci.yaml behind
+  # the production Caddyfile, driven by Playwright. Runs on pull requests as
+  # well — a gate that stands only on main stands where fixing is already too
+  # late: the PR is merged, main sits undeployed and the author has moved on.
+  e2e:
     needs: [ build ]
-    # Pull requests never reach here: `on: push` is already limited to main, and
-    # build only pushes images on a push event. So "a red check cannot deploy"
-    # is enforced by the graph — needs: build, and build needs the four checks —
-    # rather than by a condition someone could get wrong.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      # Chromium only: this gate protects production, not a browser matrix.
+      # --with-deps installs the system libraries the browser needs.
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+
+      # The images of this very run, by the tag the build job gave them (see
+      # the note on `type=sha` there). Packages are public, so no login.
+      - name: Bring the e2e stack up
+        run: make e2e-up IMAGE_TAG="sha-${GITHUB_SHA:0:7}"
+
+      # CI=true is set by Actions: one retry, the GitHub reporter, and traces
+      # recorded on the retry (frontend/playwright.config.ts).
+      - run: npx playwright test
+        working-directory: frontend
+
+      # Half the failures here will not be about the browser, and the
+      # database dies with the job — what is uploaded is the only witness.
+      - name: Collect compose logs
+        if: failure()
+        run: make e2e-logs IMAGE_TAG="sha-${GITHUB_SHA:0:7}" > compose.log 2>&1
+      - uses: actions/upload-artifact@v7.0.2
+        if: failure()
+        with:
+          name: e2e-failure
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+            compose.log
+          retention-days: 14
+
+  deploy:
+    needs: [ build, e2e ]
+    # Pull requests never reach here, and this condition is what says so:
+    # since the gate above needs images on a PR, build pushes on every event,
+    # so the absence of images no longer locks production — this line does.
+    # "A red check cannot deploy" is still enforced by the graph — needs:
+    # build and e2e, and build needs the five checks — rather than by a
+    # condition someone could get wrong.
     if: github.event_name == 'push'
     uses: ./.github/workflows/deploy.yml
     with:
