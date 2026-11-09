@@ -1,0 +1,212 @@
+# The e2e stack: the images that will be deployed, behind the production
+# Caddyfile, in a compose project of its own. Layered over the BASE file, never
+# over the production overlay — that one carries ACME, memory limits and the
+# invariants tests/deploy/test_compose_prod.py guards, none of which a test run
+# wants.
+#
+#   make e2e-up      # brings it up (IMAGE_TAG=local unless told otherwise)
+#   make e2e-clean   # takes it down, volumes included
+#
+# `name:` below makes it its own project: the project name from the LAST file
+# wins, so these are separate containers, a separate network and separate
+# volumes — a separate Postgres. A development stack running beside it is never
+# touched, and the database a run leaves behind is disposable, which is why no
+# test ever has to clean up after itself.
+#
+# Configuration comes from .env.example, for both purposes at once:
+#   * `--env-file .env.example` (in the Makefile) feeds ${...} substitution —
+#     the database and broker credentials of the infrastructure containers;
+#   * `env_file: .env.example` (below) feeds the application containers.
+# A developer's real .env — with a real bot token in it — is read by neither,
+# so a local run and a CI run see the same environment.
+#
+# Only part of the base file runs: no ingestor (the test publishes Ticks
+# itself — the upstream refuses US egress, and a hosted runner is US) and no
+# observability; both are switched off by profile further down.
+#
+# `!reset` / `!override` are written out per service: through a YAML anchor the
+# tag is silently dropped and the base value survives (see compose.prod.yaml).
+
+name: crypto-alerts-e2e
+
+x-backend-image: &backend-image ghcr.io/sergeyvuser/demo-fastapi-app/backend:${IMAGE_TAG:?set IMAGE_TAG}
+x-notifier-image: &notifier-image ghcr.io/sergeyvuser/demo-fastapi-app/notifier:${IMAGE_TAG:?set IMAGE_TAG}
+x-frontend-image: &frontend-image ghcr.io/sergeyvuser/demo-fastapi-app/frontend:${IMAGE_TAG:?set IMAGE_TAG}
+
+# Merged over the base x-app-env block in every application service.
+x-ci-env: &ci-env
+  # The origin the browser uses — the edge as published below, exactly.
+  # Verification mail carries links built from it; any other value and the
+  # first journey of the suite follows a link the browser cannot open.
+  APP_CONFIG__RUN__PUBLIC_URL: http://127.0.0.1:8090
+  # No trace store in this stack. Left on, every service spends the run
+  # retrying an exporter pointed at a host that does not exist.
+  APP_CONFIG__OTEL__ENABLED: "0"
+  # The demo path is one of the journeys, and this is the only place the
+  # seeder ever runs before production.
+  #
+  # example.com, like every account the suite creates — not .test. Both are
+  # reserved by RFC 2606, but email-validator refuses the special-use TLDs
+  # (.test, .local, .invalid…) outright, so a .test address is a 422 at
+  # registration and a crashed seeder here (found on the first run).
+  # example.com publishes a null MX, so nothing could be delivered there even
+  # if mail ever left this stack — which it does not: it stops in Mailpit.
+  APP_CONFIG__DEMO__ENABLED: "1"
+  APP_CONFIG__DEMO__EMAIL: demo@example.com
+  APP_CONFIG__DEMO__PASSWORD: demo-e2e-password
+  # Registration is limited to 3 per 5 minutes keyed on IP alone, and every
+  # spec registers a fresh account from behind one proxy — the fourth spec
+  # would fail, depending on how often the run was retried. Raised here only;
+  # the limiter itself is asserted in backend/tests/integration/test_api_auth.py.
+  APP_CONFIG__AUTH__REGISTER_RATE_LIMIT: "1000"
+
+services:
+  # --- infrastructure: nothing published, found by name inside the project ---
+  db:
+    ports: !reset [ ]
+
+  redis:
+    ports: !reset [ ]
+
+  rabbitmq:
+    # The tick fixture publishes here. The management UI stays unpublished.
+    ports: !override
+      - "127.0.0.1:5673:5672"
+
+  mailpit:
+    # A participant here, not a developer tool: the Verification mail is read
+    # out of it. SMTP stays inside the project; only the HTTP API is published.
+    profiles: !reset [ ]
+    ports: !override
+      - "127.0.0.1:8026:8025"
+
+  # --- our code, from the published images --------------------------------
+  migrate:
+    image: *backend-image
+    build: !reset null
+    env_file: !override
+      - .env.example
+
+  # One-shot, exists only in overlays: restated here as in compose.prod.yaml,
+  # because a YAML anchor does not cross files and the base x-app-env block is
+  # out of reach. Unlike production, `up --wait` fails the run if it fails —
+  # a seeder that breaks should break here first.
+  seed-demo:
+    image: *backend-image
+    command: [ "python", "-m", "backend.seed_demo" ]
+    env_file:
+      - .env.example
+    environment:
+      <<: *ci-env
+      APP_CONFIG__DB__HOST: db
+      APP_CONFIG__LOG__JSON_FORMAT: "1"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    image: *backend-image
+    build: !reset null
+    develop: !reset { }
+    ports: !reset [ ]            # reached through the edge only, as in production
+    env_file: !override
+      - .env.example
+    environment:
+      <<: *ci-env
+
+  evaluator:
+    image: *backend-image
+    build: !reset null
+    env_file: !override
+      - .env.example
+    environment:
+      <<: *ci-env
+
+  worker:
+    image: *backend-image
+    build: !reset null
+    env_file: !override
+      - .env.example
+    environment:
+      <<: *ci-env
+
+  scheduler:
+    image: *backend-image
+    build: !reset null
+    env_file: !override
+      - .env.example
+    environment:
+      <<: *ci-env
+
+  notifier:
+    image: *notifier-image
+    build: !reset null
+    env_file: !override
+      - .env.example
+    environment:
+      <<: *ci-env
+
+  # --- not part of this stack ---------------------------------------------
+  # Switched off with a profile nobody activates, rather than by leaving them
+  # out of a service list: a plain `up` then starts exactly the stack, and
+  # nothing here can claim a development port by accident.
+  #
+  # The ingestor also needs its env_file replaced: compose resolves env files
+  # of every service while loading the project — profiled out or not — and a
+  # CI runner has no .env (checked: "env file .env not found").
+  ingestor:
+    profiles: [ not-in-e2e ]
+    build: !reset null
+    image: ghcr.io/sergeyvuser/demo-fastapi-app/ingestor:${IMAGE_TAG:?set IMAGE_TAG}
+    env_file: !override
+      - .env.example
+
+  prometheus: { profiles: [ not-in-e2e ] }
+  grafana: { profiles: [ not-in-e2e ] }
+  jaeger: { profiles: [ not-in-e2e ] }
+  cadvisor: { profiles: [ not-in-e2e ] }
+  node-exporter: { profiles: [ not-in-e2e ] }
+
+  # The bundle behind its own Caddy, as in production. The healthcheck is the
+  # production one: `up --wait` holds until the shell actually comes back.
+  frontend:
+    image: *frontend-image
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # The edge, running the production Caddyfile. Both site addresses are
+  # replaced: `:80` serves the app on any Host, and the http:// scheme keeps
+  # the Grafana site from asking Let's Encrypt for a certificate (see the top
+  # of the Caddyfile). The image tag must match compose.prod.yaml —
+  # tests/deploy/test_compose_ci.py holds the two together.
+  caddy:
+    image: caddy:2.11.4-alpine
+    ports:
+      - "127.0.0.1:8090:80"      # Playwright's baseURL
+    environment:
+      ALERTS_SITE: ":80"
+      GRAFANA_SITE: "http://grafana.localhost"
+      # Both are required by the global block — an empty `email` or `acme_ca`
+      # is a parse error — and neither is ever contacted: no site here has a
+      # name that would need a certificate.
+      ACME_EMAIL: nobody@example.com
+      ACME_CA: https://acme.invalid/directory
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+    # Unlike production, the door waits for everything — including the
+    # seeder, and that one is load-bearing twice over. A seeder that fails
+    # must fail the run here, before it fails a deploy. And `up --wait`
+    # (Compose 2.40) reports a one-shot service that exits — even with 0 — as
+    # a failure unless some other service waits for its completion: reproduced
+    # on three cold starts out of three, while `migrate`, which others wait
+    # for, never tripped it.
+    depends_on:
+      api:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+      seed-demo:
+        condition: service_completed_successfully

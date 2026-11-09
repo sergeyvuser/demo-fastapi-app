@@ -128,4 +128,37 @@ front-types: ## Generate the API types and type-check the frontend
 
 front-test: ## Vitest over the frontend
 	cd frontend && npm test
+
+# --- e2e: the deployable images behind the production Caddyfile -------------
+# A compose project of its own (deploy/compose.ci.yaml names it), so it runs
+# beside the development stack without touching it. CI passes the tag of the
+# images it has just pushed; locally the default is `local`, built by e2e-build
+# from the same Dockerfiles, so uncommitted work can be run through the gate.
+IMAGE_TAG ?= local
+E2E_REGISTRY := ghcr.io/sergeyvuser/demo-fastapi-app
+# COMPOSE_PROFILES is emptied: the `tools` exported above would otherwise drag
+# pgadmin in. --env-file replaces the implicit .env, which is never read here.
+E2E_COMPOSE := COMPOSE_PROFILES= IMAGE_TAG=$(IMAGE_TAG) docker compose \
+	-f compose.yaml -f deploy/compose.ci.yaml --env-file .env.example
+
+.PHONY: e2e e2e-build e2e-up e2e-test e2e-logs e2e-clean
+
+e2e-build: ## Build the images the e2e stack runs, tagged IMAGE_TAG (default: local)
+	docker build -f backend/Dockerfile -t $(E2E_REGISTRY)/backend:$(IMAGE_TAG) .
+	docker build -f notifier/Dockerfile -t $(E2E_REGISTRY)/notifier:$(IMAGE_TAG) .
+	docker build -f frontend/Dockerfile -t $(E2E_REGISTRY)/frontend:$(IMAGE_TAG) .
+
+e2e-up: ## Bring the e2e stack up and wait until it is healthy
+	$(E2E_COMPOSE) up -d --wait --wait-timeout 180
+
+e2e-test: ## Run the Playwright specs against a running e2e stack
+	cd frontend && npx playwright test
+
+e2e: e2e-up e2e-test ## Bring the e2e stack up and run the specs
+
+e2e-logs: ## Every log of the e2e stack, oldest first
+	$(E2E_COMPOSE) logs --no-color --timestamps
+
+e2e-clean: ## Take the e2e stack down, its database and broker volumes included
+	$(E2E_COMPOSE) down -v --remove-orphans
 	
