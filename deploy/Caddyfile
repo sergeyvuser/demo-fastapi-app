@@ -2,10 +2,20 @@
 # ports at all, so what is described here is the whole public surface.
 #
 # Mounted read-only at /etc/caddy/Caddyfile by deploy/compose.prod.yaml. The
-# hostnames are literals — they are public DNS records anyway — while the two
-# ACME settings arrive as container environment: a personal address stays out
-# of a public repository, and the staging endpoint can be switched on for a
+# two ACME settings arrive as container environment: a personal address stays
+# out of a public repository, and the staging endpoint can be switched on for a
 # rehearsal without editing a file that travels with the commit.
+#
+# The two site addresses are placeholders with the production names as their
+# defaults, so production sets nothing. They exist for the e2e stack
+# (deploy/compose.ci.yaml), which runs THIS file rather than a copy of its
+# routes — a copy would drift, and the tests would then assert things about a
+# proxy that does not exist. CI gives both an address with a port or an
+# http:// scheme, and either one switches certificate issuance off for that
+# site on its own. Both sites, not just the app: a hostname left as it is would
+# send every CI run to Let's Encrypt for grafana.vorobev.dev, and failed
+# validations are counted per hostname — the very limit production renewals
+# depend on.
 {
 	email {$ACME_EMAIL}
 
@@ -54,7 +64,7 @@
 	}
 }
 
-alerts.vorobev.dev {
+{$ALERTS_SITE:alerts.vorobev.dev} {
 	import edge
 
 	# Two paths that must not be public. Both are fixed in the application as
@@ -111,7 +121,7 @@ alerts.vorobev.dev {
 	}
 }
 
-grafana.vorobev.dev {
+{$GRAFANA_SITE:grafana.vorobev.dev} {
 	import edge
 
 	# `handle` rather than a bare directive: the snippet now brings a handle
