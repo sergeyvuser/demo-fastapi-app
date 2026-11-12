@@ -103,4 +103,18 @@ export default tseslint.config(
     extends: [js.configs.recommended, tseslint.configs.base],
     languageOptions: { globals: globals.node },
   },
+
+  {
+    // TypeScript among those: the core rules that cannot read types (a
+    // parameter named in a function type is not an unused variable) give way
+    // to their TypeScript versions. An argument starting with `_` is unused on
+    // purpose — a spec asks for a fixture like `account` for what it does to
+    // the browser context, not for its value.
+    files: ['*.ts', 'e2e/**/*.ts'],
+    extends: [tseslint.configs.eslintRecommended],
+    rules: {
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    },
+  },
 )
