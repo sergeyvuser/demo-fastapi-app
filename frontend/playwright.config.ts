@@ -8,6 +8,7 @@ const CI = Boolean(process.env.CI)
 
 export default defineConfig({
   testDir: './e2e',
+  globalSetup: './e2e/global-setup.ts',
   // One at a time, in CI and locally. Accounts are fresh per spec, but the
   // ticks exchange is global: a Tick for one Symbol reaches every Alert of
   // every User, so two specs pushing prices would fire each other's Alerts.
