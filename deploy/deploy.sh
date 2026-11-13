@@ -318,3 +318,94 @@ write_env "$tag" "$previous_tag" ok
 printf '%s\n' "$networks_now" > .deploy.networks
 
 log "deployed $tag — rollback target is ${previous_tag:-none}"
+
+# --- after the record: smoke check -------------------------------------------
+#
+# The first check of any kind that the deploy sees the product the way a
+# visitor does. `up --wait` waits only on healthchecks, and the demo seeder
+# deliberately has no completion condition, so until now a seeder that exited 1
+# left a green deploy behind it (stage 12 did exactly that).
+#
+# It runs after the record on purpose. From here a failure cannot roll back,
+# cannot touch PREVIOUS_IMAGE_TAG and cannot hold up a release: it only exits
+# non-zero, which turns the CI job red. The site stands, the pipeline burns, a
+# human fixes it. It lives in this script rather than beside the e2e job
+# because not every deploy comes through the pipeline — the dispatch rollback
+# and a human over ssh run this file too.
+#
+# What it does not promise: it is true at deploy time, not continuously.
+
+# The ERR trap reports a stack that did not come up, and this one just did.
+# Left armed, it would print DEPLOY FAILED over a recorded deploy and dump the
+# state of containers that --wait has just called healthy.
+trap - ERR
+
+# The address a visitor uses, taken from the file that configures it, so the
+# check cannot drift from the site it is checking.
+public_url="$(sed -n 's/^ *APP_CONFIG__RUN__PUBLIC_URL: *//p' deploy/compose.prod.yaml)"
+
+smoke_fail() { log "SMOKE FAILED: $*"; exit 1; }
+
+[[ -n "$public_url" ]] || smoke_fail "no APP_CONFIG__RUN__PUBLIC_URL in deploy/compose.prod.yaml"
+
+smoke_dir="$(mktemp -d)"
+trap 'rm -rf "$smoke_dir"' EXIT
+body="$smoke_dir/body"
+cookies="$smoke_dir/cookies"
+: > "$cookies"
+
+# smoke <step> <expected status> <path> [extra curl options...]
+#
+# One request through the public URL, with a cookie jar shared between calls the
+# way a browser shares one: login sets the refresh cookie, logout sends it back.
+# The response body is left in $body for the caller to look into.
+smoke() {
+  local step="$1" expected="$2" path="$3" status
+  shift 3
+  # -w prints the status even when the connection fails (as 000), but curl then
+  # exits non-zero, and under set -e that would end the script with no message.
+  status="$(curl -sS --max-time 15 -o "$body" -w '%{http_code}' \
+    -c "$cookies" -b "$cookies" "$@" "$public_url$path")" || status="${status:-000}"
+  [[ "$status" == "$expected" ]] \
+    || smoke_fail "$step: expected HTTP $expected, got $status: $(head -c 300 "$body" 2>/dev/null)"
+  log "smoke: $step — $status"
+}
+
+# json_field <name> — a string field of the last response body. sed, not jq:
+# this server has no jq. Good enough for FastAPI's compact JSON and for values
+# without quotes in them, which is all this check reads.
+json_field() { sed -n "s/.*\"$1\":\"\([^\"]*\)\".*/\1/p" "$body"; }
+
+log "smoke check against $public_url"
+
+# Nobody had ever checked that the server serves the bundle after this script
+# runs. A 200 alone is not enough: an error page is a 200 too.
+smoke "app shell" 200 /
+grep -q '<div id="root">' "$body" \
+  || smoke_fail "app shell: GET / answered 200, but not with the app's page"
+
+# The same request the Landing page makes, and the pair it publishes is the pair
+# that is tried below — so the check covers the whole claim "the published
+# credentials open the account", not just "the endpoint answers".
+smoke "demo account" 200 /api/v1/demo
+if grep -q '"enabled":false' "$body"; then
+  log "smoke: the demo account is disabled in this deployment, nothing to sign in with"
+  log "smoke check passed"
+  exit 0
+fi
+demo_email="$(json_field email)"
+demo_password="$(json_field password)"
+[[ -n "$demo_email" && -n "$demo_password" ]] \
+  || smoke_fail "demo account: enabled, but the answer carries no credentials"
+
+smoke "sign in as $demo_email" 200 /api/v1/auth/login \
+  --data-urlencode "username=$demo_email" --data-urlencode "password=$demo_password"
+access_token="$(json_field access_token)"
+[[ -n "$access_token" ]] || smoke_fail "sign in: 200 without an access token"
+
+# Sign out with the refresh cookie from the jar, so the check leaves no session
+# row behind on an account every visitor shares.
+smoke "sign out" 204 /api/v1/auth/logout \
+  -X POST -H "Authorization: Bearer $access_token"
+
+log "smoke check passed"
