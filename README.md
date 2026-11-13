@@ -5,9 +5,9 @@
 Async price-alert service for crypto markets. Users register, create alerts
 ("BTCUSDT above 120k"), an ingestor streams Bybit tickers into RabbitMQ, an
 evaluator matches ticks against active alerts, a notifier delivers Telegram
-alerts, and background jobs send email (verification, daily digest). A
-`/api/v1/ws` endpoint streams live ticks and Triggers to clients — ready for a
-realtime dashboard frontend.
+alerts, and background jobs send email (verification, daily digest). A React
+UI shows live prices, the Alerts and the History of their Triggers, kept current
+over one WebSocket (`/api/v1/ws`), in English and Russian.
 
 > Learning project: built stage by stage to practice a modern async Python
 > stack. See [Roadmap](#roadmap) for what is real today vs planned.
@@ -46,6 +46,8 @@ Three things are worth knowing before you click:
 | Cache         | Redis (price cache, rate limiting, dedup, result backend)                                                 |
 | Email         | aiosmtplib + Mailpit (dev SMTP sandbox)                                                                   |
 | Observability | Prometheus + Grafana (metrics), structured JSON logs with correlation id, OpenTelemetry + Jaeger (traces) |
+| Frontend      | React 19 + Vite + TypeScript, Mantine, TanStack Router + Query, i18next; types generated from the OpenAPI |
+| Testing       | pytest + testcontainers, Vitest + jsdom, Playwright end-to-end against the deployable images              |
 
 ## Repository layout
 
@@ -64,11 +66,15 @@ Three things are worth knowing before you click:
 ├── ingestor/         # Bybit WS → RabbitMQ ticks
 ├── notifier/         # alert events → Telegram
 ├── shared/           # event schemas, broker topology, shared infra config
+├── frontend/         # React UI, served by its own image; e2e/ holds the Playwright journeys
+├── deploy/           # production overlay, Caddyfile, deploy/backup scripts, systemd units
 ├── observability/    # prometheus config, grafana provisioning (datasource, dashboards)
-├── .github/workflows/ # CI: lint, types, tests, secret scan, image builds
+├── docs/adr/         # architecture decisions
+├── .github/workflows/ # CI: lint, types, tests, secret scan, image builds, e2e gate, deploy
 ├── compose.yaml      # db, redis, rabbitmq, migrate, api, evaluator, ingestor, notifier,
-│                     #   worker, scheduler, prometheus, grafana, jaeger
-│                     #   + `tools` profile: mailpit, pgadmin
+│                     #   worker, scheduler, prometheus, grafana, jaeger, cadvisor,
+│                     #   node-exporter + `tools` profile: mailpit, pgadmin
+│                     #   (the frontend runs from `make front-dev` in development)
 ├── conftest.py       # test env + fixtures shared by every package
 ├── .gitleaks.toml    # secret-scanner rules
 ├── Makefile          # dev entrypoints (see `make`)
@@ -96,6 +102,7 @@ make up          # build + start the full stack (migrations run automatically)
 ```
 
 - API & Swagger: http://127.0.0.1:8000/api/docs
+- UI: `make front-install` once, then `make front-dev` and open the address Vite prints
 - RabbitMQ UI: http://127.0.0.1:15672
 - Mailpit (caught emails): http://127.0.0.1:8025
 - Grafana (dashboards): http://127.0.0.1:3000
@@ -130,6 +137,7 @@ make run         # API on http://127.0.0.1:8080
 | `make evaluator` / `ingestor` / `notifier` | run a stream service locally                             |
 | `make worker` / `make scheduler`           | taskiq worker / scheduler locally                        |
 | `make lint` / `make format`                | ruff (whole workspace)                                   |
+| `make lint-sh` / `make lint-actions`       | ShellCheck over the scripts / actionlint over workflows  |
 | `make types`                               | mypy (blocking in CI)                                    |
 | `make test`                                | full suite (starts throwaway containers)                 |
 | `make test-unit` / `make test-integration` | fast slice without Docker / Docker-backed only           |
@@ -257,7 +265,7 @@ redacted from span attributes before export.
 
 ## Tests & CI (implemented)
 
-53 tests in five layers, each catching what the layer below cannot:
+345 backend tests in five layers, each catching what the layer below cannot:
 
 | Layer              | Backed by                         | Catches                                        |
 |--------------------|-----------------------------------|------------------------------------------------|
@@ -277,11 +285,23 @@ make test-unit   # ~1s, no Docker
 make test        # everything
 ```
 
-CI runs six jobs in parallel on every push: `lint` (ruff check + format),
-`types` (mypy), `test`, `secrets` (gitleaks over the **full history**), and
-image builds for all three services. There is no separate "migrations are up
-to date" job — a test asserts that models and migrations agree against a live
-database.
+The frontend has its own 356 Vitest tests under jsdom (`make front-test`), and five Playwright
+specs drive a real browser through the journeys that cross every service — registration,
+the demo account, a Trigger reaching its card and History, the session surviving a reload, and
+what the edge serves (`make e2e-build e2e-up e2e-test`).
+
+CI on every push and pull request, as a graph rather than a list:
+
+- **Checks, in parallel:** `lint` (ruff check + format, ShellCheck over the deploy scripts,
+  actionlint over the workflows), `types` (mypy), `test`, `secrets` (gitleaks over the
+  **full history**), and `frontend` (types regenerated from the API's schema, Prettier, ESLint,
+  `tsc`, Vitest).
+- **`build`**, only after all five: the four images — backend, ingestor, notifier, frontend.
+- **`e2e`**, the gate: the Playwright specs against exactly those images.
+- **`deploy`**, on `main` only, after the gate.
+
+There is no separate "migrations are up to date" job — a test asserts that models and migrations
+agree against a live database.
 
 ## Deployment (implemented)
 
@@ -369,31 +389,19 @@ MIT — see [LICENSE](LICENSE).
 
 ## Roadmap
 
-- [x] 0–1. Skeleton fixes, async SQLAlchemy, first migrations
-- [x] 
-    2. Auth: JWT + rotating refresh, service layer owning transactions
-- [x] 
-    3. Alerts domain: CRUD, ownership, pagination, RFC 9457 errors
-- [x] 
-    4. Docker: multi-stage uv image, full compose with one-shot migrate
-- [x] 
-    5. Redis: price cache, login rate limiting
-- [x] 
-    6. RabbitMQ + FastStream: ingestor / evaluator / notifier
-- [x] 
-    7. Taskiq: background & scheduled jobs (email verify, digest, cleanup)
-- [x] 
-    8. WebSocket realtime feed (frontend entry point)
-- [x] 
-    9. Observability: Prometheus/Grafana, OpenTelemetry, structured logs
-- [x] 
-    10. Tests (pytest-asyncio, testcontainers) + mypy + GitHub Actions
-- [x] 
-    11. Hardening for public access: one service bootstrap, proxy headers, SMTP auth
-- [x] 
-    12. Deployment: GHCR images, production overlay, Caddy + TLS, delivery by commit SHA,
-        backups with a verified restore
-- [ ] 
-    13. React + Vite UI: alerts, live ticker, Telegram linking, trigger history
-- [ ] 
-    14. In-app AI agent: reads your data, drafts actions, you confirm them
+- [x] 0–1\. Skeleton fixes, async SQLAlchemy, first migrations
+- [x] 2\. Auth: JWT + rotating refresh, service layer owning transactions
+- [x] 3\. Alerts domain: CRUD, ownership, pagination, RFC 9457 errors
+- [x] 4\. Docker: multi-stage uv image, full compose with one-shot migrate
+- [x] 5\. Redis: price cache, login rate limiting
+- [x] 6\. RabbitMQ + FastStream: ingestor / evaluator / notifier
+- [x] 7\. Taskiq: background & scheduled jobs (email verify, digest, cleanup)
+- [x] 8\. WebSocket realtime feed (frontend entry point)
+- [x] 9\. Observability: Prometheus/Grafana, OpenTelemetry, structured logs
+- [x] 10\. Tests (pytest-asyncio, testcontainers) + mypy + GitHub Actions
+- [x] 11\. Hardening for public access: one service bootstrap, proxy headers, SMTP auth
+- [x] 12\. Deployment: GHCR images, production overlay, Caddy + TLS, delivery by commit SHA,
+  backups with a verified restore
+- [x] 13\. React + Vite UI: alerts, live prices, Telegram linking, trigger history, traces from
+  the browser, an end-to-end gate before every deploy
+- [ ] 14\. In-app AI agent: reads your data, drafts actions, you confirm them
