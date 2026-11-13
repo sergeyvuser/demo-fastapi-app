@@ -23,6 +23,16 @@ jobs:
       - run: uv sync --all-packages
       - run: uv run ruff check .
       - run: uv run ruff format --check .
+      # The deploy scripts run on the production server, and nothing else reads
+      # them before a deploy does. ShellCheck comes preinstalled on the runner.
+      # -S style: the strictest level, which every script passes today.
+      - run: git ls-files -z '*.sh' | xargs -0 shellcheck -S style
+      # The workflows themselves, including the bash inside their run: blocks
+      # (the image bundles ShellCheck). A tagged image rather than the download
+      # script, which is fetched from the repository's main branch on every run.
+      - uses: docker://rhysd/actionlint:1.7.12
+        with:
+          args: -color
 
   types:
     runs-on: ubuntu-latest

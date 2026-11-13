@@ -6,7 +6,7 @@ BACKEND := backend
 # habits are unchanged; `docker compose up` without this variable starts neither.
 export COMPOSE_PROFILES ?= tools
 
-.PHONY: help install run evaluator ingestor notifier worker scheduler up down stop-apps reset dev logs db-up tools migration migrate migrate-down migrate-check lint format types test test-unit test-integration check-ports docker-clean prod-config openapi front-install front-dev front-format front-lint front-types front-test
+.PHONY: help install run evaluator ingestor notifier worker scheduler up down stop-apps reset dev logs db-up tools migration migrate migrate-down migrate-check lint lint-sh lint-actions format types test test-unit test-integration check-ports docker-clean prod-config openapi front-install front-dev front-format front-lint front-types front-test
 
 help: ## Показать доступные команды
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -74,6 +74,12 @@ migrate-check: ## Проверить обратимость последней �
 
 lint: ## Ruff check across the whole workspace
 	uv run ruff check .
+
+lint-sh: ## ShellCheck over every tracked shell script, at the level CI uses
+	git ls-files -z '*.sh' | xargs -0 shellcheck -S style
+
+lint-actions: ## actionlint over the workflows, the same image and version CI runs
+	MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR):/repo" -w /repo rhysd/actionlint:1.7.12 -color
 
 format: ## Ruff format across the whole workspace
 	uv run ruff format .
