@@ -18,19 +18,21 @@ realtime dashboard frontend.
 - API documentation (Swagger) — https://alerts.vorobev.dev/api/docs
 - Dashboards, read-only — https://grafana.vorobev.dev
 
-Sign in with **`demo@vorobev.dev`** / **`demo-alerts-2026`**, or register with your own address.
+Sign in with **`demo@vorobev.dev`** / **`demo-alerts-2026`** — the landing page has a button that
+does it for you — or register with your own address.
 
 Three things are worth knowing before you click:
 
 - **The demo account is shared.** Alerts other visitors created are visible on it, the account is
   reset to its seeded state every night at 04:00 UTC, and the per-account limit is 20 Alerts — so
-  treat anything you create there as temporary.
+  treat anything you create there as temporary. The application says both of these too.
 - **Registering with a real address really sends mail**, and the message may land in spam: the
   sending domain is young, and reputation takes time even with SPF, DKIM and DMARC all passing.
   Creating an Alert requires the address to be verified.
-- **Telegram delivery needs a linked chat**, which is set server-side today and which the demo
-  account does not have. On that account a Trigger shows up in the live WebSocket feed and in the
-  daily digest rather than in a chat.
+- **Telegram delivery needs a Linked chat**: start the bot, then type your chat id into the field on
+  the Account screen, and the bot proves the chat is yours with a test message. The demo account is
+  the one account that cannot set one, so on it a Trigger shows up in History and in the live feed
+  rather than in a chat.
 
 ## Stack
 
@@ -311,6 +313,34 @@ the rendered `networks:` block in `/opt/alerts/.deploy.networks`, and a deploy t
 is open, so the production network has IPv6 enabled and the Telegram client binds to `"::"`
 (`APP_CONFIG__TELEGRAM__LOCAL_ADDRESS`). A host-side `curl` prefers IPv6 and proves nothing about the
 containers; check from inside one with `docker exec`.
+
+**After the deploy is recorded, the script checks the site the way a visitor reaches it**: `GET /`
+must serve the application's page, then it fetches the demo credentials from `GET /api/v1/demo`,
+signs in with them and signs out again. A failure there exits non-zero and turns the CI job red, but
+it cannot roll anything back or change the recorded rollback target — the site stays up and a human
+looks. The check runs on every path into production, the manual rollback and a deploy over ssh
+included, because it lives in `deploy.sh` rather than in the workflow. It is true at deploy time,
+not continuously.
+
+**The Digest and the Linked chat are settings of an account, not of the deployment.** Neither has an
+environment variable that turns it on for everyone, and neither has an admin endpoint.
+
+- The daily Digest is **opt-in**: `users.digest_enabled`, false until the account's owner turns it on
+  on the Account screen (`PUT /api/v1/users/me/preferences`). The nightly demo reset turns it off
+  on the demo account again, so the demo mailbox does not receive strangers' Triggers for long.
+- The Linked chat is `users.telegram_chat_id`, set by the owner through
+  `PUT /api/v1/users/me/linked-chat`. That call refuses a chat that has not started the bot, sends
+  the test message before saving, and a chat can belong to one account only (a UNIQUE column, so a
+  second account gets `409`). The demo account gets `403`. The bot the Account screen names comes
+  from Telegram's `getMe` at runtime, so a renamed bot needs no deploy; a new bot means a new
+  `APP_CONFIG__TELEGRAM__BOT_TOKEN`, and every existing Linked chat then points at a conversation
+  with the old bot and has to be set again.
+- To take either off someone's account, it is SQL against the production database:
+
+  ```sql
+  UPDATE users SET digest_enabled = false   WHERE email = '…';
+  UPDATE users SET telegram_chat_id = NULL  WHERE email = '…';
+  ```
 
 **Backups.** The database is dumped nightly on the host (custom format, seven-day rotation, in
 `/var/backups/alerts`) and the newest dump is copied to private object storage every Sunday. Both are
