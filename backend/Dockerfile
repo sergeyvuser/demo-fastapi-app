@@ -1,6 +1,10 @@
 # syntax=docker/dockerfile:1
 
-FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim AS builder
+# The builder is the runtime's own image plus the uv binary, so the two stages
+# share glibc and the interpreter path. uv's version is the root pyproject's
+# required-version (tests/deploy/test_uv_version.py).
+FROM python:3.14-slim-bookworm AS builder
+COPY --from=ghcr.io/astral-sh/uv:0.13.8 /uv /uvx /bin/
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 WORKDIR /app
 

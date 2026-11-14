@@ -4,6 +4,13 @@ version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = []
 
+[tool.uv]
+# The one uv version: uv refuses to run under any other, and setup-uv in CI
+# installs exactly this. The three Dockerfiles copy the same version; a test
+# in tests/deploy/test_uv_version.py holds them to it. Exact on purpose:
+# an upgrade is one deliberate commit.
+required-version = "==0.13.8"
+
 [tool.uv.workspace]
 members = [
     "backend",

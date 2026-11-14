@@ -20,7 +20,7 @@ jobs:
       - uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
-      - run: uv sync --all-packages
+      - run: uv sync --all-packages --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       # The deploy scripts run on the production server, and nothing else reads
@@ -41,7 +41,7 @@ jobs:
       - uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
-      - run: uv sync --all-packages
+      - run: uv sync --all-packages --locked
       - run: uv run mypy
 
   test:
@@ -51,7 +51,7 @@ jobs:
       - uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
-      - run: uv sync --all-packages
+      - run: uv sync --all-packages --locked
       # docker is preinstalled on ubuntu runners, so testcontainers just work;
       # Ryuk stays enabled here — it is only disabled on Windows dev machines
       - run: uv run pytest
