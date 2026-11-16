@@ -52,7 +52,11 @@ app.include_router(api_router)
 app.include_router(health_router)
 app.include_router(stats_router)
 
-Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+# include_in_schema: the instrumentator publishes /metrics by default, and only
+# Prometheus inside the network can reach it.
+Instrumentator().instrument(app).expose(
+    app, endpoint="/metrics", include_in_schema=False
+)
 
 # instrumentation needs the app/engine to exist — hence after creation.
 # excluded_urls keeps scrape and probe traffic out of the traces.

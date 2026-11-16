@@ -4,7 +4,8 @@ The edge proxy sends /api/* to the API and every other path to the frontend
 (ADR 0004). A route added at the root would therefore never answer: the door
 would serve the application shell in its place, with a 200 and no error
 anywhere. This pins the root-level surface to the paths that exist for callers
-inside the compose network — the ones the door answers 404.
+inside the compose network — the ones the door answers 404. They stay routes,
+but not published ones: the OpenAPI document lists only what a visitor can call.
 
 Read from the application object rather than from the router modules: FastAPI
 registers the docs routes itself, and the stage-12 incident was a library
@@ -37,6 +38,14 @@ def _paths() -> set[str]:
 def test_nothing_outside_api_but_the_internal_paths() -> None:
     outside = {p for p in _paths() if not p.startswith("/api/")}
     assert outside == INTERNAL
+
+
+def test_the_internal_paths_are_not_published() -> None:
+    # They exist (the test above) but the public document does not list them:
+    # every one is a 404 at the door, so a Swagger "Try it out" could only fail.
+    # Read from app.openapi(), which is what /api/openapi.json serves, library
+    # additions included: /metrics is added by the instrumentator, not by us.
+    assert not INTERNAL & app.openapi()["paths"].keys()
 
 
 def test_the_docs_are_served_under_api_and_only_once() -> None:

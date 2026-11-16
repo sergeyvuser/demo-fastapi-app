@@ -999,101 +999,6 @@
           }
         ]
       }
-    },
-    "/healthz": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "summary": "Healthz",
-        "description": "Liveness: the process is up and serving requests.",
-        "operationId": "healthz_healthz_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "title": "Response Healthz Healthz Get"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/readyz": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "summary": "Readyz",
-        "description": "Readiness: dependencies (database) are reachable.",
-        "operationId": "readyz_readyz_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "title": "Response Readyz Readyz Get"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/internal/ws-stats": {
-      "get": {
-        "tags": [
-          "Stats"
-        ],
-        "summary": "Ws Stats",
-        "operationId": "ws_stats_internal_ws_stats_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WsStats"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
-      }
-    },
-    "/metrics": {
-      "get": {
-        "summary": "Metrics",
-        "description": "Endpoint that serves Prometheus metrics.",
-        "operationId": "metrics_metrics_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
@@ -1970,32 +1875,6 @@
           "verification_token"
         ],
         "title": "VerificationRequest"
-      },
-      "WsStats": {
-        "properties": {
-          "connections": {
-            "type": "integer",
-            "title": "Connections"
-          },
-          "unique_users": {
-            "type": "integer",
-            "title": "Unique Users"
-          },
-          "watchers_by_symbol": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "type": "object",
-            "title": "Watchers By Symbol"
-          }
-        },
-        "type": "object",
-        "required": [
-          "connections",
-          "unique_users",
-          "watchers_by_symbol"
-        ],
-        "title": "WsStats"
       }
     },
     "securitySchemes": {

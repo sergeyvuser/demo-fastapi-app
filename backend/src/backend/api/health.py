@@ -3,7 +3,9 @@ from sqlalchemy import text
 
 from backend.core.db import AsyncSessionDep
 
-router = APIRouter(tags=["Health"])
+# Liveness and readiness are for the container healthcheck and for callers
+# inside the compose network; the door answers 404, so they are not published.
+router = APIRouter(tags=["Health"], include_in_schema=False)
 
 
 @router.get("/healthz")
