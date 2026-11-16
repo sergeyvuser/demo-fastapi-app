@@ -3,7 +3,7 @@
 # The builder is the runtime's own image plus the uv binary, so the two stages
 # share glibc and the interpreter path. uv's version is the root pyproject's
 # required-version (tests/deploy/test_uv_version.py).
-FROM python:3.14-slim-bookworm AS builder
+FROM python:3.14-slim-trixie AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.13.8 /uv /uvx /bin/
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 WORKDIR /app
@@ -23,7 +23,7 @@ COPY shared/ shared/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --package backend
 
-FROM python:3.14-slim-bookworm AS runtime
+FROM python:3.14-slim-trixie AS runtime
 RUN groupadd -r app && useradd -r -g app -d /app app
 COPY --from=builder --chown=app:app /app /app
 ENV PATH="/app/.venv/bin:$PATH" \
