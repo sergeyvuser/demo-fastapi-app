@@ -41,7 +41,9 @@ shared = { workspace = true }
 backend = "backend.run:start"
 
 [build-system]
-requires = ["uv_build>=0.9.7,<0.10.0"]
+# Includes the pinned uv (root required-version), so uv builds with its own
+# bundled backend instead of fetching a separate uv_build from PyPI.
+requires = ["uv_build>=0.13.8,<0.14"]
 build-backend = "uv_build"
 
 
