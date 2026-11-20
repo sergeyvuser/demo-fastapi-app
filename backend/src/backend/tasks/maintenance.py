@@ -1,12 +1,11 @@
 from datetime import UTC, datetime, timedelta
 
 from loguru import logger
-from sqlalchemy import delete, or_
 
 from backend.core.config import settings
-from backend.core.db import AsyncSessionLocal, rows_affected
-from backend.models import RefreshToken
+from backend.core.db import AsyncSessionLocal
 from backend.repositories.alert import AlertRepository
+from backend.repositories.refresh_token import RefreshTokenRepository
 from backend.repositories.trigger import TriggerRepository
 from backend.seed_demo import RESET_HOUR_UTC, reset_demo
 from backend.tasks.broker import broker
@@ -36,15 +35,7 @@ async def cleanup_refresh_tokens() -> int:
 
     cutoff = retention_cutoff(RETENTION_TOKENS)
     async with AsyncSessionLocal() as session:
-        purged = await rows_affected(
-            session,
-            delete(RefreshToken).where(
-                or_(
-                    RefreshToken.expires_at < cutoff,
-                    RefreshToken.revoked_at < cutoff,
-                )
-            ),
-        )
+        purged = await RefreshTokenRepository(session).delete_expired_before(cutoff)
         await session.commit()
     logger.bind(purged=purged).info("refresh token cleanup finished")
     return purged

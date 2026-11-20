@@ -177,5 +177,5 @@ class AlertService:
 
     async def delete(self, alert_id: uuid.UUID, user_id: uuid.UUID) -> None:
         alert = await self.get(alert_id=alert_id, user_id=user_id)
-        await self.session.delete(alert)
+        await self.alerts.remove(alert)
         await self.session.commit()

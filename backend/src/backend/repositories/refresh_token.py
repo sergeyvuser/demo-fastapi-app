@@ -1,9 +1,10 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.core.db import rows_affected
 from backend.models.refresh_token import RefreshToken
 
 
@@ -44,3 +45,16 @@ class RefreshTokenRepository:
             .values(revoked_at=datetime.now(UTC))
         )
         await self.session.execute(stmt)
+
+    async def delete_expired_before(self, cutoff: datetime) -> int:
+        """Bulk delete of tokens expired or revoked before `cutoff`,
+        returning how many rows went. The caller commits."""
+        return await rows_affected(
+            self.session,
+            delete(RefreshToken).where(
+                or_(
+                    RefreshToken.expires_at < cutoff,
+                    RefreshToken.revoked_at < cutoff,
+                )
+            ),
+        )

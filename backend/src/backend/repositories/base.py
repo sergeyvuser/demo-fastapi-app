@@ -1,8 +1,6 @@
 import uuid
-from collections.abc import Sequence
 
 from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -14,16 +12,6 @@ class BaseRepository[ModelT, CreateSchemaT: BaseModel, UpdateSchemaT: BaseModel]
 
     async def get_by_id(self, item_id: uuid.UUID | int) -> ModelT | None:
         return await self.session.get(self.model, item_id)
-
-    async def get_multi(self, skip: int = 0, limit: int = 100) -> Sequence[ModelT]:
-        stmt = (
-            select(self.model)
-            .order_by(self.model.id)  # type: ignore[attr-defined]
-            .offset(skip)
-            .limit(limit)
-        )
-        result = await self.session.scalars(stmt)
-        return result.all()
 
     async def create(self, schema: CreateSchemaT) -> ModelT:
         db_obj = self.model(**schema.model_dump())
@@ -40,11 +28,11 @@ class BaseRepository[ModelT, CreateSchemaT: BaseModel, UpdateSchemaT: BaseModel]
         await self.session.refresh(db_obj)
         return db_obj
 
-    async def delete(self, item_id: uuid.UUID | int) -> bool:
-        db_obj = await self.get_by_id(item_id)
-        if not db_obj:
-            return False
+    async def remove(self, db_obj: ModelT) -> None:
+        """Delete an object the caller has already loaded. The caller commits.
 
+        Takes the object, not an id: loading it is where ownership is checked,
+        and an id-based delete would re-fetch it blind to the owner.
+        """
         await self.session.delete(db_obj)
         await self.session.flush()
-        return True
